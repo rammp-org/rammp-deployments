@@ -20,12 +20,12 @@ nodes:
     description: Orbbec Gemini 336L, scene view
     select: single
     alternatives:
-      # image is built on the demo machine from dojo/docker/gemini; it becomes a
-      # pinned ghcr.io/rammp-org/... tag once the sensing module repo exists.
+      # Built and published by rammp-suite-software. `:main` is a moving tag —
+      # pin it to a release tag once that repo cuts one.
       - id: gemini336l_docker
         kind: docker
         container:
-          image: dojo/gemini:humble
+          image: ghcr.io/rammp-org/rammp-suite-software/gemini:main
           # Userspace-USB device: privileged + /dev survives replugs. host net
           # and IPC keep DDS shared-memory transport intact; user 1000:1000
           # matches the host user so FastDDS's 0644 /dev/shm segments stay
@@ -58,7 +58,7 @@ nodes:
       - id: d405_docker
         kind: docker
         container:
-          image: dojo/realsense:humble
+          image: ghcr.io/rammp-org/rammp-suite-software/realsense:main
           privileged: true
           network_mode: host
           ipc: host

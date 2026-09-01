@@ -1,0 +1,83 @@
+# Sheppy manifest for the December 2026 demo. Launch from the demo machine:
+#   sheppy december_2026/sheppy-manifest.yaml
+#
+# Camera nodes only so far; the arm and the demo modules land here as their
+# module repos publish fragments.
+#
+# Every node carries a mock alternative alongside the real one, so a profile
+# selecting only mocks runs on a workstation with no hardware attached. The
+# mocks publish empty messages at the right topic and type — enough to develop
+# wiring against, and deliberately not a simulation.
+#
+# Container definitions are inline rather than a `compose:` reference: sheppy
+# resolves a compose file relative to this manifest, so a reference would mean
+# carrying a second copy of the dojo's compose.yaml here to drift against.
+# Inline blocks are not variable-interpolated (compose files are), so anything
+# that was `${VAR:-default}` in the dojo is spelled out below.
+machines: []
+nodes:
+  - name: scene_camera
+    description: Orbbec Gemini 336L, scene view
+    select: single
+    alternatives:
+      # image is built on the demo machine from dojo/docker/gemini; it becomes a
+      # pinned ghcr.io/rammp-org/... tag once the sensing module repo exists.
+      - id: gemini336l_docker
+        kind: docker
+        container:
+          image: dojo/gemini:humble
+          # Userspace-USB device: privileged + /dev survives replugs. host net
+          # and IPC keep DDS shared-memory transport intact; user 1000:1000
+          # matches the host user so FastDDS's 0644 /dev/shm segments stay
+          # readable by host subscribers (root would leave discovery working
+          # but the data plane invisible — looks like a stalled publisher).
+          privileged: true
+          network_mode: host
+          ipc: host
+          volumes:
+            - /dev:/dev
+          user: "1000:1000"
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          command: ros2 launch orbbec_camera gemini_330_series.launch.py camera_name:=scene_camera
+        publishes:
+          - /scene_camera/color/image_raw
+          - /scene_camera/depth/image_raw
+          - /scene_camera/depth/points
+      - id: scene_camera_mock
+        kind: process
+        command: "bash -lc 'source /opt/ros/humble/setup.bash && ros2 topic pub -r 10 /scene_camera/color/image_raw sensor_msgs/msg/Image \"{}\"'"
+        publishes:
+          - /scene_camera/color/image_raw
+
+  - name: wrist_camera
+    description: Intel RealSense D405, wrist mounted
+    select: single
+    alternatives:
+      - id: d405_docker
+        kind: docker
+        container:
+          image: dojo/realsense:humble
+          privileged: true
+          network_mode: host
+          ipc: host
+          volumes:
+            - /dev:/dev
+          # gid 44 = video: librealsense streams over V4L2, and /dev/video* is
+          # root:video 0660. The Orbbec needs no such group (libusb, node 0666).
+          user: "1000:44"
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          # camera_namespace:=/ keeps topics at /wrist_camera/... instead of
+          # rs_launch.py's default /camera/wrist_camera/...
+          command: ros2 launch realsense2_camera rs_launch.py camera_name:=wrist_camera camera_namespace:=/
+        publishes:
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/depth/image_rect_raw
+      - id: wrist_camera_mock
+        kind: process
+        command: "bash -lc 'source /opt/ros/humble/setup.bash && ros2 topic pub -r 10 /wrist_camera/color/image_raw sensor_msgs/msg/Image \"{}\"'"
+        publishes:
+          - /wrist_camera/color/image_raw

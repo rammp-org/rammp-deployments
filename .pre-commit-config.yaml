@@ -1,0 +1,47 @@
+# Style and hygiene gates. Hook revisions are pinned; updating them is a
+# deliberate PR (`pre-commit autoupdate`), never silent drift.
+#
+# Mirrors the module repos, minus the compiled-language hooks — this repo is
+# YAML, Markdown, and one Python script.
+repos:
+  # General housekeeping
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        # Markdown gives trailing double-space a meaning (a hard line break),
+        # so stripping it there silently rewrites documents.
+        exclude: '(\.md$|\.markdown$)'
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      # Catches a broken manifest at commit time. It only proves the YAML
+      # parses — scripts/validate_manifest.py is what proves it means anything.
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # Python
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # Markdown
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.17
+    hooks:
+      - id: mdformat
+        additional_dependencies:
+          - mdformat-gfm
+
+  # The workflows are the gate on everything else, so they get a linter too.
+  # v1.7.12, not v1.6.27: the older release predates GitHub's arm64 hosted
+  # runners and rejects `ubuntu-22.04-arm` as an unknown label.
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint

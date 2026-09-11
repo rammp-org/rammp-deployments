@@ -1,0 +1,29 @@
+name: Lint
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # The same hooks a commit runs. Revisions are pinned in
+      # .pre-commit-config.yaml; updating them is a deliberate PR.
+      - uses: pre-commit/action@v3.0.1

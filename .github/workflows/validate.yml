@@ -1,0 +1,37 @@
+# The gate that matters here. This repo ships manifests and nothing else, so
+# the only honest check is whether sheppy can load them.
+name: Validate manifests
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  manifests:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # From git at @main, not a release: sheppy has never cut one. A moving
+      # dependency is the point here rather than a compromise — a manifest that
+      # only validates against a sheppy older than the one on the robot is
+      # telling us nothing. When sheppy tags a release, pin this to it.
+      - name: Install sheppy
+        run: pip install "sheppy @ git+https://github.com/rammp-org/sheppy@main"
+
+      - name: Validate every manifest
+        run: python3 scripts/validate_manifest.py

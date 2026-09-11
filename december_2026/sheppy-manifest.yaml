@@ -1,13 +1,23 @@
 # Sheppy manifest for the December 2026 demo. Launch from the demo machine:
 #   sheppy december_2026/sheppy-manifest.yaml
 #
-# Camera nodes only so far; the arm and the demo modules land here as their
-# module repos publish fragments.
+# Cameras and the arm so far; the demo modules land here as their module repos
+# publish fragments.
 #
 # Every node carries a mock alternative alongside the real one, so a profile
 # selecting only mocks runs on a workstation with no hardware attached. The
 # mocks publish empty messages at the right topic and type — enough to develop
 # wiring against, and deliberately not a simulation.
+#
+# DDS: the arm and the planner speak Cyclone (rammp-base and the cuRobo image
+# both set RMW_IMPLEMENTATION and a tuned CYCLONEDDS_URI), the two cameras speak
+# Fast DDS (their images are plain ros:humble-ros-base). Cross-vendor, discovery
+# succeeds and then sample delivery fails — so as it stands the arm and the
+# cameras do NOT share a graph. The fix is the cameras moving to Cyclone, which
+# is a rammp-suite-software change: those images have to install
+# ros-humble-rmw-cyclonedds-cpp before an RMW_IMPLEMENTATION set here would do
+# anything but stop them booting. Add it to both camera `environment:` blocks
+# once that lands.
 #
 # Container definitions are inline rather than a `compose:` reference: sheppy
 # resolves a compose file relative to this manifest, so a reference would mean
@@ -81,3 +91,118 @@ nodes:
         command: "bash -lc 'source /opt/ros/humble/setup.bash && ros2 topic pub -r 10 /wrist_camera/color/image_raw sensor_msgs/msg/Image \"{}\"'"
         publishes:
           - /wrist_camera/color/image_raw
+
+  - name: arm
+    description: Kinova Gen3 7-DoF on a 2F-85 gripper
+    select: single
+    alternatives:
+      # Transcribed from kinova-gen3-ros2's rammp-alternative.yaml. That
+      # fragment uses `compose:` against the module's own deploy/compose.yaml,
+      # which builds images locally; inline here, pinned to the release, per
+      # this file's convention.
+      #
+      # The module is TWO containers — this one and the `planner` node below.
+      # Three of its four action servers (go_to_ee_pose, go_to_joint_config,
+      # go_to_preset) accept goals that can NEVER succeed without the planner,
+      # and sheppy ignores depends_on, so the pairing lives here.
+      - id: kinova_gen3_driver
+        kind: docker
+        # Keys the params file sheppy writes, so the params below land on this
+        # node rather than the /** wildcard. arbitration_mode is READ-ONLY at
+        # launch, so a params file at startup is the only way it can be set.
+        ros_node_name: kinova_gen3_node
+        container:
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:1.0.0
+          network_mode: host
+          ipc: host
+          # SYS_NICE permits sched_setscheduler; the ulimits are what let it
+          # SUCCEED. Capabilities are not rlimits — `privileged: true` raises
+          # the first and not the second, so it is NOT a substitute here.
+          # (abra is RT-tuned with isolcpus=11 nohz_full=11 rcu_nocbs=11, which
+          # no container contract can express — this only makes RT possible.)
+          cap_add: [SYS_NICE]
+          ulimits:
+            rtprio: 99
+            memlock: -1
+          # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base,
+          # which sets Cyclone plus CYCLONEDDS_URI. Overriding it would strip
+          # the tuned config with it. See the cameras above — they are the
+          # odd ones out.
+          environment:
+            ROS_DOMAIN_ID: "0"
+          # Run as root: the RT loop needs the rlimits above, and unlike the
+          # cameras there is no /dev/shm ownership problem to dodge — Cyclone
+          # talks UDP loopback, not FastDDS's shared-memory segments.
+          #
+          # Paths are /module_ws, NOT the /ros2_ws the module's own
+          # deploy/compose.yaml still says: rammp-base owns /ros2_ws (the
+          # interface contract) and this node builds into /module_ws on top.
+          command:
+            - /module_ws/install/kinova_gen3_ros2/lib/kinova_gen3_ros2/kinova_gen3_node
+            - --ip
+            - 192.168.1.10
+            - --urdf
+            - /module_ws/src/kinova-gen3-driver/models/gen3_7dof_2f85.urdf
+            # Pins ONLY the 1 kHz RT loop to abra's isolated core, not the
+            # whole container — --cpuset-cpus would drag the ROS threads onto
+            # it too. Without --cpu the node sets no affinity at all.
+            - --cpu
+            - "11"
+        params:
+          arbitration_mode: disabled
+          estop_clear_max_age_s: 1.0
+          expect_gripper: true
+        publishes:
+          - /joint_states
+          - /ee_state
+          - /control_status
+          - /stream_status
+          - /gripper_state
+          - /diagnostics
+        subscribes:
+          - /estop
+          - /setpoint/joint_position
+          - /setpoint/joint_velocity
+          - /setpoint/joint_torque
+          - /setpoint/pose
+          - /setpoint/twist
+          - /setpoint/gripper
+      # The image also ships a --sim mode that is a real simulated arm, but it
+      # is arm64-only, so it would not serve the "runs on a workstation" job
+      # this mock exists for. Publish-only, as above.
+      - id: arm_mock
+        kind: process
+        command: "bash -lc 'source /opt/ros/humble/setup.bash && ros2 topic pub -r 100 /joint_states sensor_msgs/msg/JointState \"{}\"'"
+        publishes:
+          - /joint_states
+
+  - name: planner
+    description: cuRobo motion planner for the arm's go_to_* actions
+    select: single
+    alternatives:
+      # Owned by rammp-org/RAMMP-CuRobo; declared here because sheppy cannot
+      # express "and also start that one". Its own rammp-alternative.curobo.yaml
+      # in kinova-gen3-ros2 says the same thing against a local build.
+      - id: curobo_planner
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-curobo:1.0.0
+          runtime: nvidia              # JetPack exposes the GPU this way, NOT --gpus
+          network_mode: host
+          ipc: host
+          environment:
+            ROS_DOMAIN_ID: "0"
+          # The first plan after a cold start compiles CUDA kernels — minutes,
+          # during which go_to_* goals just sit there. The named volume keeps
+          # them across restarts, so only the very first run pays.
+          volumes:
+            - curobo_kernel_cache:/root/.cache
+        # No topics: this node is reached over the /rammp_curobo/plan_to_pose
+        # and /rammp_curobo/plan_to_joints ACTIONS, which the schema has no way
+        # to declare. Nothing here is starved; there is just nothing to list.
+        publishes: []
+        subscribes: []
+      # No mock. The mock convention here is "publish an empty message at the
+      # right topic and type", and an action server has no topic to publish —
+      # a mock would have to implement the action to be worth anything. Select
+      # arm_mock and leave this node unselected instead.

@@ -111,6 +111,32 @@ nodes:
         publishes:
           - /wrist_camera/color/image_raw
 
+  - name: foxglove
+    description: Foxglove bridge — WebSocket on :8765 for inspecting the graph
+    select: single
+    alternatives:
+      # Built and published by rammp-suite-software. On rammp-base like every
+      # other node here: only a Cyclone participant with the fleet config can
+      # see the fleet's topics, which is the whole point of a bridge.
+      - id: foxglove_bridge_docker
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-suite-software/foxglove:0.2.0
+          network_mode: host
+          ipc: host
+          environment:
+            ROS_DOMAIN_ID: "0"
+          command: ros2 launch foxglove_bridge foxglove_bridge_launch.xml
+        # No topics: it is a WebSocket server, reached at ws://<machine>:8765
+        # from Foxglove (Open connection → Foxglove WebSocket). Camera-specific
+        # services (orbbec_camera_msgs, realsense2_camera_msgs) are skipped
+        # with a warning at startup — their type packages are not in the
+        # image; every topic and every sensor_msgs service is bridged.
+        publishes: []
+        subscribes: []
+      # No mock: nothing in the graph consumes it, so an unselected node costs
+      # a workstation profile nothing.
+
   - name: arm
     description: Kinova Gen3 7-DoF on a 2F-85 gripper
     select: single

@@ -115,13 +115,13 @@ nodes:
     description: Foxglove bridge — WebSocket on :8765 for inspecting the graph
     select: single
     alternatives:
-      # Built and published by rammp-suite-software. On rammp-base like every
+      # Built and published by rammp-tools. On rammp-base like every
       # other node here: only a Cyclone participant with the fleet config can
       # see the fleet's topics, which is the whole point of a bridge.
       - id: foxglove_bridge_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/foxglove:0.2.0
+          image: ghcr.io/rammp-org/rammp-tools/foxglove:0.1.0
           network_mode: host
           ipc: host
           environment:

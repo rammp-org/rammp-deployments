@@ -9,15 +9,10 @@
 # mocks publish empty messages at the right topic and type — enough to develop
 # wiring against, and deliberately not a simulation.
 #
-# DDS: the arm and the planner speak Cyclone (rammp-base and the cuRobo image
-# both set RMW_IMPLEMENTATION and a tuned CYCLONEDDS_URI), the two cameras speak
-# Fast DDS (their images are plain ros:humble-ros-base). Cross-vendor, discovery
-# succeeds and then sample delivery fails — so as it stands the arm and the
-# cameras do NOT share a graph. The fix is the cameras moving to Cyclone, which
-# is a rammp-suite-software change: those images have to install
-# ros-humble-rmw-cyclonedds-cpp before an RMW_IMPLEMENTATION set here would do
-# anything but stop them booting. Add it to both camera `environment:` blocks
-# once that lands.
+# DDS: everything here speaks Cyclone. The arm, the planner and (from 0.1.0) the
+# camera images are all built FROM rammp-base, which sets RMW_IMPLEMENTATION and
+# a tuned CYCLONEDDS_URI — so no node below sets either, and overriding one
+# would strip the fleet config with it.
 #
 # Container definitions are inline rather than a `compose:` reference: sheppy
 # resolves a compose file relative to this manifest, so a reference would mean
@@ -30,17 +25,13 @@ nodes:
     description: Orbbec Gemini 336L, scene view
     select: single
     alternatives:
-      # Built and published by rammp-suite-software. `:main` is a moving tag —
-      # pin it to a release tag once that repo cuts one.
+      # Built and published by rammp-suite-software.
       - id: gemini336l_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/gemini:main
-          # Userspace-USB device: privileged + /dev survives replugs. host net
-          # and IPC keep DDS shared-memory transport intact; user 1000:1000
-          # matches the host user so FastDDS's 0644 /dev/shm segments stay
-          # readable by host subscribers (root would leave discovery working
-          # but the data plane invisible — looks like a stalled publisher).
+          image: ghcr.io/rammp-org/rammp-suite-software/gemini:0.1.0
+          # Userspace-USB device: privileged + /dev survives replugs. The
+          # camera needs no root, so it runs as the host user.
           privileged: true
           network_mode: host
           ipc: host
@@ -62,13 +53,13 @@ nodes:
           - /scene_camera/color/image_raw
 
   - name: wrist_camera
-    description: Intel RealSense D405, wrist mounted
+    description: Wrist-mounted RGB-D camera — RealSense D405 or OAK-D Pro
     select: single
     alternatives:
       - id: d405_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/realsense:main
+          image: ghcr.io/rammp-org/rammp-suite-software/realsense:0.1.0
           privileged: true
           network_mode: host
           ipc: host
@@ -83,6 +74,34 @@ nodes:
           # camera_namespace:=/ keeps topics at /wrist_camera/... instead of
           # rs_launch.py's default /camera/wrist_camera/...
           command: ros2 launch realsense2_camera rs_launch.py camera_name:=wrist_camera camera_namespace:=/
+        publishes:
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/depth/image_rect_raw
+      # Same topics as the D405, so consumers cannot tell which is selected —
+      # except at range: the D405 sees from ~7 cm, this from ~15-30 cm (75 mm
+      # baseline, even with the near-field tuning in the image's wrist.yaml:
+      # ROBOTICS preset, extended disparity, dot projector on).
+      - id: oak_d_pro_docker
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.1.0
+          # PoE camera: reached over the network, so no /dev and no privileges.
+          network_mode: host
+          ipc: host
+          environment:
+            ROS_DOMAIN_ID: "0"
+          # The node binary, not driver.launch.py: with rs_compat that launch
+          # file forces a /camera namespace, and wrist.yaml spells out what it
+          # would have set. Exec'd directly it is PID 1 and gets SIGTERM.
+          command:
+            - /opt/ros/humble/lib/depthai_ros_driver_v3/driver_node
+            - --ros-args
+            - -r
+            - __node:=wrist_camera
+            - --params-file
+            - /etc/rammp/oak/wrist.yaml
+            - -p
+            - driver.i_ip:=192.168.1.200
         publishes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/depth/image_rect_raw
@@ -126,13 +145,10 @@ nodes:
             memlock: -1
           # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base,
           # which sets Cyclone plus CYCLONEDDS_URI. Overriding it would strip
-          # the tuned config with it. See the cameras above — they are the
-          # odd ones out.
+          # the tuned config with it.
           environment:
             ROS_DOMAIN_ID: "0"
-          # Run as root: the RT loop needs the rlimits above, and unlike the
-          # cameras there is no /dev/shm ownership problem to dodge — Cyclone
-          # talks UDP loopback, not FastDDS's shared-memory segments.
+          # Run as root: the RT loop needs the rlimits above.
           #
           # Paths are /module_ws, NOT the /ros2_ws the module's own
           # deploy/compose.yaml still says: rammp-base owns /ros2_ws (the

@@ -157,7 +157,7 @@ nodes:
         # launch, so a params file at startup is the only way it can be set.
         ros_node_name: kinova_gen3_node
         container:
-          image: ghcr.io/rammp-org/kinova-gen3-ros2:1.0.0
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:1.0.1
           network_mode: host
           ipc: host
           # SYS_NICE permits sched_setscheduler; the ulimits are what let it

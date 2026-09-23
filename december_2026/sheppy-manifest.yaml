@@ -1,7 +1,7 @@
 # Sheppy manifest for the December 2026 demo. Launch from the demo machine:
 #   sheppy december_2026/sheppy-manifest.yaml
 #
-# Cameras and the arm so far; the demo modules land here as their module repos
+# Cameras, the arm and operator teleop so far; the demo modules land here as their module repos
 # publish fragments.
 #
 # Every node carries a mock alternative alongside the real one, so a profile
@@ -248,3 +248,95 @@ nodes:
       # right topic and type", and an action server has no topic to publish —
       # a mock would have to implement the action to be worth anything. Select
       # arm_mock and leave this node unselected instead.
+
+  - name: arm_teleop
+    description: Operator input (Xbox pad or Meta Quest 3) -> the arm's streaming tier
+    select: single
+    alternatives:
+      # Transcribed from rammp-org/rammp-teleop's rammp-alternative.{xbox,quest,
+      # quest-mock}.yaml, pinned to its release. Each alternative acquires
+      # control of the arm and opens a stream, so the `arm` node must be
+      # selected alongside; a profile that does not want teleop simply leaves
+      # this node unselected. Nothing moves until the operator engages (stick
+      # deflection on the pad, grip squeeze on the Quest).
+      #
+      # Xbox pad over USB: privileged + /dev:/dev so joy_node can open
+      # /dev/input/js0. Streams base-frame twists (ee_twist).
+      - id: xbox_pad
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-teleop:0.1.0
+          network_mode: host
+          ipc: host
+          privileged: true
+          volumes:
+            - /dev:/dev
+          environment:
+            ROS_DOMAIN_ID: "0"
+          command: /module_ws/src/rammp-teleop/scripts/launch_entry.py rammp_teleop xbox.launch.py
+        publishes:
+          - /setpoint/twist
+          - /setpoint/gripper
+          - /estop
+        subscribes:
+          - /ee_state
+          - /joint_states
+          - /gripper_state
+          - /stream_status
+          - /control_status
+      # Meta Quest 3 plugged into the Jetson over USB-C: quest_reader talks to
+      # the headset over adb (needs /dev/bus/usb) and quest_teleop streams
+      # clutched poses on ee_pose_impedance. ~/.android holds the adb key the
+      # headset authorized ("Always allow from this computer"); without that
+      # mount every container start re-prompts the headset. ~/.config/rammp_teleop
+      # holds the controller->base calibration the operator redoes from the
+      # controller (hold A) after each headset reboot, so it survives restarts.
+      - id: quest3
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-teleop:0.1.0
+          network_mode: host
+          ipc: host
+          privileged: true
+          volumes:
+            - /dev:/dev
+            - /home/abra/.android:/root/.android
+            - /home/abra/.config/rammp_teleop:/config
+          environment:
+            ROS_DOMAIN_ID: "0"
+          command: /module_ws/src/rammp-teleop/scripts/launch_entry.py rammp_teleop quest.launch.py r_align_file:=/config/quest_r_align.json
+        publishes:
+          - /setpoint/pose
+          - /setpoint/gripper
+          - /estop
+          - /quest/right/pose
+          - /quest/joy
+        subscribes:
+          - /ee_state
+          - /joint_states
+          - /gripper_state
+          - /stream_status
+          - /control_status
+      # Same interface, no headset: a scripted controller loops
+      # engage/move/grip/release. Pairs with arm_mock for wiring work off-robot.
+      - id: quest3_mock
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-teleop:0.1.0
+          network_mode: host
+          ipc: host
+          environment:
+            ROS_DOMAIN_ID: "0"
+          command: /module_ws/src/rammp-teleop/scripts/launch_entry.py rammp_teleop quest.launch.py mock:=true
+        publishes:
+          - /setpoint/pose
+          - /setpoint/gripper
+          - /estop
+          - /quest/right/pose
+          - /quest/joy
+        subscribes:
+          - /ee_state
+          - /joint_states
+          - /gripper_state
+          - /stream_status
+          - /control_status

@@ -253,8 +253,9 @@ nodes:
     description: Operator input (Xbox pad or Meta Quest 3) -> the arm's streaming tier
     select: single
     alternatives:
-      # Transcribed from rammp-org/rammp-teleop's rammp-alternative.{xbox,quest,
-      # quest-mock}.yaml, pinned to its release. Each alternative acquires
+      # Transcribed from rammp-org/rammp-teleop's rammp-alternative.{xbox,quest}.yaml,
+      # pinned to its release. (Its quest-mock fragment is not carried here; the
+      # mock convention in this file is arm_mock plus an unselected teleop.) Each alternative acquires
       # control of the arm and opens a stream, so the `arm` node must be
       # selected alongside; a profile that does not want teleop simply leaves
       # this node unselected. Nothing moves until the operator engages (stick
@@ -305,29 +306,6 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
           command: /module_ws/src/rammp-teleop/scripts/launch_entry.py rammp_teleop quest.launch.py r_align_file:=/config/quest_r_align.json
-        publishes:
-          - /setpoint/pose
-          - /setpoint/gripper
-          - /estop
-          - /quest/right/pose
-          - /quest/joy
-        subscribes:
-          - /ee_state
-          - /joint_states
-          - /gripper_state
-          - /stream_status
-          - /control_status
-      # Same interface, no headset: a scripted controller loops
-      # engage/move/grip/release. Pairs with arm_mock for wiring work off-robot.
-      - id: quest3_mock
-        kind: docker
-        container:
-          image: ghcr.io/rammp-org/rammp-teleop:0.1.0
-          network_mode: host
-          ipc: host
-          environment:
-            ROS_DOMAIN_ID: "0"
-          command: /module_ws/src/rammp-teleop/scripts/launch_entry.py rammp_teleop quest.launch.py mock:=true
         publishes:
           - /setpoint/pose
           - /setpoint/gripper

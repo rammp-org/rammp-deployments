@@ -29,7 +29,7 @@ nodes:
       - id: gemini336l_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/gemini:0.1.0
+          image: ghcr.io/rammp-org/rammp-suite-software/gemini:0.3.0
           # Userspace-USB device: privileged + /dev survives replugs. The
           # camera needs no root, so it runs as the host user.
           privileged: true
@@ -41,11 +41,57 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
-          command: ros2 launch orbbec_camera gemini_330_series.launch.py camera_name:=scene_camera
+          # The image's entrypoint runs the node with its defaults; only the
+          # rename is appended. This driver names by namespace.
+          command: [--ros-args, -r, __ns:=/scene_camera]
+        params:
+          # tf frame prefix, kept equal to the namespace.
+          camera_name: scene_camera
+          # Which Gemini, from `ros2 run orbbec_camera list_devices_node`.
+          # Empty = the only one on the machine.
+          serial_number: ""
+          # <width>, <height>, <fps>; 0 = the device's default profile.
+          color_width: 0
+          color_height: 0
+          color_fps: 0
+          depth_width: 0
+          depth_height: 0
+          depth_fps: 0
         publishes:
           - /scene_camera/color/image_raw
           - /scene_camera/depth/image_raw
           - /scene_camera/depth/points
+      # Wide-angle alternative: OAK-D Pro W PoE, 127° HFOV on the stereo pair
+      # and on the OV9782 color sensor (the "97" variant). Same image as the
+      # wrist OAK; only params differ. Color matches the Gemini's topic; depth
+      # is depth/image_rect_raw (RealSense naming) and there is no points topic.
+      - id: oak_d_pro_w_docker
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.0
+          # PoE camera: reached over the network, so no /dev and no privileges.
+          network_mode: host
+          ipc: host
+          environment:
+            ROS_DOMAIN_ID: "0"
+          command: [--ros-args, -r, __node:=scene_camera]
+        params:
+          # TODO: the wide camera's address once it is on the bench network.
+          driver.i_ip: 192.168.1.201
+          driver.i_tf_base_frame: scene_camera
+          driver.i_tf_parent_frame: scene_camera_link
+          # Full sensor resolution on both the stereo pair and the color
+          # sensor; the driver undistorts color by default, which is what
+          # makes the wide lens usable as-is.
+          color.i_width: 1280
+          color.i_height: 800
+          color.i_fps: 30.0
+          depth.i_width: 1280
+          depth.i_height: 800
+          depth.i_fps: 30.0
+        publishes:
+          - /scene_camera/color/image_raw
+          - /scene_camera/depth/image_rect_raw
       - id: scene_camera_mock
         kind: process
         command: "bash -lc 'source /opt/ros/humble/setup.bash && ros2 topic pub -r 10 /scene_camera/color/image_raw sensor_msgs/msg/Image \"{}\"'"
@@ -59,7 +105,7 @@ nodes:
       - id: d405_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/realsense:0.1.0
+          image: ghcr.io/rammp-org/rammp-suite-software/realsense:0.3.0
           privileged: true
           network_mode: host
           ipc: host
@@ -71,37 +117,56 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
-          # camera_namespace:=/ keeps topics at /wrist_camera/... instead of
-          # rs_launch.py's default /camera/wrist_camera/...
-          command: ros2 launch realsense2_camera rs_launch.py camera_name:=wrist_camera camera_namespace:=/
+          # The image's entrypoint runs the node with its defaults; only the
+          # rename is appended.
+          command: [--ros-args, -r, __node:=wrist_camera]
+        params:
+          # Which RealSense: leading underscore, from rs-enumerate-devices.
+          serial_no: "_260322274242"
+          # <width>x<height>x<fps>, the D405's default profile. Its color
+          # comes off the depth module, hence depth_module.color_profile. On
+          # abra the camera hangs off a USB 2 port, which caps this at ~10 fps
+          # until it moves to a USB 3 one.
+          depth_module.color_profile: 848x480x30
+          depth_module.depth_profile: 848x480x30
         publishes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/depth/image_rect_raw
       # Same topics as the D405, so consumers cannot tell which is selected —
       # except at range: the D405 sees from ~7 cm, this from ~15-30 cm (75 mm
-      # baseline, even with the near-field tuning in the image's wrist.yaml:
-      # ROBOTICS preset, extended disparity, dot projector on).
+      # baseline, even with the near-field tuning in params below: ROBOTICS
+      # preset, extended disparity, dot projector on).
       - id: oak_d_pro_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.1.0
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.0
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
           environment:
             ROS_DOMAIN_ID: "0"
-          # The node binary, not driver.launch.py: with rs_compat that launch
-          # file forces a /camera namespace, and wrist.yaml spells out what it
-          # would have set. Exec'd directly it is PID 1 and gets SIGTERM.
-          command:
-            - /opt/ros/humble/lib/depthai_ros_driver_v3/driver_node
-            - --ros-args
-            - -r
-            - __node:=wrist_camera
-            - --params-file
-            - /etc/rammp/oak/wrist.yaml
-            - -p
-            - driver.i_ip:=192.168.1.200
+          # The image's entrypoint runs the node with the driver's defaults;
+          # only the rename is appended, and the wrist tuning lives in params.
+          command: [--ros-args, -r, __node:=wrist_camera]
+        params:
+          # Which OAK: the PoE address (USB models take driver.i_device_id,
+          # the MxID, instead).
+          driver.i_ip: 192.168.1.200
+          driver.i_tf_base_frame: wrist_camera
+          driver.i_tf_parent_frame: wrist_camera_link
+          pipeline_gen.i_enable_imu: false
+          color.i_width: 640
+          color.i_height: 400
+          color.i_fps: 30.0
+          color.i_synced: true
+          depth.i_width: 640
+          depth.i_height: 400
+          depth.i_fps: 30.0
+          depth.i_synced: true
+          # Near-field tuning: extended disparity doubles the search range,
+          # which halves the minimum depth; 400P halves it again versus 800P.
+          depth.i_depth_preset: ROBOTICS
+          depth.i_extended_disp: true
         publishes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/depth/image_rect_raw
@@ -115,7 +180,7 @@ nodes:
       - id: d435i_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/d435i:0.2.0
+          image: ghcr.io/rammp-org/rammp-suite-software/d435i:0.3.0
           privileged: true
           network_mode: host
           ipc: host
@@ -130,9 +195,8 @@ nodes:
           # <width>x<height>x<fps>
           rgb_camera.color_profile: 640x480x30
           depth_module.depth_profile: 640x480x30
-          # Regex on the device name, so a D405 on the same machine is not
-          # picked up first.
-          device_type: "435"
+          # Which RealSense: leading underscore, from rs-enumerate-devices.
+          serial_no: "_950122071279"
         publishes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/depth/image_rect_raw

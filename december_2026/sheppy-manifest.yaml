@@ -53,7 +53,7 @@ nodes:
           - /scene_camera/color/image_raw
 
   - name: wrist_camera
-    description: Wrist-mounted RGB-D camera — RealSense D405 or OAK-D Pro
+    description: Wrist-mounted RGB-D camera — RealSense D405, D435i, or OAK-D Pro
     select: single
     alternatives:
       - id: d405_docker
@@ -105,6 +105,38 @@ nodes:
         publishes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/depth/image_rect_raw
+      # Same topics again. The image's entrypoint already runs the node with
+      # /etc/rammp/realsense/d435i.yaml, so the command is only the rename and
+      # the framerate lives in `params:`, which sheppy appends as a params file
+      # that overrides the image's defaults. A longer-range sensor than the
+      # D405: its minimum depth is tens of centimetres, not ~7 cm. Its IMU is
+      # off on abra: the Tegra kernel has no HID-sensor IIO drivers, and the
+      # node says so at startup.
+      - id: d435i_docker
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-suite-software/d435i:0.2.0
+          privileged: true
+          network_mode: host
+          ipc: host
+          volumes:
+            - /dev:/dev
+          user: "1000:44"
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          command: [--ros-args, -r, __node:=wrist_camera]
+        params:
+          # <width>x<height>x<fps>
+          rgb_camera.color_profile: 640x480x30
+          depth_module.depth_profile: 640x480x30
+          # Regex on the device name, so a D405 on the same machine is not
+          # picked up first.
+          device_type: "435"
+        publishes:
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/depth/image_rect_raw
+          - /wrist_camera/aligned_depth_to_color/image_raw
       - id: wrist_camera_mock
         kind: process
         command: "bash -lc 'source /opt/ros/humble/setup.bash && ros2 topic pub -r 10 /wrist_camera/color/image_raw sensor_msgs/msg/Image \"{}\"'"

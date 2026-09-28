@@ -346,10 +346,10 @@ nodes:
       # arm_mock and leave this node unselected instead.
 
   - name: arm_teleop
-    description: Operator input (Xbox pad or Meta Quest 3) -> the arm's streaming tier
+    description: Operator input (Xbox pad, Meta Quest 3 or SpaceMouse) -> the arm's streaming tier
     select: single
     alternatives:
-      # Transcribed from rammp-org/rammp-teleop's rammp-alternative.{xbox,quest}.yaml,
+      # Transcribed from rammp-org/rammp-teleop's rammp-alternative.{xbox,quest,spacemouse}.yaml,
       # pinned to its release. (Its quest-mock fragment is not carried here; the
       # mock convention in this file is arm_mock plus an unselected teleop.) Each alternative acquires
       # control of the arm and opens a stream, so the `arm` node must be
@@ -408,6 +408,31 @@ nodes:
           - /estop
           - /quest/right/pose
           - /quest/joy
+        subscribes:
+          - /ee_state
+          - /joint_states
+          - /gripper_state
+          - /stream_status
+          - /control_status
+      # 3Dconnexion SpaceMouse: spacenav_node reads the puck through the host's
+      # spacenavd service (its socket is mounted; no /dev access needed) and
+      # space_teleop streams base-frame twists (ee_twist), all six axes at once.
+      # Left/right button close/open the gripper; there is no e-stop button.
+      - id: spacemouse
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-teleop:0.2.0
+          network_mode: host
+          ipc: host
+          volumes:
+            - /var/run/spnav.sock:/var/run/spnav.sock
+          environment:
+            ROS_DOMAIN_ID: "0"
+          command: /module_ws/src/rammp-teleop/scripts/launch_entry.py rammp_teleop space_mouse.launch.py
+        publishes:
+          - /setpoint/twist
+          - /setpoint/gripper
+          - /spacenav/joy
         subscribes:
           - /ee_state
           - /joint_states

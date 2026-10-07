@@ -1,0 +1,14 @@
+# Runs scripts/rt_setup.sh at boot so the runtime RT tunings persist.
+# Install:  sudo cp scripts/rt-setup.service /etc/systemd/system/
+#           edit ExecStart to point at this checkout, then
+#           sudo systemctl enable --now rt-setup.service
+[Unit]
+Description=RAMMP real-time host tunings
+After=nvpmodel.service jetson_clocks.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/<user>/rammp-deployments/scripts/rt_setup.sh 11
+
+[Install]
+WantedBy=multi-user.target

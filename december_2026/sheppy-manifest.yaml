@@ -1,8 +1,8 @@
 # Sheppy manifest for the December 2026 demo. Launch from the demo machine:
 #   sheppy december_2026/sheppy-manifest.yaml
 #
-# Cameras, the arm and operator teleop so far; the demo modules land here as their module repos
-# publish fragments.
+# Cameras, the arm, the arm's TF and operator teleop so far; the demo modules land here as their
+# module repos publish fragments.
 #
 # Every node carries a mock alternative alongside the real one, so a profile
 # selecting only mocks runs on a workstation with no hardware attached. The
@@ -313,6 +313,55 @@ nodes:
         command: "bash -lc 'source /opt/ros/humble/setup.bash && ros2 topic pub -r 100 /joint_states sensor_msgs/msg/JointState \"{}\"'"
         publishes:
           - /joint_states
+
+  - name: arm_state_publisher
+    description: TF for the arm — robot_state_publisher on the arm's own model
+    select: single
+    alternatives:
+      # The third container of the kinova-gen3-ros2 module, same image as the
+      # driver: kinova_gen3_description is built into /module_ws, so the driver
+      # and TF share one model by construction — the stated point of that
+      # package. The driver itself publishes NO tf (only /joint_states); its
+      # container is deliberately austere (root, SYS_NICE, rtprio, bare binary
+      # as PID 1 on the isolated core), so TF runs here, separate, and bouncing
+      # it never touches the 1 kHz loop.
+      #
+      # description.launch.py defaults to the articulated 13-DOF model; the
+      # driver publishes robotiq_85_left_knuckle_joint and robot_state_publisher
+      # derives the five mimic joints. Scoped to the arm on purpose — a mobile
+      # base brings its own state publisher, and a static mount transform
+      # stitches the trees.
+      - id: kinova_gen3_description
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:1.0.1
+          network_mode: host
+          ipc: host
+          # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base,
+          # which sets Cyclone plus CYCLONEDDS_URI. Overriding it would strip
+          # the tuned config with it.
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          # Unlike the driver, nothing here needs root — run as the host user,
+          # like the cameras. The entrypoint sources /ros2_ws then /module_ws,
+          # so `ros2 launch` resolves the description package.
+          user: "1000:1000"
+          command: ros2 launch kinova_gen3_description description.launch.py
+        publishes:
+          - /robot_description
+          - /tf
+          - /tf_static
+        subscribes:
+          - /joint_states
+      # Wiring-only, like every mock here: /tf with no transforms in it. Needed
+      # because the real alternative's image is arm64-only (same constraint as
+      # the arm's --sim mode), so a workstation profile selects this.
+      - id: arm_state_publisher_mock
+        kind: process
+        command: "bash -lc 'source /opt/ros/humble/setup.bash && ros2 topic pub -r 10 /tf tf2_msgs/msg/TFMessage \"{}\"'"
+        publishes:
+          - /tf
 
   - name: planner
     description: cuRobo motion planner for the arm's go_to_* actions

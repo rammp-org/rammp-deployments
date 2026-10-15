@@ -35,3 +35,23 @@ jobs:
 
       - name: Validate every manifest
         run: python3 scripts/validate_manifest.py
+
+      # Robot configs are applied by uv scripts on the robot; CI can only prove
+      # each one parses and means something. --validate touches nothing else.
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.17"
+
+      - name: Validate every robot config
+        run: |
+          shopt -s nullglob
+          status=0
+          for robot in */config/robots/*/; do
+            if [ -f "$robot/network.yaml" ]; then
+              uv run scripts/network_config.py --validate "$robot" || status=1
+            fi
+            if [ -f "$robot/oak_d.yaml" ]; then
+              uv run scripts/oak_d_config.py --validate "$robot" || status=1
+            fi
+          done
+          exit "$status"

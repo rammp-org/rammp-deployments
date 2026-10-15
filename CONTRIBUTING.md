@@ -6,7 +6,7 @@ manifests that say which containers a deployment starts, at which versions, with
 which flags. Everything it names is built and published somewhere else.
 
 That shapes what the gates can honestly claim. CI can prove a manifest is
-something sheppy will load; only hardware can prove it is something that works.
+something sheppy will load; only hardware can prove it is something that works. Ad-hoc hardware tools in this repo may also run directly on the robot.
 
 ## Pre-commit hooks
 

@@ -1,9 +1,11 @@
 # Contributing
 
-This repo follows the RAMMP module workflow, but it is not a module: it holds no
-code that runs on the robot. It is the **integration repo** — the sheppy
-manifests that say which containers a deployment starts, at which versions, with
-which flags. Everything it names is built and published somewhere else.
+This repo follows the RAMMP module workflow, but it is not a module: it builds
+nothing that sheppy runs. It is the **integration repo** — the sheppy manifests
+that say which containers a deployment starts, at which versions, with which
+flags, and the robot configs and scripts that set a robot up before sheppy
+starts anything. Everything a manifest names is built and published somewhere
+else.
 
 That shapes what the gates can honestly claim. CI can prove a manifest is
 something sheppy will load; only hardware can prove it is something that works.
@@ -56,10 +58,10 @@ feature work wants a squash.
 
 ## What CI gates
 
-|                                                 | PR → `dev` | push `dev` | PR → `main` | push `main` |
-| ----------------------------------------------- | ---------- | ---------- | ----------- | ----------- |
-| `lint.yml` — pre-commit, all files              | ✅         | ✅         | ✅          | ✅          |
-| `validate.yml` — every manifest, through sheppy | ✅         | ✅         | ✅          | ✅          |
+|                                                                    | PR → `dev` | push `dev` | PR → `main` | push `main` |
+| ------------------------------------------------------------------ | ---------- | ---------- | ----------- | ----------- |
+| `lint.yml` — pre-commit, all files                                 | ✅         | ✅         | ✅          | ✅          |
+| `validate.yml` — every manifest through sheppy, every robot config | ✅         | ✅         | ✅          | ✅          |
 
 Both are minutes. There is no expensive tier here because nothing in this repo
 is built.
@@ -87,6 +89,25 @@ The same goes the other way: a module's own
 here. Transcribe it, keep its comments where they still apply, and note where
 you diverged and why — the fragments build images locally, and this repo pulls
 published ones.
+
+## Robot config
+
+Setup that happens outside any node lives in `<deployment>/config/robots/<robot>/`, one
+file per script, applied on the robot:
+
+| File           | Script                      | Sets                                    |
+| -------------- | --------------------------- | --------------------------------------- |
+| `network.yaml` | `scripts/network_config.py` | the host's NICs, through NetworkManager |
+| `oak_d.yaml`   | `scripts/oak_d_config.py`   | each OAK-D PoE camera's addressing      |
+
+```bash
+uv run scripts/network_config.py december_2026/config/robots/flatbot
+```
+
+Node configuration is not here: parameters and their defaults are the manifest's
+`params:`, per-robot values are `profiles/<robot>.yaml`, large static config ships in
+the module's image. The robot name joins the two: `config/robots/flatbot/` and
+`profiles/flatbot.yaml`.
 
 ## On hardware
 

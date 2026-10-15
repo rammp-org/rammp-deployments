@@ -1,0 +1,14 @@
+# flatbot's Jetson AGX Orin: what each NIC is for.
+# Applied by: uv run scripts/network_config.py december_2026/config/robots/flatbot
+interfaces:
+  # Kinova Gen3 base, direct cable. No DHCP server on this link; the arm is 192.168.1.10.
+  - profile: flatbot-arm
+    device: enp3s0
+    ipv4:
+      method: static
+      address: 192.168.1.11/24 # no gateway: the arm's network goes nowhere else
+  # ESP32-P4 sensor network: DHCP server at 192.168.4.1; both OAKs are here.
+  - profile: flatbot-sensors
+    device: eno1
+    ipv4:
+      method: dhcp

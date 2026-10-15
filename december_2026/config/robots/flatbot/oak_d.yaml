@@ -1,0 +1,17 @@
+# OAK-D PoE cameras on flatbot, by device ID (MxID). Keys are the manifest's node names.
+# Applied by: uv run scripts/oak_d_config.py december_2026/config/robots/flatbot
+#
+# dhcp stores no fallback address: on bootloader <=0.0.29 a stored address
+# disables DHCP even with staticIpv4 false.
+cameras:
+  # On the ESP32-P4 sensor network while it is cabled there. Through the arm's
+  # wrist Ethernet it is on the arm's link, which has no DHCP server: then it
+  # becomes static on 192.168.1.x.
+  wrist_camera:
+    device_id: "194430107187F42E00"
+    ipv4:
+      method: dhcp
+  scene_camera:
+    device_id: "19443010219A974800"
+    ipv4:
+      method: dhcp

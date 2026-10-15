@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -186,8 +187,105 @@ def main(argv: list[str] | None = None) -> int:
     return apply(cameras, dry_run=args.dry_run)
 
 
+def _discover(dai, ids: list[str], attempts: int = 5) -> dict:
+    """Retry until every ID answers. Discovery is a UDP broadcast that can miss a
+    reply, and a camera drops out of it for about 3 s after any bootloader
+    connection to it closes, including the read of a previous run."""
+    found = {}
+    for attempt in range(attempts):
+        if attempt:
+            time.sleep(2)
+        for info in dai.Device.getAllAvailableDevices():
+            found[info.deviceId] = info
+        if all(i in found for i in ids):
+            break
+    return found
+
+
+def _wait_for_restart(dai, device_id: str, timeout: float = 60.0) -> str | None:
+    """A config write resets the camera: wait for it to drop off, then come back."""
+    deadline = time.monotonic() + timeout
+    gone_by = time.monotonic() + 20
+    while time.monotonic() < gone_by:
+        if device_id not in _discover(dai, [device_id], attempts=1):
+            break
+        time.sleep(1)
+    while time.monotonic() < deadline:
+        info = _discover(dai, [device_id], attempts=1).get(device_id)
+        if info is not None:
+            return info.name
+        time.sleep(2)
+    return None
+
+
+def _apply_one(dai, cam: Camera, info, dry_run: bool) -> str:
+    if info.state != dai.XLinkDeviceState.X_LINK_BOOTLOADER:
+        raise CameraError(
+            f"in state {info.state.name} at {info.name}; stop the node using it and retry"
+        )
+    want = wanted_network(cam)
+    with dai.DeviceBootloader(info, allowFlashingBootloader=False) as bl:
+        data = bl.readConfigData()
+        current = {k: data["network"][k] for k in NETWORK_FIELDS}
+        if current == want:
+            return f"unchanged at {info.name} ({describe(current)}, bootloader {bl.getVersion()})"
+        if dry_run:
+            return (
+                f"would change {describe(current)} -> {describe(want)} (at {info.name})"
+            )
+        data["network"].update(want)
+        ok, err = bl.flashConfigData(data)
+        if not ok:
+            raise CameraError(f"config write failed: {err}")
+        readback = {k: bl.readConfigData()["network"][k] for k in NETWORK_FIELDS}
+        if readback != want:
+            raise CameraError(
+                f"read back {describe(readback)}, expected {describe(want)}"
+            )
+    # The bootloader connection is closed here, so the camera can reset.
+    address = _wait_for_restart(dai, cam.device_id)
+    if address is None:
+        raise CameraError(
+            f"config written ({describe(want)}) but the camera did not come back within 60 s; "
+            "with dhcp, check the server answers it; with static, check this host has an "
+            "address on that subnet"
+        )
+    if cam.method == "static" and address != str(
+        ipaddress.IPv4Interface(cam.address).ip
+    ):
+        raise CameraError(f"came back at {address}, expected {cam.address}")
+    if cam.method == "dhcp" and address.startswith("169.254."):
+        raise CameraError(
+            f"came back at {address}: no DHCP lease, fell back to link-local"
+        )
+    return f"applied {describe(want)}; now at {address}"
+
+
 def apply(cameras: list[Camera], dry_run: bool) -> int:
-    raise NotImplementedError  # Task 4
+    import depthai as dai  # only when applying: --validate must not need it
+
+    found = _discover(dai, [c.device_id for c in cameras])
+    failed = 0
+    for cam in cameras:
+        prefix = f"{cam.name} ({cam.device_id})"
+        info = found.get(cam.device_id)
+        if info is None:
+            print(
+                f"{prefix}: FAILED: not found by discovery. It is powered off, on a subnet this "
+                "host has no address on, or held by a running camera node (stop it first).",
+                file=sys.stderr,
+            )
+            failed += 1
+            continue
+        try:
+            print(f"{prefix}: {_apply_one(dai, cam, info, dry_run)}")
+        except (
+            CameraError,
+            RuntimeError,
+        ) as e:  # depthai raises RuntimeError on connect failures
+            print(f"{prefix}: FAILED: {e}", file=sys.stderr)
+            failed += 1
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

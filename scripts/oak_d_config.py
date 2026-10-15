@@ -218,6 +218,13 @@ def _wait_for_restart(dai, device_id: str, timeout: float = 60.0) -> str | None:
     return None
 
 
+def _network(data: dict) -> dict:
+    missing = [k for k in NETWORK_FIELDS if k not in data.get("network", {})]
+    if missing:
+        raise CameraError(f"stored config has no network.{', network.'.join(missing)}")
+    return {k: data["network"][k] for k in NETWORK_FIELDS}
+
+
 def _apply_one(dai, cam: Camera, info, dry_run: bool) -> str:
     if info.state != dai.XLinkDeviceState.X_LINK_BOOTLOADER:
         raise CameraError(
@@ -226,7 +233,7 @@ def _apply_one(dai, cam: Camera, info, dry_run: bool) -> str:
     want = wanted_network(cam)
     with dai.DeviceBootloader(info, allowFlashingBootloader=False) as bl:
         data = bl.readConfigData()
-        current = {k: data["network"][k] for k in NETWORK_FIELDS}
+        current = _network(data)
         if current == want:
             return f"unchanged at {info.name} ({describe(current)}, bootloader {bl.getVersion()})"
         if dry_run:
@@ -237,7 +244,7 @@ def _apply_one(dai, cam: Camera, info, dry_run: bool) -> str:
         ok, err = bl.flashConfigData(data)
         if not ok:
             raise CameraError(f"config write failed: {err}")
-        readback = {k: bl.readConfigData()["network"][k] for k in NETWORK_FIELDS}
+        readback = _network(bl.readConfigData())
         if readback != want:
             raise CameraError(
                 f"read back {describe(readback)}, expected {describe(want)}"
@@ -284,6 +291,9 @@ def apply(cameras: list[Camera], dry_run: bool) -> int:
             RuntimeError,
         ) as e:  # depthai raises RuntimeError on connect failures
             print(f"{prefix}: FAILED: {e}", file=sys.stderr)
+            failed += 1
+        except Exception as e:  # anything else still must not stop the next camera
+            print(f"{prefix}: FAILED: {type(e).__name__}: {e}", file=sys.stderr)
             failed += 1
     return 1 if failed else 0
 

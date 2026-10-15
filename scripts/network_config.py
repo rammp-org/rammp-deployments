@@ -203,9 +203,12 @@ def settings(iface: Interface) -> dict[str, str]:
 
 
 def plan(
-    iface: Interface, existing: list[Profile]
+    iface: Interface, existing: list[Profile], owned: set[str]
 ) -> tuple[list[list[str]], list[str]]:
-    """The nmcli commands that make this entry true, and a note per side effect."""
+    """The nmcli commands that make this entry true, and a note per side effect.
+
+    `owned` is every profile name in the file: one of them still bound to this
+    NIC from before is moved by its own entry, never switched off by this one."""
     want = settings(iface)
     pairs = [x for kv in want.items() for x in kv]
     commands, notes = [], []
@@ -239,7 +242,7 @@ def plan(
     mac = _sys(iface.device, "address").lower()
     for p in existing:
         bound = p.interface == iface.device or (p.mac and p.mac.lower() == mac)
-        if p.name != iface.profile and bound and p.autoconnect == "yes":
+        if p.name not in owned and bound and p.autoconnect == "yes":
             commands.append(
                 ["nmcli", "con", "mod", p.uuid, "connection.autoconnect", "no"]
             )
@@ -257,7 +260,8 @@ def apply(interfaces: list[Interface], dry_run: bool) -> int:
         return 2
     try:
         existing = profiles()
-        plans = [plan(i, existing) for i in interfaces]
+        owned = {i.profile for i in interfaces}
+        plans = [plan(i, existing, owned) for i in interfaces]
     except ConfigError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2

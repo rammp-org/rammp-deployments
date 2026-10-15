@@ -32,7 +32,16 @@ to the same NICs (a leftover one takes the NIC back at boot) but does not delete
 `oak_d_config` finds each camera by device ID, so the camera must be reachable: on a
 subnet the Jetson has an address on, and not held by a running camera node. A camera
 still on an old static address elsewhere needs a temporary address on that subnet
-first, e.g. `sudo ip addr add 192.168.1.11/24 dev eno1`.
+first, and the address removed after:
+
+```bash
+sudo ip addr add 192.168.1.250/24 dev eno1   # an address nothing else uses
+uv run scripts/oak_d_config.py december_2026/config/robots/flatbot
+sudo ip addr del 192.168.1.250/24 dev eno1
+```
+
+`192.168.1.x` is also the arm's subnet on `enp3s0`: while the temporary address is up,
+arm traffic can leave on the wrong NIC, so do this with the arm unplugged or idle.
 
 ## Cameras
 

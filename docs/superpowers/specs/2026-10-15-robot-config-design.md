@@ -1,6 +1,8 @@
 # Robot configuration: host network and OAK-D addressing
 
-**Date:** 2026-10-15 **Status:** draft for review **Related:**
+**Date:** 2026-10-15 **Status:** draft for review **Closes:**
+[#61](https://github.com/rammp-org/rammp-deployments/issues/61) (setup tooling for
+cameras and sensors) **Related:**
 [#59](https://github.com/rammp-org/rammp-deployments/issues/59) (parameter standards),
 [rammp-org.github.io#10](https://github.com/rammp-org/rammp-org.github.io/pull/10)
 (common patterns)

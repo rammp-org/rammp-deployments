@@ -197,7 +197,8 @@ Add a row to the "where each kind of setting lives" table:
 
 ## rammp-interfaces-ros2
 
-No fields change; the documented frames do. Version bump, since the meaning changes.
+No fields change; the documented frames do. No version bump: these land on `dev` with the
+interface changes still being merged there.
 
 | File                           | Change                                               |
 | ------------------------------ | ---------------------------------------------------- |

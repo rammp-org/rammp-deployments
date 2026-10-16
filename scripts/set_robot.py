@@ -70,6 +70,9 @@ def _string(where: str, value: object) -> str:
     return value
 
 
+_RPY_MSG = "{where}.rpy_deg: expected three finite numbers in degrees, got {rpy!r}"
+
+
 def parse(data: object, where: str, dir_name: str) -> Mount:
     mount = _keys(where, data, ["robot", "rpy_deg"])
     robot = _string(f"{where}.robot", mount["robot"])
@@ -83,12 +86,15 @@ def parse(data: object, where: str, dir_name: str) -> Mount:
         not isinstance(rpy, list)
         or len(rpy) != 3
         or not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in rpy)
-        or not all(math.isfinite(v) for v in rpy)
     ):
-        raise ConfigError(
-            f"{where}.rpy_deg: expected three finite numbers in degrees, got {rpy!r}"
-        )
-    return Mount(robot, tuple(float(v) for v in rpy))
+        raise ConfigError(_RPY_MSG.format(where=where, rpy=rpy))
+    try:
+        values = tuple(float(v) for v in rpy)
+    except OverflowError:  # an int too large for a float
+        raise ConfigError(_RPY_MSG.format(where=where, rpy=rpy)) from None
+    if not all(math.isfinite(v) for v in values):
+        raise ConfigError(_RPY_MSG.format(where=where, rpy=rpy))
+    return Mount(robot, values)
 
 
 def load(robot_dir: Path) -> Mount:

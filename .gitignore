@@ -1,0 +1,3 @@
+# The active robot is the host's choice, not the repo's: scripts/set_robot.py
+# makes this link on each host.
+/december_2026/config/robots/current

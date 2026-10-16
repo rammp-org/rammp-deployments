@@ -1,0 +1,6 @@
+# The arm's mount on dojo (abra): level on the bench.
+# Activated by: uv run scripts/set_robot.py december_2026/config/robots/dojo
+robot: dojo # must equal the directory name
+# Orientation of arm_base_link in arm_mount. arm_mount is gravity-aligned (on level
+# ground) and shares arm_base_link's origin, so there is no translation.
+rpy_deg: [0.0, 0.0, 0.0] # level: arm_mount and arm_base_link coincide

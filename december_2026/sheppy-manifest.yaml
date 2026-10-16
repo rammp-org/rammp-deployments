@@ -252,10 +252,13 @@ nodes:
       # which builds images locally; inline here, pinned to the release, per
       # this file's convention.
       #
-      # The module is TWO containers — this one and the `planner` node below.
-      # Three of its four action servers (go_to_ee_pose, go_to_joint_config,
-      # go_to_preset) accept goals that can NEVER succeed without the planner,
-      # and sheppy ignores depends_on, so the pairing lives here.
+      # SELECT arm, arm_state_publisher AND planner TOGETHER. The driver and the
+      # planner both read the arm's model from /arm/robot_description, which
+      # only arm_state_publisher publishes; without it neither starts (each
+      # times out with an error naming arm_state_publisher). Three of the
+      # driver's four action servers (go_to_ee_pose, go_to_joint_config,
+      # go_to_preset) accept goals that can NEVER succeed without the planner.
+      # sheppy ignores depends_on, so the pairing lives here.
       - id: kinova_gen3_driver
         kind: docker
         # Keys the params file sheppy writes, so the params below land on this
@@ -289,8 +292,6 @@ nodes:
             - /module_ws/install/kinova_gen3_ros2/lib/kinova_gen3_ros2/kinova_gen3_node
             - --ip
             - 192.168.1.10
-            - --urdf
-            - /module_ws/src/kinova-gen3-driver/models/gen3_7dof_2f85.urdf
             # Pins ONLY the 1 kHz RT loop to abra's isolated core, not the
             # whole container — --cpuset-cpus would drag the ROS threads onto
             # it too. Without --cpu the node sets no affinity at all.
@@ -308,6 +309,7 @@ nodes:
           - /gripper_state
           - /diagnostics
         subscribes:
+          - /arm/robot_description
           - /estop
           - /setpoint/joint_position
           - /setpoint/joint_velocity
@@ -336,11 +338,14 @@ nodes:
       # as PID 1 on the isolated core), so TF runs here, separate, and bouncing
       # it never touches the 1 kHz loop.
       #
-      # description.launch.py defaults to the articulated 13-DOF model; the
-      # driver publishes robotiq_85_left_knuckle_joint and robot_state_publisher
-      # derives the five mimic joints. Scoped to the arm on purpose — a mobile
-      # base brings its own state publisher, and a static mount transform
-      # stitches the trees.
+      # description.launch.py renders the articulated 13-DOF model at launch,
+      # rooted at arm_mount and rotated by the active robot's mount.yaml
+      # (config/robots/current, set by scripts/set_robot.py), and publishes it
+      # latched on /arm/robot_description; the driver and the planner read it
+      # from there. The driver publishes arm_robotiq_85_left_knuckle_joint and
+      # robot_state_publisher derives the five mimic joints. Scoped to the arm
+      # on purpose — a mobile base brings its own state publisher, and a static
+      # mount transform stitches the trees.
       - id: kinova_gen3_description
         kind: docker
         container:
@@ -357,9 +362,17 @@ nodes:
           # like the cameras. The entrypoint sources /ros2_ws then /module_ws,
           # so `ros2 launch` resolves the description package.
           user: "1000:1000"
-          command: ros2 launch kinova_gen3_description description.launch.py
+          # The active robot's config, relative to this manifest. A missing
+          # `current` link makes Docker create an empty root-owned directory
+          # here and the launch fails on the missing mount.yaml; run
+          # scripts/set_robot.py, which tells you how to remove it.
+          # The relative path resolves against this manifest only in sheppy at or
+          # after #149 (df89566); older sheppy hands it to docker unchanged.
+          volumes:
+            - ./config/robots/current:/config/robot:ro
+          command: ros2 launch kinova_gen3_description description.launch.py mount_file:=/config/robot/mount.yaml
         publishes:
-          - /robot_description
+          - /arm/robot_description
           - /tf
           - /tf_static
         subscribes:
@@ -394,11 +407,12 @@ nodes:
           # them across restarts, so only the very first run pays.
           volumes:
             - curobo_kernel_cache:/root/.cache
-        # No topics: this node is reached over the /rammp_curobo/plan_to_pose
-        # and /rammp_curobo/plan_to_joints ACTIONS, which the schema has no way
-        # to declare. Nothing here is starved; there is just nothing to list.
+        # Otherwise reached over the /rammp_curobo/plan_to_pose and
+        # /rammp_curobo/plan_to_joints ACTIONS, which the schema has no way to
+        # declare. The one topic is the arm's model, read once at startup.
         publishes: []
-        subscribes: []
+        subscribes:
+          - /arm/robot_description
       # No mock. The mock convention here is "publish an empty message at the
       # right topic and type", and an action server has no topic to publish —
       # a mock would have to implement the action to be worth anything. Select

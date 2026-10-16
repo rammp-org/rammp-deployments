@@ -22,9 +22,20 @@ being reconfigured:
 ```bash
 uv run scripts/network_config.py december_2026/config/robots/flatbot
 uv run scripts/oak_d_config.py   december_2026/config/robots/flatbot
+uv run scripts/set_robot.py      december_2026/config/robots/flatbot
 ```
 
-Each takes `--dry-run` to show what it would change. Both are safe to re-run.
+Each takes `--dry-run` to show what it would change. All three are safe to re-run.
+
+`set_robot` makes flatbot this host's active robot: `config/robots/current` points at
+it, and the arm's nodes read its `mount.yaml` through that link. Run it before starting
+sheppy; a start without it leaves an empty `current` directory behind, which
+`set_robot` refuses and tells you how to remove.
+
+The host's sheppy must be at or after #149 (df89566), which resolves the relative bind-mount
+path against the manifest; older versions pass it to docker unchanged. Re-running
+`set_robot` while the stack is up takes effect only after `arm`, `arm_state_publisher` and
+`planner` are restarted, since the bind mount is fixed at container start.
 
 `network_config` asks for sudo once. It turns off autoconnect on any other profile bound
 to the same NICs (a leftover one takes the NIC back at boot) but does not delete them.

@@ -227,6 +227,11 @@ What this change needs from and adds to it:
 - Verification: at a set of configurations, every sphere's position in `arm_mount` matches
   the old model's within 1 mm, `arm_tool_frame` matches NVIDIA's `tool_frame` within 1 mm
   and 0.1°, and the existing self-collision checks pass.
+- **Every plan states its frame.** The returned trajectory's `header.frame_id` is the
+  model's root, `arm_mount` (pose and joint plans alike). The driver relies on it: on a
+  tilted mount, `GoToEEPose` refuses a pose plan not stamped `arm_mount`
+  (kinova-gen3-ros2#47), which is what keeps today's unstamped planner from moving the
+  arm by the tilt.
 - `PlanToPose.target` is documented as `arm_mount`. The `HOLD_LEVEL` caveat in
   `constraints.py` and `PlanToPose.action` ("silently false the moment it is not") is
   replaced with the actual limitation: level relative to the chair, not the world. The

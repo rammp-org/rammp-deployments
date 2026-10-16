@@ -1,8 +1,8 @@
 # Sheppy manifest for the December 2026 demo. Launch from the demo machine:
 #   sheppy december_2026/sheppy-manifest.yaml
 #
-# Cameras, the arm, the arm's TF and operator teleop so far; the demo modules land here as their
-# module repos publish fragments.
+# Cameras, the arm, the arm's TF, operator teleop and perception (the always-on scene segmenter and
+# SAM3) so far; the demo modules land here as their module repos publish fragments.
 #
 # Every node carries a mock alternative alongside the real one, so a profile
 # selecting only mocks runs on a workstation with no hardware attached. The
@@ -488,3 +488,145 @@ nodes:
           - /gripper_state
           - /stream_status
           - /control_status
+
+  - name: scene_segmenter
+    description: Always-on object segmentation of the scene camera -> /perception/object_detections
+    select: single
+    alternatives:
+      # Transcribed from rammp-org/rammp-perception's rammp-alternative.{yoloe-gpu,yoloe-dla,rfdetr,
+      # scene-segmenter-mock}.yaml. Every alternative publishes the same message
+      # (rammp_perception_interfaces/ObjectDetections) on the same topic with the same class names
+      # (food container, drink cup, fridge, microwave, table), so consumers -- the Orchestrator first --
+      # do not care which one is selected. Objects keep their instance_id ("microwave_2") while tracked.
+      #
+      # NOT A RELEASE: rammp-perception has not cut one yet (it waits on rammp-interfaces-ros2's next
+      # tag). These pin the immutable sha-<commit> images CI published from its dev branch; replace with
+      # the first release tag.
+      #
+      # YOLOE-26m on the GPU: the best YOLOE masks, ~46 ms per frame with tracking and ~12% GPU at 10 Hz
+      # on abra. The first start builds a TensorRT engine into the volume (about 9 minutes); later
+      # starts reuse it.
+      - id: yoloe_gpu
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-55a332e720e9b5e67580ee2651a3e25802787d42
+          runtime: nvidia
+          network_mode: host
+          ipc: host
+          user: "1000:1000"
+          volumes:
+            - rammp_perception_engines:/cache/engines
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+        params:
+          model: yoloe-26m-seg
+          device: gpu
+          image_topic: /scene_camera/color/image_raw
+          frame_stride: 3            # every 3rd camera frame: 10 Hz from the 30 fps scene camera
+        publishes:
+          - /perception/object_detections
+          - /perception/scene_segmenter/overlay/compressed
+        subscribes:
+          - /scene_camera/color/image_raw
+      # YOLOE-26s on DLA core 0: frees the GPU for cuRobo and SAM3 (~2% GPU on abra) at ~9.5 Hz,
+      # ~103 ms per frame. The detection head still falls back to the GPU. First start builds its
+      # engine (about 2 minutes).
+      - id: yoloe_dla
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-55a332e720e9b5e67580ee2651a3e25802787d42
+          runtime: nvidia
+          network_mode: host
+          ipc: host
+          user: "1000:1000"
+          volumes:
+            - rammp_perception_engines:/cache/engines
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+        params:
+          model: yoloe-26s-seg
+          device: dla0
+          image_topic: /scene_camera/color/image_raw
+          frame_stride: 3
+          # BoT-SORT camera-motion compensation costs ~14 ms of CPU per frame (8.4 instead of 9.5 Hz).
+          # Turn it back on (sparseOptFlow) if ids break while the chair moves.
+          gmc_method: none
+        publishes:
+          - /perception/object_detections
+          - /perception/scene_segmenter/overlay/compressed
+        subscribes:
+          - /scene_camera/color/image_raw
+      # RF-DETR-Seg S, COCO weights, on the GPU: 10 Hz at ~52 ms per frame and ~13% GPU on abra. Cleanest
+      # masks, but COCO classes only: "food container" is found only when it looks like a bowl.
+      - id: rfdetr
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-perception/rfdetr:sha-55a332e720e9b5e67580ee2651a3e25802787d42
+          runtime: nvidia
+          network_mode: host
+          ipc: host
+          user: "1000:1000"
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+        params:
+          model: small
+          image_topic: /scene_camera/color/image_raw
+          frame_stride: 3
+        publishes:
+          - /perception/object_detections
+          - /perception/scene_segmenter/overlay/compressed
+        subscribes:
+          - /scene_camera/color/image_raw
+      # Same topic and type, no model, no GPU, no camera: empty detections at 10 Hz.
+      - id: scene_segmenter_mock
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-55a332e720e9b5e67580ee2651a3e25802787d42
+          network_mode: host
+          ipc: host
+          user: "1000:1000"
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+        params:
+          mock: true
+        publishes:
+          - /perception/object_detections
+
+  - name: sam3
+    description: SAM3 on-demand expert detection and tracking sessions under /perception/sam3
+    select: single
+    alternatives:
+      # Transcribed from rammp-org/rammp-perception's rammp-alternative.sam3.yaml; same NOT A RELEASE pin
+      # as scene_segmenter above. Services /perception/sam3/{detect,start_tracking,stop_tracking,
+      # renew_tracking}; a session streams ObjectDetections on /perception/sam3/object_detections and
+      # runs until stopped (leases are off). Detect ~0.4-0.9 s; tracking ~12 Hz for one object.
+      #
+      # Weights are gated on Hugging Face and not in the image: this mounts the facebook/sam3 snapshot
+      # already on abra. TensorRT encoders are built once per machine into the sam3_engines volume
+      # (see object_detection/sam3/sam3.yaml in rammp-perception); without them the node falls back to
+      # PyTorch, slower with the same output.
+      - id: sam3_docker
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-perception/sam3:sha-55a332e720e9b5e67580ee2651a3e25802787d42
+          runtime: nvidia
+          network_mode: host
+          ipc: host
+          user: "1000:1000"
+          volumes:
+            - /home/abra/sam3-test/models/sam3:/models/sam3:ro
+            - sam3_engines:/cache/engines
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+        publishes:
+          - /perception/sam3/object_detections
+          - /perception/sam3/status
+        subscribes:
+          - /scene_camera/color/image_raw
+      # No mock, as for the planner: SAM3 is reached through services, and a mock would have to
+      # implement them to be worth anything. Leave this node unselected on a workstation.

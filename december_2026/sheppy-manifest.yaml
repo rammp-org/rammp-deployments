@@ -76,8 +76,10 @@ nodes:
             ROS_DOMAIN_ID: "0"
           command: [--ros-args, -r, __node:=scene_camera]
         params:
-          # TODO: the wide camera's address once it is on the bench network.
-          driver.i_ip: 192.168.1.201
+          # Which OAK: the device ID (MxID), as in the robot's oak_d.yaml.
+          # Found by discovery, so the camera's address can change (DHCP)
+          # without touching this; it must be on a subnet the host is on.
+          driver.i_device_id: "19443010219A974800"
           driver.i_tf_base_frame: scene_camera
           driver.i_tf_parent_frame: scene_camera_link
           # Full sensor resolution on both the stereo pair and the color
@@ -149,9 +151,10 @@ nodes:
           # only the rename is appended, and the wrist tuning lives in params.
           command: [--ros-args, -r, __node:=wrist_camera]
         params:
-          # Which OAK: the PoE address (USB models take driver.i_device_id,
-          # the MxID, instead).
-          driver.i_ip: 192.168.1.200
+          # Which OAK: the device ID (MxID), as in the robot's oak_d.yaml.
+          # Found by discovery, so the camera's address can change (DHCP)
+          # without touching this; it must be on a subnet the host is on.
+          driver.i_device_id: "194430107187F42E00"
           driver.i_tf_base_frame: wrist_camera
           driver.i_tf_parent_frame: wrist_camera_link
           pipeline_gen.i_enable_imu: false

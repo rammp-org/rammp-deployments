@@ -68,7 +68,7 @@ nodes:
       - id: oak_d_pro_w_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.0
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.1
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
@@ -141,10 +141,13 @@ nodes:
       - id: oak_d_pro_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.0
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.1
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
+          # From 0.3.1 the container exits 1 if no camera matching the device
+          # ID is ready within RAMMP_OAK_READY_TIMEOUT seconds (default 60),
+          # so a wrong ID or an unplugged camera shows as crashed. Both OAKs.
           environment:
             ROS_DOMAIN_ID: "0"
           # The image's entrypoint runs the node with the driver's defaults;

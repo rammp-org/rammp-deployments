@@ -95,10 +95,11 @@ published ones.
 Setup that happens outside any node lives in `<deployment>/config/robots/<robot>/`, one
 file per script, applied on the robot:
 
-| File           | Script                      | Sets                                    |
-| -------------- | --------------------------- | --------------------------------------- |
-| `network.yaml` | `scripts/network_config.py` | the host's NICs, through NetworkManager |
-| `oak_d.yaml`   | `scripts/oak_d_config.py`   | each OAK-D PoE camera's addressing      |
+| File           | Script                      | Sets                                                                                   |
+| -------------- | --------------------------- | -------------------------------------------------------------------------------------- |
+| `network.yaml` | `scripts/network_config.py` | the host's NICs, through NetworkManager                                                |
+| `oak_d.yaml`   | `scripts/oak_d_config.py`   | each OAK-D PoE camera's addressing                                                     |
+| `mount.yaml`   | `scripts/set_robot.py`      | the arm's mount rotation; makes this the host's active robot (`config/robots/current`) |
 
 ```bash
 uv run scripts/network_config.py december_2026/config/robots/flatbot

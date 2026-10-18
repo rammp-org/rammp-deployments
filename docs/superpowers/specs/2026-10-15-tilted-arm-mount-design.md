@@ -214,8 +214,11 @@ What this change needs from and adds to it:
 
 - The ROS node waits on `/arm/robot_description` (latched, timeout, clear error), writes it
   to a temp file and passes it to core. Core stays file-based.
-- Kinematics: `base_link: arm_mount`, `ee_link: arm_tool_frame`. The 6 Robotiq joints are
-  locked open with cuRobo's `lock_joints`, the configuration the sphere shell assumes.
+- Kinematics: `base_link: arm_mount`, `ee_link: arm_tool_frame`. The 2F-85 is locked open, the
+  configuration the sphere shell assumes: `lock_joints` holds the actuated
+  `arm_robotiq_85_left_knuckle_joint` at 0, and cuRobo's mimic handling holds the other five
+  (cuRobo v0.7.8 refuses mimic joints in `lock_joints`, and needs a `<limit>` on each mimic
+  joint, which the planner fills from the joint it mimics).
 - `joint_names` becomes `arm_joint_1 … arm_joint_7` (`config.py:21-28`, `gen3.yaml:16`,
   the robot YAML). The retract seed's values are unchanged.
 - Joint limits now come from our URDF: the same values the driver enforces.
@@ -260,15 +263,19 @@ dojo is unaffected (identity mount).
 
 ## Rollout
 
-1. **dojo (abra), the no-op check.** Land the driver, kinova-gen3-ros2 and interfaces
-   changes; `set_robot.py … dojo`. Expect: only names change. Compare `g(q)` and FK
-   against the current model at a handful of poses; they must match.
+1. **dojo (abra), the no-op check.** Land the driver, kinova-gen3-ros2, interfaces **and
+   RAMMP-CuRobo** changes together; `set_robot.py … dojo`. Expect: only names change. Compare
+   `g(q)` and FK against the current model at a handful of poses; they must match.
+   kinova-gen3-ros2's `GoToEEPose` refuses any pose plan not stamped `arm_mount`, on every
+   mount, so the old planner breaks pose goals even on dojo: the two images move together.
 1. **flatbot (snorlax).** `set_robot.py … flatbot`. Expect:
    - the gravity-comp hold stops drooping (the pass criterion in #40);
    - `arm_base_link`'s +Z in `arm_mount` has a positive X component (leans forward);
    - teleop +Z moves the gripper straight up;
    - then re-record the Quest alignment and any saved Cartesian poses.
-1. **cuRobo on flatbot**, together with the per-robot world PR.
+1. **cuRobo on flatbot**, together with the per-robot world PR -- or, until it exists, with
+   the planner's `world` parameter set to `world_empty.yaml`: its default world is dojo's bench,
+   whose boxes are wrong under a tilted `arm_mount`.
 
 ### Until this lands
 

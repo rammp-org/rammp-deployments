@@ -468,27 +468,26 @@ nodes:
     select: single
     alternatives:
       # Every *.yaml in config/robots/<robot>/transforms/ (rammp-calibration's
-      # mounts.yaml format), published once, latched. The script is this repo's
-      # scripts/static_tf.py, mounted into rammp-base rather than baked into an
-      # image: rammp-base already has rclpy, tf2 and the fleet's Cyclone config.
+      # mounts.yaml format), published once, latched. The image is rammp-tools'
+      # generic static_tf; the robot-specific part is the data, mounted below.
       # Robot-specific geometry moves to the robot's URDF once one exists; what
       # stays here is what a calibration measures.
       - id: static_tf_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-base:1.1.0-jp6
+          image: ghcr.io/rammp-org/rammp-tools/static_tf:0.2.0
           network_mode: host
           ipc: host
-          # No RMW_IMPLEMENTATION here: rammp-base sets Cyclone plus CYCLONEDDS_URI.
+          # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base,
+          # which sets Cyclone plus CYCLONEDDS_URI.
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           user: "1000:1000"
-          # Same `current` link as arm_state_publisher: run scripts/set_robot.py first.
+          # Same `current` link as arm_state_publisher: run scripts/set_robot.py
+          # first. The image's default command reads /config/robot/transforms.
           volumes:
             - ./config/robots/current:/config/robot:ro
-            - ../scripts/static_tf.py:/static_tf.py:ro
-          command: python3 /static_tf.py /config/robot/transforms
         publishes:
           - /tf_static
       # Wiring-only: rammp-base is arm64-only, so a workstation profile selects this.
@@ -818,8 +817,9 @@ nodes:
       # the segmenter. First start builds its TensorRT engines into the volume (about 2.5 minutes).
       #
       # Needs, per frame: the Gemini's registered depth (scene_camera above) and TF from gravity_frame to
-      # the camera. static_tf publishes base_link -> scene_camera_link from the active robot's
-      # transforms/; without it, every object comes out with has_pose false and the node logs the
+      # the camera. static_tf attaches the camera from the active robot's transforms/ (on flatbot,
+      # arm_mount -> scene_camera, so gravity_frame must be arm_mount there: nothing publishes
+      # base_link); without it, every object comes out with has_pose false and the node logs the
       # missing transform. On the OAK scene camera alternative set
       # depth_topic to /scene_camera/depth/image_rect_raw (not yet tested).
       # BoxerNet's weights are CC-BY-NC 4.0 (non-commercial) and baked into the image.

@@ -1,0 +1,18 @@
+# Camera mounts on flatbot, in rammp-calibration's mounts.yaml format; a solved
+# calibration replaces this file unchanged. Published by the manifest's static_tf node.
+# Each camera driver publishes its own tree under <camera>_link; these attach it.
+#
+# PLACEHOLDER VALUES: identity, not measured. Replace before trusting any pose.
+mounts:
+  ros__parameters:
+    transforms: [scene_camera, wrist_camera]
+    scene_camera:
+      parent: base_link
+      child: scene_camera_link
+      xyz: [0.0, 0.0, 0.0]
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+    wrist_camera:
+      parent: gripper_link
+      child: wrist_camera_link
+      xyz: [0.0, 0.0, 0.0]
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0]

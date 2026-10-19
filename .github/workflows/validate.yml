@@ -57,5 +57,8 @@ jobs:
             if [ -f "$robot/mount.yaml" ]; then
               uv run scripts/set_robot.py --validate "$robot" || status=1
             fi
+            if [ -d "$robot/transforms" ]; then
+              uv run scripts/static_tf.py --validate "$robot/transforms" || status=1
+            fi
           done
           exit "$status"

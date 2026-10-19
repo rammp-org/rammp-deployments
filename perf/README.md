@@ -28,7 +28,7 @@ uv run --project ~/.claude/skills/hardware-loop ~/.claude/skills/hardware-loop/s
 ```
 
 `sync` mirrors `perf/` and `december_2026/` into `~/perf-bench` only; abra's `~/rammp-deployments` is not
-touched. `python3 perf/bench.py --list` shows the runs; `all` is about 70 runs, three hours. Each run brings the
+touched. `python3 perf/bench.py --list` shows the runs; `all` is about 60 runs, three hours. Each run brings the
 stack to its profile, waits for every measured topic (a first start builds TensorRT engines), warms up 15 s
 and measures 60 s.
 

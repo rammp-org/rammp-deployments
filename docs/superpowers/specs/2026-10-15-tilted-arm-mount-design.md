@@ -268,11 +268,13 @@ dojo is unaffected (identity mount).
    `g(q)` and FK against the current model at a handful of poses; they must match.
    kinova-gen3-ros2's `GoToEEPose` refuses any pose plan not stamped `arm_mount`, on every
    mount, so the old planner breaks pose goals even on dojo: the two images move together.
-1. **flatbot (snorlax), with cuRobo in the same step.** `set_robot.py … flatbot`, and move the
-   kinova-gen3-ros2 and RAMMP-CuRobo pins together: the new kinova-gen3-ros2 refuses the old
-   planner's (unstamped) pose plans, and the old planner would plan with NVIDIA's wider j2/j4/j6
-   limits. Until per-robot worlds exist the planner runs with `world_empty.yaml` via the sheppy
-   recipe in RAMMP-CuRobo's CHANGELOG (an explicit `command:` plus a `world` param override).
+1. **flatbot (snorlax), with cuRobo in the same step.** `set_robot.py … flatbot`, then
+   `sheppy up flatbot`: `profiles/flatbot.yaml` selects the `_nightly` alternatives of `arm`,
+   `arm_state_publisher` and `planner` together. They move as one because the new
+   kinova-gen3-ros2 refuses the old planner's (unstamped) pose plans, and the old planner would
+   plan with NVIDIA's wider j2/j4/j6 limits. Until per-robot worlds exist the profile gives the
+   planner `world_empty.yaml` (RAMMP-CuRobo's sheppy recipe: an explicit `command:` plus a
+   `world` param). The host's sheppy must include #149 (from `dev`; see flatbot's README).
    Expect:
    - the gravity-comp hold stops drooping (the pass criterion in #40);
    - `arm_base_link`'s +Z in `arm_mount` has a positive X component (leans forward);

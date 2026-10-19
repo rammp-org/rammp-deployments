@@ -33,7 +33,13 @@ sheppy; a start without it leaves an empty `current` directory behind, which
 `set_robot` refuses and tells you how to remove.
 
 The host's sheppy must be at or after #149 (df89566), which resolves the relative bind-mount
-path against the manifest; older versions pass it to docker unchanged. Re-running
+path against the manifest; older versions pass it to docker unchanged, and docker refuses it
+as a volume name, so `arm_state_publisher` never starts. No sheppy tag has it yet (only
+`dev` does; snorlax had 84fc8e7 on 2026-10-18, which predates it), so install from `dev`:
+
+````bash
+uv tool install --force "sheppy @ git+https://github.com/rammp-org/sheppy@dev"
+``` Re-running
 `set_robot` while the stack is up takes effect only after `arm`, `arm_state_publisher` and
 `planner` are restarted, since the bind mount is fixed at container start.
 
@@ -49,7 +55,7 @@ first, and the address removed after:
 sudo ip addr add 192.168.1.250/24 dev eno1   # an address nothing else uses
 uv run scripts/oak_d_config.py december_2026/config/robots/flatbot
 sudo ip addr del 192.168.1.250/24 dev eno1
-```
+````
 
 `192.168.1.x` is also the arm's subnet on `enp3s0`: while the temporary address is up,
 arm traffic can leave on the wrong NIC, so do this with the arm unplugged or idle.

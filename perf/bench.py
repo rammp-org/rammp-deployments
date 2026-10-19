@@ -99,6 +99,7 @@ def make_runs():
     runs["final"] = final
     runs["final-load70"] = dict(final, gpu_load=70)
     runs["final-rfdetr"] = dict(final, detector="rfdetr_s")
+    runs["final-timing"] = dict(final, sam3_timing=True)
     runs["yoloe26m_gpu-s3-track5-blas1-fresh"] = {"base": True, "sam3": "track", "sam3_hz": 5, "detector": "yoloe26m_gpu",
                                                   "stride": 3, "blas1": True, "sam3_patch": True}
     for d in ("yoloe26m_gpu", "yoloe26s_gpu", "yoloe26s_dla", "rfdetr_s", "nanoowl_b32"):
@@ -142,6 +143,8 @@ def build_stack(run):
     # Set even when the run gives none: the manifest's own caps would otherwise apply. 15 is the node's default.
     for alt in nodes["sam3"]["alternatives"]:
         alt.setdefault("params", {})["max_tracking_rate_hz"] = float(run.get("sam3_hz", 15.0))
+        if run.get("sam3_timing"):  # the node logs where each tracking step's time goes, every 10 s
+            alt["params"]["timing_log_period_s"] = 10.0
     # sam3_patch: run the SAM3 node from patches/sam3_node.py (an unreleased rammp-perception fix) over the image's.
     if run.get("sam3_patch"):
         patch = Path(__file__).resolve().parent / "patches" / "sam3_node.py"
@@ -170,10 +173,15 @@ def build_stack(run):
         dict(id="owl_bench_nanoowl", **host_process(
             "exec ~/detector-bench/.venv/bin/python %s --model nanoowl-b32 --stride %d" % (bench, stride))),
     ]
-    load = Path(__file__).resolve().parent / "gpu_load.py"
+    # In the SAM3 image (torch and CUDA), not on the host: snorlax's host has no torch.
+    here = Path(__file__).resolve().parent
     manifest["nodes"].append({
         "name": "bench_gpu_load", "description": "bench only: synthetic GPU load", "select": "single",
-        "alternatives": [dict(id="load", **host_process("exec python3 %s --duty %.2f" % (load, run.get("gpu_load", 50) / 100)))],
+        "alternatives": [{"id": "load", "kind": "docker", "container": {
+            "image": image_of(manifest, "sam3", "sam3_docker"), "runtime": "nvidia", "network_mode": "host",
+            "user": "1000:1000", "environment": {"HOME": "/tmp"}, "volumes": ["%s:/perf:ro" % here],
+            "entrypoint": ["python3"], "command": ["/perf/gpu_load.py", "--duty", "%.2f" % (run.get("gpu_load", 50) / 100)],
+        }}],
     })
     # Nothing in the manifest publishes the camera mount yet; boxer needs it for gravity. abra's
     # calibrated base_link -> scene_camera_link (from the box-opening launch, 2026-10-16).

@@ -126,9 +126,9 @@ profile override or a TUI edit applies only to a key the selected alternative
 lists there; `validate_manifest.py` fails a profile that overrides anything else.
 A value written into `command:` can only be changed by editing the manifest.
 
-How sheppy hands `params:` to a docker node decides what the alternative looks like:
+For a docker alternative:
 
-- It writes them to a params file and appends
+- sheppy writes `params:` to a params file and appends
   `--ros-args --params-file /sheppy/params.yaml` to the command. The file is
   keyed by `ros_node_name`, or `/**` without one. Set `ros_node_name` when a
   parameter must land on one particular node, such as the arm's read-only
@@ -141,9 +141,8 @@ How sheppy hands `params:` to a docker node decides what the alternative looks l
   arguments in `command:`. `validate_manifest.py` fails `params:` on one, and on
   a `process` alternative, where sheppy ignores them.
 
-The exception today is the arm driver: `--ip` and `--cpu` are command-line flags of
-the node, not ROS parameters, so they stay in `command:` until the driver takes them
-as parameters.
+Exception: the arm driver's `--ip` and `--cpu` are command-line flags, not ROS
+parameters, so they stay in `command:` (rammp-org/kinova-gen3-ros2#57).
 
 ## On hardware
 

@@ -299,9 +299,8 @@ nodes:
           # deploy/compose.yaml still says: rammp-base owns /ros2_ws (the
           # interface contract) and this node builds into /module_ws on top.
           #
-          # --ip, --urdf and --cpu are the node's command-line flags, not ROS
-          # parameters, so they live here and a profile cannot override them.
-          # Moving them to `params:` is a driver change.
+          # --ip, --urdf and --cpu are command-line flags, not ROS parameters:
+          # no profile can override them (rammp-org/kinova-gen3-ros2#57).
           command:
             - /module_ws/install/kinova_gen3_ros2/lib/kinova_gen3_ros2/kinova_gen3_node
             - --ip

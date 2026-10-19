@@ -32,6 +32,31 @@ from sheppy.profiles.reconcile import reconcile
 from sheppy.profiles.store import ProfileStore
 
 
+def params_problems(alt) -> list[str]:
+    """`params:` that sheppy accepts but that never reach a node.
+
+    sheppy ignores params on a `process` alternative. On a docker one it appends
+    `--ros-args --params-file` to the command, which Humble's `ros2 launch`
+    rejects ("unrecognized arguments"), so the container exits at start.
+    """
+    if not alt.params:
+        return []
+    if alt.kind == "process":
+        return ["params on a process alternative are ignored; put them in its command"]
+    command = alt.raw.get("container", {}).get("command") or []
+    if isinstance(command, str):
+        command = command.split()
+    if alt.kind == "docker" and any(
+        word == "launch" or word.endswith((".launch.py", ".launch.xml"))
+        for word in command
+    ):
+        return [
+            "params with a `ros2 launch` command: ros2 launch rejects the "
+            "--ros-args sheppy appends; run the node's executable instead"
+        ]
+    return []
+
+
 def check(path: str) -> int:
     result = load_manifest(path)
     problems = 0
@@ -46,6 +71,9 @@ def check(path: str) -> int:
 
     for node in result.manifest.nodes:
         for alt in node.alternatives:
+            for problem in params_problems(alt):
+                print(f"  {path}: {node.name}/{alt.id}: {problem}")
+                problems += 1
             container = alt.raw.get("container")
             if alt.kind != "docker" or not isinstance(container, dict):
                 continue

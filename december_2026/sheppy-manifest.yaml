@@ -515,9 +515,10 @@ nodes:
       # rammp-interfaces-ros2#16 (DetectedObject.size) the message's wire format changed, and a node
       # built against the old definition silently misreads messages from one built against the new.
       #
-      # YOLOE-26m on the GPU: the best YOLOE masks, ~46 ms per frame with tracking and ~12% GPU at 10 Hz
-      # on abra. The first start builds a TensorRT engine into the volume (about 9 minutes); later
-      # starts reuse it.
+      # YOLOE-26m on the GPU: the best YOLOE masks. The always-on detector of the finalized stack
+      # (rammp-deployments#106): 10 Hz, ~100 ms camera to result, ~10% GPU and ~0.5 CPU core on abra
+      # next to SAM3 and the planner; it held 10 Hz next to another GPU user busy 70% of the time.
+      # The first start builds a TensorRT engine into the volume (about 9 minutes); later starts reuse it.
       - id: yoloe_gpu
         kind: docker
         container:
@@ -531,6 +532,9 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
+            # numpy's OpenBLAS pool busy-waits on every core: ~5 cores at 10 Hz without this (#106).
+            # In the images from rammp-perception#6 on; drop this when they are pinned.
+            OPENBLAS_NUM_THREADS: "1"
         params:
           model: yoloe-26m-seg
           device: gpu
@@ -541,9 +545,9 @@ nodes:
           - /perception/scene_segmenter/overlay/compressed
         subscribes:
           - /scene_camera/color/image_raw
-      # YOLOE-26s on DLA core 0: frees the GPU for cuRobo and SAM3 (~2% GPU on abra) at ~9.5 Hz,
-      # ~103 ms per frame. The detection head still falls back to the GPU. First start builds its
-      # engine (about 2 minutes).
+      # YOLOE-26s on DLA core 0: frees most of the GPU, but 94 ms per frame on the DLA does not hold
+      # 10 Hz in the stack (9.3 Hz; 7.7 Hz with BoxerNet; 7.2 Hz next to a busy GPU, since the
+      # detection head falls back to the GPU). First start builds its engine (about 2 minutes).
       - id: yoloe_dla
         kind: docker
         container:
@@ -557,6 +561,9 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
+            # numpy's OpenBLAS pool busy-waits on every core: ~5 cores at 10 Hz without this (#106).
+            # In the images from rammp-perception#6 on; drop this when they are pinned.
+            OPENBLAS_NUM_THREADS: "1"
         params:
           model: yoloe-26s-seg
           device: dla0
@@ -570,7 +577,7 @@ nodes:
           - /perception/scene_segmenter/overlay/compressed
         subscribes:
           - /scene_camera/color/image_raw
-      # RF-DETR-Seg S, COCO weights, on the GPU: 10 Hz at ~52 ms per frame and ~13% GPU on abra. Cleanest
+      # RF-DETR-Seg S, COCO weights, on the GPU: 10 Hz, ~100 ms camera to result, ~18% GPU on abra. Cleanest
       # masks, but COCO classes only: "food container" is found only when it looks like a bowl.
       - id: rfdetr
         kind: docker
@@ -583,6 +590,9 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
+            # numpy's OpenBLAS pool busy-waits on every core: ~5 cores at 10 Hz without this (#106).
+            # In the images from rammp-perception#6 on; drop this when they are pinned.
+            OPENBLAS_NUM_THREADS: "1"
         params:
           model: small
           image_topic: /scene_camera/color/image_raw
@@ -635,6 +645,14 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
+            # numpy's OpenBLAS pool busy-waits on every core: ~5 cores at 10 Hz without this (#106).
+            # In the images from rammp-perception#6 on; drop this when they are pinned.
+            OPENBLAS_NUM_THREADS: "1"
+        params:
+          # Tracking at 5 Hz takes ~24% of the GPU instead of ~48% uncapped (~12 Hz), leaving it to the rest
+          # of the chair (#106). Before rammp-perception#8 a capped step tracked a stale frame: ~270 ms camera
+          # to result instead of ~150 ms.
+          max_tracking_rate_hz: 5.0
         publishes:
           - /perception/sam3/object_detections
           - /perception/sam3/status
@@ -672,6 +690,9 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
+            # numpy's OpenBLAS pool busy-waits on every core: ~5 cores at 10 Hz without this (#106).
+            # In the images from rammp-perception#6 on; drop this when they are pinned.
+            OPENBLAS_NUM_THREADS: "1"
         params:
           detections_topic: /perception/object_detections
           image_topic: /scene_camera/color/image_raw
@@ -679,6 +700,9 @@ nodes:
           camera_info_topic: /scene_camera/color/camera_info
           gravity_frame: base_link     # any frame with +z up; only its rotation is used
           min_prob: 0.5
+          # Lifting every 10 Hz detection took ~40% of the GPU; at 5 Hz the stack uses 61% instead of 75% (#106).
+          # Takes effect from the image with rammp-perception#9; an older image ignores it.
+          max_rate_hz: 5.0
         publishes:
           - /perception/object_detections_3d
         subscribes:

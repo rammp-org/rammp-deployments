@@ -46,7 +46,7 @@ def check(path: str) -> int:
 
     for node in result.manifest.nodes:
         for alt in node.alternatives:
-            container = alt.config.get("container")
+            container = alt.raw.get("container")
             if alt.kind != "docker" or not isinstance(container, dict):
                 continue
             *_, warns = service_to_docker_args(container)

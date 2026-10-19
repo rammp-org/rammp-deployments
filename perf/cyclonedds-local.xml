@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Cyclone DDS for the december_2026 bench: every node runs on this Jetson, so DDS stays on loopback.
+  The fleet default (autodetermine) bound the Wi-Fi interface; when Wi-Fi reconnected, every node's
+  writes failed until it was restarted. Loopback has no multicast, so discovery is unicast to localhost.
+  Used by the containers (mounted at the same path), the host nodes and the shells (~/.profile, ~/.zshenv).
+-->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface name="lo" multicast="false" />
+      </Interfaces>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
+      <Peers>
+        <Peer address="localhost" />
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

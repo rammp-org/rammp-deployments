@@ -1,0 +1,6 @@
+# The arm's mount on gen_1_5 (no host yet).
+# Activated by: uv run scripts/set_robot.py december_2026/config/robots/gen_1_5
+robot: gen_1_5 # must equal the directory name
+# Orientation of arm_base_link in arm_mount. arm_mount is gravity-aligned (on level
+# ground) and shares arm_base_link's origin, so there is no translation.
+rpy_deg: [0.0, 30.0, 0.0] # new_adapter_plate_v3: 30° forward lean

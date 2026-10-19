@@ -26,12 +26,13 @@ jobs:
         with:
           python-version: "3.11"
 
-      # From git at @main, not a release: sheppy has never cut one. A moving
-      # dependency is the point here rather than a compromise — a manifest that
-      # only validates against a sheppy older than the one on the robot is
-      # telling us nothing. When sheppy tags a release, pin this to it.
+      # From git at @dev, not a release: the robots run sheppy's dev branch
+      # (the manifest's relative bind mounts need #149, which no tag has yet).
+      # A moving dependency is the point here rather than a compromise — a
+      # manifest that only validates against a sheppy older than the one on the
+      # robot is telling us nothing. When sheppy tags a release, pin this to it.
       - name: Install sheppy
-        run: pip install "sheppy @ git+https://github.com/rammp-org/sheppy@main"
+        run: pip install "sheppy @ git+https://github.com/rammp-org/sheppy@dev"
 
       - name: Validate every manifest
         run: python3 scripts/validate_manifest.py
@@ -52,6 +53,9 @@ jobs:
             fi
             if [ -f "$robot/oak_d.yaml" ]; then
               uv run scripts/oak_d_config.py --validate "$robot" || status=1
+            fi
+            if [ -f "$robot/mount.yaml" ]; then
+              uv run scripts/set_robot.py --validate "$robot" || status=1
             fi
           done
           exit "$status"

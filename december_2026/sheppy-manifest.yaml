@@ -29,7 +29,7 @@ nodes:
       - id: gemini336l_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/gemini:0.3.0
+          image: ghcr.io/rammp-org/rammp-suite-software/gemini:0.3.1
           # Userspace-USB device: privileged + /dev survives replugs. The
           # camera needs no root, so it runs as the host user.
           privileged: true
@@ -111,7 +111,7 @@ nodes:
       - id: d405_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/realsense:0.3.0
+          image: ghcr.io/rammp-org/rammp-suite-software/realsense:0.3.1
           privileged: true
           network_mode: host
           ipc: host
@@ -190,7 +190,7 @@ nodes:
       - id: d435i_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/d435i:0.3.0
+          image: ghcr.io/rammp-org/rammp-suite-software/d435i:0.3.1
           privileged: true
           network_mode: host
           ipc: host
@@ -249,13 +249,26 @@ nodes:
     alternatives:
       # Transcribed from kinova-gen3-ros2's rammp-alternative.yaml. That
       # fragment uses `compose:` against the module's own deploy/compose.yaml,
-      # which builds images locally; inline here, pinned to the release, per
-      # this file's convention.
+      # which builds images locally; inline here, per this file's convention.
       #
-      # The module is TWO containers — this one and the `planner` node below.
-      # Three of its four action servers (go_to_ee_pose, go_to_joint_config,
+      # TWO GENERATIONS, NOT INTERCHANGEABLE. Select the same generation for
+      # arm, arm_state_publisher and planner -- all three `_nightly`, or none:
+      #   * the release (1.1.0, no suffix) loads the LEVEL model from a file in
+      #     the image. It is right only on a level mount (dojo); on flatbot or
+      #     gen_1_5 its gravity model is 30° off.
+      #   * `_nightly` (kinova-arm nightly channel, rammp-org/rammp-nightly)
+      #     reads the arm's model from /arm/robot_description, rendered from the
+      #     active robot's mount.yaml, and takes Cartesian goals in arm_mount.
+      #     Required on a tilted mount. Its planner must be the nightly one too:
+      #     it refuses pose plans not stamped arm_mount, which the release
+      #     planner does not stamp.
+      #
+      # SELECT arm, arm_state_publisher AND planner TOGETHER. Three of the
+      # driver's four action servers (go_to_ee_pose, go_to_joint_config,
       # go_to_preset) accept goals that can NEVER succeed without the planner,
-      # and sheppy ignores depends_on, so the pairing lives here.
+      # and on the nightly the driver and planner both wait for the model
+      # arm_state_publisher publishes. sheppy ignores depends_on, so the pairing
+      # lives here.
       - id: kinova_gen3_driver
         kind: docker
         # Keys the params file sheppy writes, so the params below land on this
@@ -263,7 +276,7 @@ nodes:
         # launch, so a params file at startup is the only way it can be set.
         ros_node_name: kinova_gen3_node
         container:
-          image: ghcr.io/rammp-org/kinova-gen3-ros2:1.0.1
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:1.1.0
           network_mode: host
           ipc: host
           # SYS_NICE permits sched_setscheduler; the ulimits are what let it
@@ -315,6 +328,52 @@ nodes:
           - /setpoint/pose
           - /setpoint/twist
           - /setpoint/gripper
+      # The nightly: as above, except the image, the pull, and no --urdf (the
+      # node refuses it: the model comes from /arm/robot_description, and the
+      # node exits naming arm_state_publisher if none arrives).
+      - id: kinova_gen3_driver_nightly
+        kind: docker
+        ros_node_name: kinova_gen3_node
+        container:
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:nightly
+          # `:nightly` moves to each green set; without this a robot keeps
+          # running whichever one it pulled first. Pin a dated tag
+          # (`:nightly-YYYYMMDD`) instead to hold a set still.
+          pull_policy: always
+          network_mode: host
+          ipc: host
+          cap_add: [SYS_NICE]
+          ulimits:
+            rtprio: 99
+            memlock: -1
+          environment:
+            ROS_DOMAIN_ID: "0"
+          command:
+            - /module_ws/install/kinova_gen3_ros2/lib/kinova_gen3_ros2/kinova_gen3_node
+            - --ip
+            - 192.168.1.10
+            - --cpu
+            - "11"
+        params:
+          arbitration_mode: disabled
+          estop_clear_max_age_s: 1.0
+          expect_gripper: true
+        publishes:
+          - /joint_states
+          - /ee_state
+          - /control_status
+          - /stream_status
+          - /gripper_state
+          - /diagnostics
+        subscribes:
+          - /arm/robot_description
+          - /estop
+          - /setpoint/joint_position
+          - /setpoint/joint_velocity
+          - /setpoint/joint_torque
+          - /setpoint/pose
+          - /setpoint/twist
+          - /setpoint/gripper
       # The image also ships a --sim mode that is a real simulated arm, but it
       # is arm64-only, so it would not serve the "runs on a workstation" job
       # this mock exists for. Publish-only, as above.
@@ -334,17 +393,17 @@ nodes:
       # package. The driver itself publishes NO tf (only /joint_states); its
       # container is deliberately austere (root, SYS_NICE, rtprio, bare binary
       # as PID 1 on the isolated core), so TF runs here, separate, and bouncing
-      # it never touches the 1 kHz loop.
+      # it never touches the 1 kHz loop. Same generation as `arm` (see there).
       #
-      # description.launch.py defaults to the articulated 13-DOF model; the
-      # driver publishes robotiq_85_left_knuckle_joint and robot_state_publisher
-      # derives the five mimic joints. Scoped to the arm on purpose — a mobile
-      # base brings its own state publisher, and a static mount transform
-      # stitches the trees.
+      # The release: the articulated 13-DOF LEVEL model. The driver publishes
+      # robotiq_85_left_knuckle_joint and robot_state_publisher derives the
+      # five mimic joints. Scoped to the arm on purpose — a mobile base brings
+      # its own state publisher, and a static mount transform stitches the
+      # trees.
       - id: kinova_gen3_description
         kind: docker
         container:
-          image: ghcr.io/rammp-org/kinova-gen3-ros2:1.0.1
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:1.1.0
           network_mode: host
           ipc: host
           # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base,
@@ -364,6 +423,37 @@ nodes:
           - /tf_static
         subscribes:
           - /joint_states
+      # The nightly renders the model at launch, rooted at arm_mount and
+      # rotated by the active robot's mount.yaml (config/robots/current, set by
+      # scripts/set_robot.py), and publishes it latched on
+      # /arm/robot_description; the nightly driver and planner read it from
+      # there. Its joints carry the arm_ prefix.
+      - id: kinova_gen3_description_nightly
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:nightly
+          pull_policy: always  # see kinova_gen3_driver_nightly
+          network_mode: host
+          ipc: host
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          user: "1000:1000"
+          # The active robot's config, relative to this manifest. A missing
+          # `current` link makes Docker create an empty root-owned directory
+          # here and the launch fails on the missing mount.yaml; run
+          # scripts/set_robot.py, which tells you how to remove it.
+          # The relative path resolves against this manifest only in sheppy at or
+          # after #149 (df89566); older sheppy hands it to docker unchanged.
+          volumes:
+            - ./config/robots/current:/config/robot:ro
+          command: ros2 launch kinova_gen3_description description.launch.py mount_file:=/config/robot/mount.yaml
+        publishes:
+          - /arm/robot_description
+          - /tf
+          - /tf_static
+        subscribes:
+          - /joint_states
       # Wiring-only, like every mock here: /tf with no transforms in it. Needed
       # because the real alternative's image is arm64-only (same constraint as
       # the arm's --sim mode), so a workstation profile selects this.
@@ -379,11 +469,14 @@ nodes:
     alternatives:
       # Owned by rammp-org/RAMMP-CuRobo; declared here because sheppy cannot
       # express "and also start that one". Its own rammp-alternative.curobo.yaml
-      # in kinova-gen3-ros2 says the same thing against a local build.
+      # in kinova-gen3-ros2 says the same thing against a local build. Same
+      # generation as `arm` (see there).
+      #
+      # The release plans on NVIDIA's bundled level Gen3 against dojo's bench.
       - id: curobo_planner
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-curobo:1.0.0
+          image: ghcr.io/rammp-org/rammp-curobo:1.1.0
           runtime: nvidia              # JetPack exposes the GPU this way, NOT --gpus
           network_mode: host
           ipc: host
@@ -399,6 +492,42 @@ nodes:
         # to declare. Nothing here is starved; there is just nothing to list.
         publishes: []
         subscribes: []
+      # The nightly plans on the arm's own model from /arm/robot_description,
+      # in arm_mount, and stamps every plan arm_mount. It exits 1 if no model
+      # arrives within 30 s, and sheppy does not restart it: after fixing
+      # arm_state_publisher, `sheppy restart planner`.
+      #
+      # The world is a param so a profile can override it per robot: dojo's
+      # bench is the default; profiles/flatbot.yaml sets world_empty.yaml,
+      # because the bench's boxes are wrong under a tilted arm_mount. sheppy
+      # appends --ros-args --params-file only AFTER a command -- with params
+      # and no command it replaces the image CMD and the container exits 2 --
+      # hence the explicit command.
+      - id: curobo_planner_nightly
+        kind: docker
+        ros_node_name: rammp_curobo
+        container:
+          image: ghcr.io/rammp-org/rammp-curobo:nightly
+          pull_policy: always  # see kinova_gen3_driver_nightly
+          runtime: nvidia
+          network_mode: host
+          ipc: host
+          environment:
+            ROS_DOMAIN_ID: "0"
+          volumes:
+            - curobo_kernel_cache:/root/.cache
+          command:
+            - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
+            - --ros-args
+            - -p
+            - config:=gen3_real.yaml
+        params:
+          world: world_real_bench.yaml
+        # Otherwise reached over the plan_to_pose / plan_to_joints ACTIONS (see
+        # above). The one topic is the arm's model, read once at startup.
+        publishes: []
+        subscribes:
+          - /arm/robot_description
       # No mock. The mock convention here is "publish an empty message at the
       # right topic and type", and an action server has no topic to publish —
       # a mock would have to implement the action to be worth anything. Select
@@ -421,7 +550,7 @@ nodes:
       - id: xbox_pad
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-teleop:0.1.0
+          image: ghcr.io/rammp-org/rammp-teleop:0.2.0
           network_mode: host
           ipc: host
           privileged: true
@@ -450,7 +579,7 @@ nodes:
       - id: quest3
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-teleop:0.1.0
+          image: ghcr.io/rammp-org/rammp-teleop:0.2.0
           network_mode: host
           ipc: host
           privileged: true

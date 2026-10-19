@@ -1,0 +1,23 @@
+# flatbot (snorlax): both OAK-D PoE cameras, foxglove, and the arm on the
+# nightly channel, the generation that supports the 30° tilted mount.
+#
+#   uv run scripts/set_robot.py december_2026/config/robots/flatbot   # once per host
+#   sheppy up flatbot --manifest december_2026/sheppy-manifest.yaml
+#
+# Attended only: this starts a driver that can move the arm (CONTRIBUTING.md).
+# Teleop and perception are left unselected; add one line under `selections`
+# to bring one up.
+description: flatbot — OAK-D cameras, foxglove, arm + planner on the nightly channel
+selections:
+  scene_camera: oak_d_pro_w_docker
+  wrist_camera: oak_d_pro_docker
+  foxglove: foxglove_bridge_docker
+  # One generation for all three; see the manifest's `arm` node.
+  arm: kinova_gen3_driver_nightly
+  arm_state_publisher: kinova_gen3_description_nightly
+  planner: curobo_planner_nightly
+overrides:
+  planner:
+    # dojo's bench (the default) is wrong under a tilted arm_mount. Empty until
+    # flatbot has its own world, authored in arm_mount.
+    world: world_empty.yaml

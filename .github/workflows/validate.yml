@@ -44,6 +44,9 @@ jobs:
           version: "0.12.17"
 
       - name: Validate every robot config
+        env:
+          # Keep the tag in step with the static_tf image in the manifest.
+          STATIC_TF: https://raw.githubusercontent.com/rammp-org/rammp-tools/v0.2.0/docker/static_tf/static_tf.py
         run: |
           shopt -s nullglob
           status=0
@@ -56,6 +59,10 @@ jobs:
             fi
             if [ -f "$robot/mount.yaml" ]; then
               uv run scripts/set_robot.py --validate "$robot" || status=1
+            fi
+            # static_tf's own checks, from the release the manifest pins.
+            if [ -d "$robot/transforms" ]; then
+              uv run "$STATIC_TF" --validate "$robot/transforms" || status=1
             fi
           done
           exit "$status"

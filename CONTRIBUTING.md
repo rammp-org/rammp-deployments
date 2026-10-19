@@ -100,6 +100,7 @@ file per script, applied on the robot:
 | `network.yaml` | `scripts/network_config.py` | the host's NICs, through NetworkManager                                                |
 | `oak_d.yaml`   | `scripts/oak_d_config.py`   | each OAK-D PoE camera's addressing                                                     |
 | `mount.yaml`   | `scripts/set_robot.py`      | the arm's mount rotation; makes this the host's active robot (`config/robots/current`) |
+| `transforms/`  | the `static_tf` node        | fixed and calibrated transforms (camera mounts), on `/tf_static` (rammp-tools image)   |
 
 ```bash
 uv run scripts/network_config.py december_2026/config/robots/flatbot

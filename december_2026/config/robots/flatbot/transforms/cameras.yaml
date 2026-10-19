@@ -1,0 +1,26 @@
+# Camera mounts on flatbot, in rammp-calibration's mounts.yaml format; a solved
+# calibration replaces this file unchanged. Published by the manifest's static_tf node.
+# Each camera driver publishes its own tree; these attach its root to the robot.
+#
+# Both cameras are OAKs, whose image runs the bare driver_node: its tree is rooted
+# at i_tf_base_frame (<camera>, body axes, at the colour sensor) with the sensor
+# frames below. i_tf_parent_frame (<camera>_link) is only used by the driver's URDF,
+# which needs a robot_state_publisher the image does not run, so nothing publishes
+# it. A Gemini or RealSense alternative roots its tree at <camera>_link instead.
+mounts:
+  ros__parameters:
+    transforms: [scene_camera, wrist_camera]
+    # OAK-D Pro W, hand-measured 2026-10-19 (not calibrated): facing arm_mount's +x,
+    # mounted upside down (180° roll).
+    scene_camera:
+      parent: arm_mount
+      child: scene_camera
+      xyz: [0.20, -0.50, 0.40]
+      quat_xyzw: [1.0, 0.0, 0.0, 0.0]
+    # OAK-D Pro, hand-measured 2026-10-19 (not calibrated): looking along the tool
+    # (+z), mounted upside down, so its up (+z) points at the gripper axis (+x).
+    wrist_camera:
+      parent: arm_end_effector_link
+      child: wrist_camera
+      xyz: [-0.10, 0.0, 0.10]
+      quat_xyzw: [0.7071068, 0.0, 0.7071068, 0.0]

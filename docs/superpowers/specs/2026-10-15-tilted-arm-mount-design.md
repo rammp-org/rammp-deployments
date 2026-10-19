@@ -268,14 +268,18 @@ dojo is unaffected (identity mount).
    `g(q)` and FK against the current model at a handful of poses; they must match.
    kinova-gen3-ros2's `GoToEEPose` refuses any pose plan not stamped `arm_mount`, on every
    mount, so the old planner breaks pose goals even on dojo: the two images move together.
-1. **flatbot (snorlax).** `set_robot.py … flatbot`. Expect:
+1. **flatbot (snorlax), with cuRobo in the same step.** `set_robot.py … flatbot`, and move the
+   kinova-gen3-ros2 and RAMMP-CuRobo pins together: the new kinova-gen3-ros2 refuses the old
+   planner's (unstamped) pose plans, and the old planner would plan with NVIDIA's wider j2/j4/j6
+   limits. Until per-robot worlds exist the planner runs with `world_empty.yaml` via the sheppy
+   recipe in RAMMP-CuRobo's CHANGELOG (an explicit `command:` plus a `world` param override).
+   Expect:
    - the gravity-comp hold stops drooping (the pass criterion in #40);
    - `arm_base_link`'s +Z in `arm_mount` has a positive X component (leans forward);
    - teleop +Z moves the gripper straight up;
    - then re-record the Quest alignment and any saved Cartesian poses.
-1. **cuRobo on flatbot**, together with the per-robot world PR -- or, until it exists, with
-   the planner's `world` parameter set to `world_empty.yaml`: its default world is dojo's bench,
-   whose boxes are wrong under a tilted `arm_mount`.
+1. **Per-robot worlds** (separate PR): replace flatbot's `world_empty.yaml` with its real
+   world, authored in `arm_mount`.
 
 ### Until this lands
 

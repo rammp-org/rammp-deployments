@@ -139,9 +139,9 @@ def build_stack(run):
 
     # Into the alternative's params, not the profile: sheppy drops a profile override for a param the alternative
     # does not declare, and sam3_docker declares none.
-    if run.get("sam3_hz"):
-        for alt in nodes["sam3"]["alternatives"]:
-            alt.setdefault("params", {})["max_tracking_rate_hz"] = float(run["sam3_hz"])
+    # Set even when the run gives none: the manifest's own caps would otherwise apply. 15 is the node's default.
+    for alt in nodes["sam3"]["alternatives"]:
+        alt.setdefault("params", {})["max_tracking_rate_hz"] = float(run.get("sam3_hz", 15.0))
     # sam3_patch: run the SAM3 node from patches/sam3_node.py (an unreleased rammp-perception fix) over the image's.
     if run.get("sam3_patch"):
         patch = Path(__file__).resolve().parent / "patches" / "sam3_node.py"
@@ -149,13 +149,13 @@ def build_stack(run):
             alt["container"]["volumes"].append(
                 "%s:/module_ws/install/rammp_sam3/lib/python3.10/site-packages/rammp_sam3/node.py:ro" % patch)
     # boxer_hz: BoxerNet's max_rate_hz, from patches/boxer_node.py (unreleased rammp-perception feat/boxer-max-rate).
-    if run.get("boxer_hz"):
-        patch = Path(__file__).resolve().parent / "patches" / "boxer_node.py"
-        for alt in nodes["object_lifter"]["alternatives"]:
-            if alt["id"] == "boxer":
+    for alt in nodes["object_lifter"]["alternatives"]:
+        if alt["id"] == "boxer":
+            alt["params"]["max_rate_hz"] = float(run.get("boxer_hz", 0.0))
+            if run.get("boxer_hz"):
+                patch = Path(__file__).resolve().parent / "patches" / "boxer_node.py"
                 alt["container"]["volumes"].append(
                     "%s:/module_ws/install/rammp_boxer/lib/python3.10/site-packages/rammp_boxer/node.py:ro" % patch)
-                alt["params"]["max_rate_hz"] = float(run["boxer_hz"])
     if run.get("blas1"):
         for name in ("scene_segmenter", "sam3", "object_lifter"):
             for alt in nodes[name]["alternatives"]:

@@ -54,6 +54,9 @@ DETECTORS = {
     "rfdetr_s": ("rfdetr", {}),
     "owlv2": ("owl_bench_owlv2", None),
     "nanoowl_b32": ("owl_bench_nanoowl", None),
+    # The rammp-perception nanoowl image (feat/nanoowl, built on abra as :dev), publishing real detections.
+    "nanoowl_img_b32": ("nanoowl", {"model": "owlvit-b32"}),
+    "nanoowl_img_b16": ("nanoowl", {"model": "owlvit-b16"}),
 }
 SAM3_PROMPTS = "microwave"   # tracking session: one object, in view of abra's scene camera
 DETECT_PROMPTS = "microwave,fridge,table,food container"
@@ -102,6 +105,10 @@ def make_runs():
     runs["final-timing"] = dict(final, sam3_timing=True)
     runs["yoloe26m_gpu-s3-track5-blas1-fresh"] = {"base": True, "sam3": "track", "sam3_hz": 5, "detector": "yoloe26m_gpu",
                                                   "stride": 3, "blas1": True, "sam3_patch": True}
+    for d in ("nanoowl_img_b32", "nanoowl_img_b16"):
+        runs["%s-s1" % d] = {"base": True, "sam3": "idle", "detector": d, "stride": 1}
+        runs["final-%s" % d] = dict(final, detector=d)
+    runs["final-nanoowl_img_b32-load70"] = dict(final, detector="nanoowl_img_b32", gpu_load=70)
     for d in ("yoloe26m_gpu", "yoloe26s_gpu", "yoloe26s_dla", "rfdetr_s", "nanoowl_b32"):
         runs["%s-s3-track5-boxer" % d] = {"base": True, "sam3": "track", "sam3_hz": 5, "detector": d, "stride": 3,
                                          "boxer": True}
@@ -173,6 +180,12 @@ def build_stack(run):
         dict(id="owl_bench_nanoowl", **host_process(
             "exec ~/detector-bench/.venv/bin/python %s --model nanoowl-b32 --stride %d" % (bench, stride))),
     ]
+    yoloe = next(a for a in nodes["scene_segmenter"]["alternatives"] if a["id"] == "yoloe_gpu")
+    nodes["scene_segmenter"]["alternatives"].append({
+        "id": "nanoowl", "kind": "docker",
+        "container": dict(yoloe["container"], image="ghcr.io/rammp-org/rammp-perception/nanoowl:dev"),
+        "params": {"model": "owlvit-b32", "image_topic": CAMERA, "frame_stride": stride},
+    })
     # In the SAM3 image (torch and CUDA), not on the host: snorlax's host has no torch.
     here = Path(__file__).resolve().parent
     manifest["nodes"].append({

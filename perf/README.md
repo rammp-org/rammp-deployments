@@ -9,6 +9,7 @@ docs site (Perception compute budget).
 | `bench.py`      | runs the matrix: writes a manifest + profile from `december_2026/`, `sheppy up`, measures, saves JSON |
 | `ros_probe.py`  | topic rate and camera-to-result latency, SAM3 tracking and detect calls; runs in the SAM3 image     |
 | `owl_node.py`   | OWLv2 and NanoOWL as scene segmenters (no image exists for either); bench only                     |
+| `quality/`     | detector quality check against SAM3 (YOLOE, RF-DETR, NanoOWL); see its README                     |
 | `report.py`     | markdown tables from the results                                                                   |
 | `grab_frame.py` | one scene camera frame as a JPEG, to see what the bench looked at                                  |
 | `replay_camera.py` | records the scene camera (color, registered depth, intrinsics, TF) and replays it where none is attached |

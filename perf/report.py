@@ -17,6 +17,8 @@ NAMES = {
     "rfdetr_s": "RF-DETR-Seg S, GPU (PyTorch FP16)",
     "owlv2": "OWLv2 B/16, GPU (PyTorch FP32)",
     "nanoowl_b32": "NanoOWL B/32, GPU (TensorRT FP16)",
+    "nanoowl_img_b32": "NanoOWL B/32, rammp-perception image (boxes published)",
+    "nanoowl_img_b16": "NanoOWL B/16, rammp-perception image (boxes published)",
 }
 
 
@@ -145,7 +147,10 @@ def main():
 
     rows = []
     for name, label in (("final", "finalized stack, YOLOE-26m"), ("final-rfdetr", "finalized stack, RF-DETR-Seg S"),
-                        ("final-load70", "finalized stack, YOLOE-26m, other GPU user busy 70%")):
+                        ("final-load70", "finalized stack, YOLOE-26m, other GPU user busy 70%"),
+                        ("final-nanoowl_img_b32", "finalized stack, NanoOWL B/32"),
+                        ("final-nanoowl_img_b16", "finalized stack, NanoOWL B/16"),
+                        ("final-nanoowl_img_b32-load70", "finalized stack, NanoOWL B/32, other GPU user busy 70%")):
         r = res.get(name)
         if r:
             t, s3, b = topic(r, DETECTIONS), topic(r, SAM3_TOPIC), topic(r, LIFTED)

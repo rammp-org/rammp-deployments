@@ -54,6 +54,20 @@ sudo ip addr del 192.168.1.250/24 dev eno1
 `192.168.1.x` is also the arm's subnet on `enp3s0`: while the temporary address is up,
 arm traffic can leave on the wrong NIC, so do this with the arm unplugged or idle.
 
+## Bringing it up
+
+```bash
+sheppy up flatbot --manifest december_2026/sheppy-manifest.yaml
+```
+
+`profiles/flatbot.yaml` selects both OAKs, foxglove, and the arm, `arm_state_publisher`
+and planner on the **nightly** channel (`:nightly`, pulled on every start). The release
+arm images (1.1.0) predate the tilted-mount support and are right only on a level mount.
+The profile gives the planner `world_empty.yaml`: dojo's bench, its default, is wrong
+under a tilted `arm_mount`. The planner exits if it does not get the arm's model within
+30 s, and sheppy does not restart it, so after an `arm_state_publisher` problem run
+`sheppy restart planner`. Attended only: someone on the e-stop.
+
 ## Cameras
 
 | Node           | Device ID            | Bootloader |

@@ -14,13 +14,22 @@ Warnings are re-derived separately because `validate()` drops them, and they
 are the more interesting half. sheppy IGNORES `depends_on`, `restart` and
 `healthcheck` — it owns lifecycle — so a manifest that quietly relies on one
 loads green and then does not do what it says.
+
+Each manifest's profiles (`profiles/*.yaml` beside it) are checked against it
+too. sheppy DROPS a selection naming an alternative the manifest lacks, and an
+override of a param the alternative does not declare, with only a warning, so
+a stale profile brings a robot up missing a node or with a default it meant
+to override. Here every such warning is an error.
 """
 
 import glob
+import os
 import sys
 
 from sheppy.launch.docker.compose import service_to_docker_args
 from sheppy.manifest.loader import load_manifest
+from sheppy.profiles.reconcile import reconcile
+from sheppy.profiles.store import ProfileStore
 
 
 def check(path: str) -> int:
@@ -45,10 +54,23 @@ def check(path: str) -> int:
                 print(f"  {path}: {node.name}/{alt.id}: warning: {warn}")
                 problems += 1
 
+    store = ProfileStore(os.path.join(os.path.dirname(path), "profiles"))
+    names = store.list_profiles()
+    for name in names:
+        loaded = store.load(name)
+        issues = list(loaded.errors)
+        if loaded.profile is not None:
+            issues += reconcile(loaded.profile, result.manifest).warnings
+        for issue in issues:
+            print(f"  {path}: profile {name}: {issue}")
+            problems += 1
+
     if not problems:
         nodes = len(result.manifest.nodes)
         alts = sum(len(n.alternatives) for n in result.manifest.nodes)
-        print(f"  {path}: ok — {nodes} nodes, {alts} alternatives")
+        print(
+            f"  {path}: ok — {nodes} nodes, {alts} alternatives, {len(names)} profiles"
+        )
     return problems
 
 

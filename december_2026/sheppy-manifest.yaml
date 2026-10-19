@@ -298,6 +298,10 @@ nodes:
           # Paths are /module_ws, NOT the /ros2_ws the module's own
           # deploy/compose.yaml still says: rammp-base owns /ros2_ws (the
           # interface contract) and this node builds into /module_ws on top.
+          #
+          # --ip, --urdf and --cpu are the node's command-line flags, not ROS
+          # parameters, so they live here and a profile cannot override them.
+          # Moving them to `params:` is a driver change.
           command:
             - /module_ws/install/kinova_gen3_ros2/lib/kinova_gen3_ros2/kinova_gen3_node
             - --ip
@@ -552,10 +556,9 @@ nodes:
             - curobo_kernel_cache:/root/.cache
           command:
             - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
-            - --ros-args
-            - -p
-            - config:=gen3_real.yaml
         params:
+          # Both name files that ship in the image.
+          config: gen3_real.yaml
           world: world_real_bench.yaml
         # Otherwise reached over the plan_to_pose / plan_to_joints ACTIONS (see
         # above). The one topic is the arm's model, read once at startup.

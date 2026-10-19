@@ -1,8 +1,8 @@
 # Sheppy manifest for the December 2026 demo. Launch from the demo machine:
 #   sheppy december_2026/sheppy-manifest.yaml
 #
-# Cameras, the arm, the arm's TF, operator teleop and perception (the always-on scene segmenter and
-# SAM3) so far; the demo modules land here as their module repos publish fragments.
+# Cameras, the arm, the arm's TF, operator teleop and perception (the always-on scene segmenter, SAM3
+# and 3D boxes for its objects) so far; the demo modules land here as their module repos publish fragments.
 #
 # Every node carries a mock alternative alongside the real one, so a profile
 # selecting only mocks runs on a workstation with no hardware attached. The
@@ -57,6 +57,10 @@ nodes:
           depth_width: 0
           depth_height: 0
           depth_fps: 0
+          # Depth registered to color: depth/image_raw and depth/points come out at the color camera's
+          # resolution and in its frame. object_lifter needs this. When changing it on a running stack,
+          # check the camera actually restarted with it (rammp-org/sheppy#182).
+          depth_registration: true
         publishes:
           - /scene_camera/color/image_raw
           - /scene_camera/depth/image_raw
@@ -68,7 +72,7 @@ nodes:
       - id: oak_d_pro_w_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.0
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.1
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
@@ -76,8 +80,10 @@ nodes:
             ROS_DOMAIN_ID: "0"
           command: [--ros-args, -r, __node:=scene_camera]
         params:
-          # TODO: the wide camera's address once it is on the bench network.
-          driver.i_ip: 192.168.1.201
+          # Which OAK: the device ID (MxID), as in the robot's oak_d.yaml.
+          # Found by discovery, so the camera's address can change (DHCP)
+          # without touching this; it must be on a subnet the host is on.
+          driver.i_device_id: "19443010219A974800"
           driver.i_tf_base_frame: scene_camera
           driver.i_tf_parent_frame: scene_camera_link
           # Full sensor resolution on both the stereo pair and the color
@@ -139,19 +145,23 @@ nodes:
       - id: oak_d_pro_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.0
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.1
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
+          # From 0.3.1 the container exits 1 if no camera matching the device
+          # ID is ready within RAMMP_OAK_READY_TIMEOUT seconds (default 60),
+          # so a wrong ID or an unplugged camera shows as crashed. Both OAKs.
           environment:
             ROS_DOMAIN_ID: "0"
           # The image's entrypoint runs the node with the driver's defaults;
           # only the rename is appended, and the wrist tuning lives in params.
           command: [--ros-args, -r, __node:=wrist_camera]
         params:
-          # Which OAK: the PoE address (USB models take driver.i_device_id,
-          # the MxID, instead).
-          driver.i_ip: 192.168.1.200
+          # Which OAK: the device ID (MxID), as in the robot's oak_d.yaml.
+          # Found by discovery, so the camera's address can change (DHCP)
+          # without touching this; it must be on a subnet the host is on.
+          driver.i_device_id: "194430107187F42E00"
           driver.i_tf_base_frame: wrist_camera
           driver.i_tf_parent_frame: wrist_camera_link
           pipeline_gen.i_enable_imu: false
@@ -515,7 +525,9 @@ nodes:
       #
       # NOT A RELEASE: rammp-perception has not cut one yet (it waits on rammp-interfaces-ros2's next
       # tag). These pin the immutable sha-<commit> images CI published from its dev branch; replace with
-      # the first release tag.
+      # the first release tag. Every perception image here must come from the same build: since
+      # rammp-interfaces-ros2#16 (DetectedObject.size) the message's wire format changed, and a node
+      # built against the old definition silently misreads messages from one built against the new.
       #
       # YOLOE-26m on the GPU: the best YOLOE masks, ~46 ms per frame with tracking and ~12% GPU at 10 Hz
       # on abra. The first start builds a TensorRT engine into the volume (about 9 minutes); later
@@ -523,7 +535,7 @@ nodes:
       - id: yoloe_gpu
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-55a332e720e9b5e67580ee2651a3e25802787d42
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -549,7 +561,7 @@ nodes:
       - id: yoloe_dla
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-55a332e720e9b5e67580ee2651a3e25802787d42
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -577,7 +589,7 @@ nodes:
       - id: rfdetr
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/rfdetr:sha-55a332e720e9b5e67580ee2651a3e25802787d42
+          image: ghcr.io/rammp-org/rammp-perception/rfdetr:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -598,7 +610,7 @@ nodes:
       - id: scene_segmenter_mock
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-55a332e720e9b5e67580ee2651a3e25802787d42
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
           network_mode: host
           ipc: host
           user: "1000:1000"
@@ -626,7 +638,7 @@ nodes:
       - id: sam3_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/sam3:sha-55a332e720e9b5e67580ee2651a3e25802787d42
+          image: ghcr.io/rammp-org/rammp-perception/sam3:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -644,3 +656,66 @@ nodes:
           - /scene_camera/color/image_raw
       # No mock, as for the planner: SAM3 is reached through services, and a mock would have to
       # implement them to be worth anything. Leave this node unselected on a workstation.
+
+  - name: object_lifter
+    description: 3D boxes (pose + size) for the scene segmenter's objects -> /perception/object_detections_3d
+    select: single
+    alternatives:
+      # Transcribed from rammp-org/rammp-perception's rammp-alternative.boxer.yaml; same NOT A RELEASE pin
+      # as scene_segmenter above. BoxerNet lifts every object of /perception/object_detections to a
+      # gravity-aligned 3D box and republishes the message on /perception/object_detections_3d with
+      # pose (in the camera's optical frame) and size filled in. ~90 ms per frame on abra, keeping up with
+      # the segmenter. First start builds its TensorRT engines into the volume (about 2.5 minutes).
+      #
+      # Needs, per frame: the Gemini's registered depth (scene_camera above) and TF from gravity_frame to
+      # the camera. Nothing in this manifest publishes base_link -> scene_camera yet (the arm's state
+      # publisher covers the arm only); until a mount transform does, every object comes out with
+      # has_pose false and the node logs the missing transform. On the OAK scene camera alternative set
+      # depth_topic to /scene_camera/depth/image_rect_raw (not yet tested).
+      # BoxerNet's weights are CC-BY-NC 4.0 (non-commercial) and baked into the image.
+      - id: boxer
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          runtime: nvidia
+          network_mode: host
+          ipc: host
+          user: "1000:1000"
+          volumes:
+            - rammp_perception_engines:/cache/engines
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+        params:
+          detections_topic: /perception/object_detections
+          image_topic: /scene_camera/color/image_raw
+          depth_topic: /scene_camera/depth/image_raw
+          camera_info_topic: /scene_camera/color/camera_info
+          gravity_frame: base_link     # any frame with +z up; only its rotation is used
+          min_prob: 0.5
+        publishes:
+          - /perception/object_detections_3d
+        subscribes:
+          - /perception/object_detections
+          - /scene_camera/color/image_raw
+          - /scene_camera/depth/image_raw
+          - /scene_camera/color/camera_info
+          - /tf
+          - /tf_static
+      # Diverges from the fragments: boxer has no mock mode, so this is the scene segmenter's mock (same
+      # image, same message) renamed and remapped onto object_lifter's topic. Empty detections at 10 Hz.
+      - id: object_lifter_mock
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          network_mode: host
+          ipc: host
+          user: "1000:1000"
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          command: [--ros-args, -r, __node:=boxer, -r, /perception/object_detections:=/perception/object_detections_3d]
+        params:
+          mock: true
+        publishes:
+          - /perception/object_detections_3d

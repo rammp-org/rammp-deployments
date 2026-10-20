@@ -18,10 +18,10 @@ mounts:
       xyz: [0.20, -0.50, 0.40]
       quat_xyzw: [1.0, 0.0, 0.0, 0.0]
     # OAK-D Pro, hand-measured 2026-10-19 (not calibrated): looking along the tool
-    # (+z), its up (+z) toward the arm's +y. Roll checked against a live frame
-    # 2026-10-20 (#114).
+    # (+z), its up (+z) toward the arm's +y. Measured as 0.10 m back along the tool
+    # and 0.10 m toward the camera's up; roll checked against a live frame (#114).
     wrist_camera:
       parent: arm_end_effector_link
       child: wrist_camera
-      xyz: [-0.10, 0.0, 0.10]
+      xyz: [0.0, 0.10, -0.10]
       quat_xyzw: [-0.5, -0.5, -0.5, 0.5]

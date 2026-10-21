@@ -17,6 +17,7 @@ selections:
   arm_state_publisher: kinova_gen3_description_nightly
   planner: curobo_planner_nightly
   static_tf: static_tf_docker
+  box_opening: box_opening_launch
 overrides:
   planner:
     # dojo's bench (the default) is wrong under a tilted arm_mount. Empty until

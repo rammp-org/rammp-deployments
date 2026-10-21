@@ -871,3 +871,43 @@ nodes:
           mock: true
         publishes:
           - /perception/object_detections_3d
+
+  - name: box_opening
+    description: Box-opening mission — OWL wrist + scene detectors, press_demo.launch.py host process
+    select: single
+    alternatives:
+      # Host process: runs on the Jetson directly against the colcon install
+      # tree, which carries the JP6 torch wheel + cuSPARSELt needed for OWL.
+      # press_demo.launch.py sets LD_LIBRARY_PATH itself (torch/lib,
+      # cuda-12.6/lib64) and sets RMW_IMPLEMENTATION=rmw_cyclonedds_cpp, so
+      # neither is repeated here.
+      #
+      # tf:=false — the nightly arm_state_publisher in the `arm` node group
+      # already publishes the arm's TF; a second robot_state_publisher on the
+      # same /tf would publish duplicate (and possibly conflicting) transforms.
+      #
+      # camera:=false (default) — sheppy's `wrist_camera` node owns the D405 /
+      # OAK-D; this launch only adds the OWL detectors on top of those streams.
+      #
+      # After `sheppy up box-opening`, run the CLI in its own shell:
+      #   export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      #   ros2 run rammp_box_opening press_demo        # preflight only
+      #   ros2 run rammp_box_opening press_demo --execute  # attended run, e-stop in hand
+      - id: box_opening_launch
+        kind: process
+        command: >-
+          bash -lc 'source /opt/ros/humble/setup.bash &&
+          source ~/RAMMP-box-opening/install/setup.bash &&
+          ros2 launch rammp_box_opening press_demo.launch.py
+          bench_world:=world_flatbot.yaml tf:=false'
+        publishes:
+          - /rammp_box_opening/owl_bbox
+          - /rammp_box_opening/owl_bbox_scene
+          - /rammp_box_opening/owl_container
+        subscribes:
+          - /joint_states
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /scene_camera/color/image_raw
+          - /arm/robot_description

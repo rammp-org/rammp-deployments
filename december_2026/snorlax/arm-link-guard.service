@@ -1,0 +1,27 @@
+# Keep IPv4 multicast (DDS discovery and data) off the Kinova arm link.
+#
+# Cyclone DDS's `autodetermine` picks enp3s0 (the arm link) on snorlax, and any
+# process with a default Cyclone config multicasts topic data there. Measured
+# 2026-10-22: 3.8 MB/s of DDS multicast on enp3s0 raised the arm driver's
+# overruns from ~0.05/s to ~14/s (a 3-4 ms Kortex gap behind every burst:
+# one TX queue, no BQL). This drops multicast at enp3s0 egress. Same-host
+# receivers are unaffected: the kernel loops multicast back before the egress
+# hook. The Kinova needs no multicast. (The Tegra kernel has no prio/tbf/htb
+# qdiscs, so clsact + flower + gact is what is available.)
+#
+# Install: sudo ./install-arm-link-guard.sh    Remove: sudo systemctl disable --now arm-link-guard
+[Unit]
+Description=Drop IPv4 multicast on the arm link (enp3s0) egress
+BindsTo=sys-subsystem-net-devices-enp3s0.device
+After=sys-subsystem-net-devices-enp3s0.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/sbin/tc qdisc del dev enp3s0 clsact
+ExecStart=/sbin/tc qdisc add dev enp3s0 clsact
+ExecStart=/sbin/tc filter add dev enp3s0 egress prio 10 protocol ip flower dst_ip 224.0.0.0/4 action drop
+ExecStop=/sbin/tc qdisc del dev enp3s0 clsact
+
+[Install]
+WantedBy=sys-subsystem-net-devices-enp3s0.device

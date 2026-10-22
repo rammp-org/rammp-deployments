@@ -67,8 +67,10 @@ nodes:
           - /scene_camera/depth/points
       # Wide-angle alternative: OAK-D Pro W PoE, 127° HFOV on the stereo pair
       # and on the OV9782 color sensor (the "97" variant). Same image as the
-      # wrist OAK; only params differ. Color matches the Gemini's topic; depth
-      # is depth/image_rect_raw (RealSense naming) and there is no points topic.
+      # wrist OAK; only params differ. Depth is depth/image_rect_raw (RealSense
+      # naming) and there is no points topic. Color leaves the camera as H.264
+      # (see the wrist OAK) on color/image_raw/ffmpeg; select
+      # scene_camera_decoder to get color/image_raw back.
       - id: oak_d_pro_w_docker
         kind: docker
         container:
@@ -78,7 +80,8 @@ nodes:
           ipc: host
           environment:
             ROS_DOMAIN_ID: "0"
-          command: [--ros-args, -r, __node:=scene_camera]
+          command: [--ros-args, -r, __node:=scene_camera,
+                    -r, /scene_camera/color/image_raw/compressed:=/scene_camera/color/image_raw/ffmpeg]
         params:
           # Which OAK: the device ID (MxID), as in the robot's oak_d.yaml.
           # Found by discovery, so the camera's address can change (DHCP)
@@ -92,11 +95,19 @@ nodes:
           color.i_width: 1280
           color.i_height: 800
           color.i_fps: 30.0
+          # H.264 at 8 Mbps, as for the wrist OAK. Raw, color and depth at this
+          # resolution are ~860 Mbps, more than the gigabit port both OAKs share,
+          # and color came through at ~15 Hz.
+          color.i_low_bandwidth: true
+          color.i_low_bandwidth_profile: 2
+          color.i_low_bandwidth_bitrate: 8000000
+          color.i_low_bandwidth_frame_freq: 30
+          color.i_publish_compressed: true
           depth.i_width: 1280
           depth.i_height: 800
           depth.i_fps: 30.0
         publishes:
-          - /scene_camera/color/image_raw
+          - /scene_camera/color/image_raw/ffmpeg
           - /scene_camera/depth/image_rect_raw
       - id: scene_camera_mock
         kind: process
@@ -138,10 +149,19 @@ nodes:
         publishes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/depth/image_rect_raw
-      # Same topics as the D405, so consumers cannot tell which is selected —
-      # except at range: the D405 sees from ~7 cm, this from ~15-30 cm (75 mm
-      # baseline, even with the near-field tuning in params below: ROBOTICS
-      # preset, extended disparity, dot projector on).
+      # Same topics as the D405 once wrist_camera_decoder is selected, so
+      # consumers cannot tell which is selected — except at range: the D405 sees
+      # from ~7 cm, this from ~15-30 cm (75 mm baseline, even with the
+      # near-field tuning in params below: ROBOTICS preset, extended disparity,
+      # dot projector on).
+      #
+      # Color is H.264, encoded on the camera: in the demo this OAK's link runs
+      # through the arm at 100 Mbps, which raw color does not fit. The driver
+      # can only decode MJPEG itself, so it publishes the packets
+      # (ffmpeg_image_transport_msgs/FFMPEGPacket) — on image_raw/compressed,
+      # remapped below to image_raw/ffmpeg, image_transport's name for them —
+      # and wrist_camera_decoder turns them back into color/image_raw. Depth is
+      # still raw (~120 Mbps at 30 Hz): not yet fitted to that link.
       - id: oak_d_pro_docker
         kind: docker
         container:
@@ -155,8 +175,9 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
           # The image's entrypoint runs the node with the driver's defaults;
-          # only the rename is appended, and the wrist tuning lives in params.
-          command: [--ros-args, -r, __node:=wrist_camera]
+          # only the renames are appended, and the wrist tuning lives in params.
+          command: [--ros-args, -r, __node:=wrist_camera,
+                    -r, /wrist_camera/color/image_raw/compressed:=/wrist_camera/color/image_raw/ffmpeg]
         params:
           # Which OAK: the device ID (MxID), as in the robot's oak_d.yaml.
           # Found by discovery, so the camera's address can change (DHCP)
@@ -168,17 +189,27 @@ nodes:
           color.i_width: 640
           color.i_height: 400
           color.i_fps: 30.0
-          color.i_synced: true
+          # Not synced with depth: with H.264 color, the synced path segfaults
+          # in the driver (3.3.0) making camera_info for the encoded frames.
+          color.i_synced: false
+          # H.264 (profile 2 = H264_MAIN; 4, the default, is MJPEG) at 4 Mbps,
+          # a keyframe every 30 frames so a lost packet corrupts at most a
+          # second. publish_compressed: the packets, not a decoded image.
+          color.i_low_bandwidth: true
+          color.i_low_bandwidth_profile: 2
+          color.i_low_bandwidth_bitrate: 4000000
+          color.i_low_bandwidth_frame_freq: 30
+          color.i_publish_compressed: true
           depth.i_width: 640
           depth.i_height: 400
           depth.i_fps: 30.0
-          depth.i_synced: true
+          depth.i_synced: false
           # Near-field tuning: extended disparity doubles the search range,
           # which halves the minimum depth; 400P halves it again versus 800P.
           depth.i_depth_preset: ROBOTICS
           depth.i_extended_disp: true
         publishes:
-          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/image_raw/ffmpeg
           - /wrist_camera/depth/image_rect_raw
       # Same topics again. The image's entrypoint already runs the node with
       # /etc/rammp/realsense/d435i.yaml, so the command is only the rename and
@@ -216,6 +247,66 @@ nodes:
         command: "bash -lc 'source /opt/ros/humble/setup.bash && ros2 topic pub -r 10 /wrist_camera/color/image_raw sensor_msgs/msg/Image \"{}\"'"
         publishes:
           - /wrist_camera/color/image_raw
+
+  - name: scene_camera_decoder
+    description: "Scene OAK color decoder: H.264 packets on color/image_raw/ffmpeg back to raw color/image_raw"
+    select: single
+    alternatives:
+      # Built and published by rammp-tools: image_transport's republish with
+      # the ffmpeg plugin, software decoding. Select with oak_d_pro_w_docker.
+      - id: ffmpeg_decoder_docker
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-tools/ffmpeg_decoder:dev
+          network_mode: host
+          ipc: host
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          user: "1000:1000"
+          command: [--ros-args, -r, __node:=scene_camera_decoder,
+                    -r, in/ffmpeg:=/scene_camera/color/image_raw/ffmpeg, -r, out:=/scene_camera/color/image_raw]
+        params:
+          # libav's software decoder. The default list tries h264_cuvid first,
+          # which has no libnvcuvid in a container, and the plugin segfaults
+          # instead of falling back. Keyed by the packets' encoding label: the
+          # OAK driver (3.3.0) always writes libx264, whatever encoded them.
+          in.ffmpeg.decoders.libx264: h264
+        subscribes:
+          - /scene_camera/color/image_raw/ffmpeg
+        publishes:
+          - /scene_camera/color/image_raw
+      # No mock: the camera mocks publish color/image_raw themselves.
+
+  - name: wrist_camera_decoder
+    description: "Wrist OAK color decoder: H.264 packets on color/image_raw/ffmpeg back to raw color/image_raw"
+    select: single
+    alternatives:
+      # Built and published by rammp-tools: image_transport's republish with
+      # the ffmpeg plugin, software decoding. Select with oak_d_pro_docker.
+      - id: ffmpeg_decoder_docker
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-tools/ffmpeg_decoder:dev
+          network_mode: host
+          ipc: host
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          user: "1000:1000"
+          command: [--ros-args, -r, __node:=wrist_camera_decoder,
+                    -r, in/ffmpeg:=/wrist_camera/color/image_raw/ffmpeg, -r, out:=/wrist_camera/color/image_raw]
+        params:
+          # libav's software decoder. The default list tries h264_cuvid first,
+          # which has no libnvcuvid in a container, and the plugin segfaults
+          # instead of falling back. Keyed by the packets' encoding label: the
+          # OAK driver (3.3.0) always writes libx264, whatever encoded them.
+          in.ffmpeg.decoders.libx264: h264
+        subscribes:
+          - /wrist_camera/color/image_raw/ffmpeg
+        publishes:
+          - /wrist_camera/color/image_raw
+      # No mock: the camera mocks publish color/image_raw themselves.
 
   - name: foxglove
     description: Foxglove bridge — WebSocket on :8765 for inspecting the graph

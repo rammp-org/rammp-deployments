@@ -913,3 +913,42 @@ nodes:
           - /wrist_camera/color/image_raw
           - /scene_camera/color/image_raw
           - /arm/robot_description
+
+  # MOVES THE ARM. Deliberately in no profile: it runs only when an operator
+  # selects it in the TUI (or `sheppy restart home_arm`), attended, e-stop in
+  # hand. Never add it to a profile — a profile converges on `sheppy up` and
+  # after a reboot, which would fly home with nobody watching. A one-shot:
+  # sheppy never restarts it, and a finished home shows as crashed with exit=0.
+  - name: home_arm
+    description: Return the arm to the flatbot HOME (one-shot, attended; in no profile)
+    select: single
+    alternatives:
+      # Plans + prints the move, sends nothing. Select this first.
+      - id: home_arm_preview
+        kind: process
+        command: >-
+          bash -lc 'source /opt/ros/humble/setup.bash &&
+          source ~/RAMMP-box-opening/install/setup.bash &&
+          export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp &&
+          export LD_LIBRARY_PATH=$HOME/RAMMP-box-opening/install/rammp_box_opening/lib/rammp_curobo_interfaces:$LD_LIBRARY_PATH &&
+          ros2 run rammp_box_opening home_arm
+          --bench-world $HOME/RAMMP-box-opening/install/rammp_box_opening/share/rammp_box_opening/config/world_flatbot.yaml
+          --speed-scale 0.2'
+        subscribes:
+          - /joint_states
+          - /tf
+      # Flies it. Stopping the node in the TUI SIGINTs its process group — the
+      # same cancel path as Ctrl+C — and the e-stop always works.
+      - id: home_arm_execute
+        kind: process
+        command: >-
+          bash -lc 'source /opt/ros/humble/setup.bash &&
+          source ~/RAMMP-box-opening/install/setup.bash &&
+          export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp &&
+          export LD_LIBRARY_PATH=$HOME/RAMMP-box-opening/install/rammp_box_opening/lib/rammp_curobo_interfaces:$LD_LIBRARY_PATH &&
+          ros2 run rammp_box_opening home_arm
+          --bench-world $HOME/RAMMP-box-opening/install/rammp_box_opening/share/rammp_box_opening/config/world_flatbot.yaml
+          --speed-scale 0.2 --execute'
+        subscribes:
+          - /joint_states
+          - /tf

@@ -553,6 +553,8 @@ nodes:
             ROS_DOMAIN_ID: "0"
           volumes:
             - curobo_kernel_cache:/root/.cache
+            # rammp_box_opening hands SetWorld absolute host paths; same path inside.
+            - /home/snorlax/.ros/rammp_box_opening/worlds:/home/snorlax/.ros/rammp_box_opening/worlds:ro
           command:
             - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
         params:

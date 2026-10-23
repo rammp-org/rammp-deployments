@@ -25,9 +25,9 @@ overrides:
     # flatbot has its own world, authored in arm_mount.
     world: world_empty.yaml
   object_lifter:
-    # The OAK's depth topic. Its depth runs at 18.5 Hz unsynced to 19.3 Hz color: about half the
-    # color frames have depth within 20 ms, 95% within 30 ms (run3 bag, 2026-10-21).
+    # The OAK's depth topic. The scene OAK pairs depth with color on the device and stamps both
+    # with color's stamp, so a tight slop only rejects frames that weren't paired: if sync is
+    # off, boxer says how far the nearest depth frame was instead of lifting a mismatched pair.
     depth_topic: /scene_camera/depth/image_rect_raw
-    depth_slop_s: 0.03
+    depth_slop_s: 0.005
     gravity_frame: arm_mount  # flatbot's tree is world -> arm_mount; nothing publishes base_link
-    frame_stride: 3  # lift every 3rd detections message

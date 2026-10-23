@@ -72,7 +72,9 @@ nodes:
       - id: oak_d_pro_w_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.1
+          # NOT A RELEASE pin: rammp-suite-software main at #9's merge (opt-in encoded
+          # color, RAMMP_OAK_COLOR_CODEC; unset here, so raw as before). Tag at the next oak release.
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-7d1c78ffbaceb0a102f68cfd5404b2b3b23586da
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
@@ -89,12 +91,22 @@ nodes:
           # Full sensor resolution on both the stereo pair and the color
           # sensor; the driver undistorts color by default, which is what
           # makes the wide lens usable as-is.
-          color.i_width: 1280
-          color.i_height: 800
-          color.i_fps: 30.0
-          depth.i_width: 1280
-          depth.i_height: 800
-          depth.i_fps: 30.0
+          # 640x400 @ 15 fps (2026-10-22): 1280x800 @ 30 raw put 677 Mbit/s on
+          # eno1 and the camera delivered only ~15 Hz at 550 ms (depth 1 s)
+          # age; 640x400 @ 15 delivers 15 Hz at 24-31 ms.
+          color.i_width: 640
+          color.i_height: 400
+          color.i_fps: 15.0
+          color.i_synced: true
+          depth.i_width: 640
+          depth.i_height: 400
+          depth.i_fps: 15.0
+          depth.i_synced: true
+          # Synced on the device, as on the wrist (see its sync_threshold), so
+          # each color frame's depth carries the same stamp. Unsynced, only
+          # half the color frames had depth within 20 ms, which consumers
+          # pairing by stamp (boxer) had to cover with a wider slop.
+          sync.sync_threshold: 33
         publishes:
           - /scene_camera/color/image_raw
           - /scene_camera/depth/image_rect_raw
@@ -145,7 +157,7 @@ nodes:
       - id: oak_d_pro_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.1
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-7d1c78ffbaceb0a102f68cfd5404b2b3b23586da  # as the scene OAK
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
@@ -167,12 +179,18 @@ nodes:
           pipeline_gen.i_enable_imu: false
           color.i_width: 640
           color.i_height: 400
-          color.i_fps: 30.0
+          color.i_fps: 15.0
           color.i_synced: true
           depth.i_width: 640
           depth.i_height: 400
-          depth.i_fps: 30.0
+          depth.i_fps: 15.0
           depth.i_synced: true
+          # The device-side Sync node pairs color and depth only when their
+          # stamps are within this many ms (driver 3.3.0 default 10). The
+          # sensors are not phase-locked, so at 15 fps the default starved the
+          # pairing to 2.5 Hz; use half the frame period (33 ms at 15 fps,
+          # 16 at 30). The driver stamps both messages with color's stamp.
+          sync.sync_threshold: 33
           # Near-field tuning: extended disparity doubles the search range,
           # which halves the minimum depth; 400P halves it again versus 800P.
           depth.i_depth_preset: ROBOTICS

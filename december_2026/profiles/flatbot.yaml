@@ -5,9 +5,9 @@
 #   sheppy up flatbot --manifest december_2026/sheppy-manifest.yaml
 #
 # Attended only: this starts a driver that can move the arm (CONTRIBUTING.md).
-# Teleop and perception are left unselected; add one line under `selections`
-# to bring one up.
-description: flatbot — OAK-D cameras, foxglove, arm + planner on the nightly channel
+# Perception is YOLOE on the scene camera with BoxerNet 3D boxes. Teleop is left
+# unselected; add one line under `selections` to bring one up.
+description: flatbot — OAK-D cameras, foxglove, arm + planner on the nightly channel, YOLOE + BoxerNet
 selections:
   scene_camera: oak_d_pro_w_docker
   wrist_camera: oak_d_pro_docker
@@ -17,8 +17,17 @@ selections:
   arm_state_publisher: kinova_gen3_description_nightly
   planner: curobo_planner_nightly
   static_tf: static_tf_docker
+  scene_segmenter: yoloe_gpu
+  object_lifter: boxer
 overrides:
   planner:
     # dojo's bench (the default) is wrong under a tilted arm_mount. Empty until
     # flatbot has its own world, authored in arm_mount.
     world: world_empty.yaml
+  object_lifter:
+    # The OAK's depth topic. The scene OAK pairs depth with color on the device and stamps both
+    # with color's stamp, so a tight slop only rejects frames that weren't paired: if sync is
+    # off, boxer says how far the nearest depth frame was instead of lifting a mismatched pair.
+    depth_topic: /scene_camera/depth/image_rect_raw
+    depth_slop_s: 0.005
+    gravity_frame: arm_mount  # flatbot's tree is world -> arm_mount; nothing publishes base_link

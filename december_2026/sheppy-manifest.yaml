@@ -812,8 +812,9 @@ nodes:
     description: 3D boxes (pose + size) for the scene segmenter's objects -> /perception/object_detections_3d
     select: single
     alternatives:
-      # Transcribed from rammp-org/rammp-perception's rammp-alternative.boxer.yaml; same NOT A RELEASE pin
-      # as scene_segmenter above. BoxerNet lifts every object of /perception/object_detections to a
+      # Transcribed from rammp-org/rammp-perception's rammp-alternative.boxer.yaml. NOT A RELEASE pin, like
+      # scene_segmenter above, but newer: rammp-perception#14's merge (frame_stride, and a log of why
+      # depth didn't match). BoxerNet lifts every object of /perception/object_detections to a
       # gravity-aligned 3D box and republishes the message on /perception/object_detections_3d with
       # pose (in the camera's optical frame) and size filled in. ~90 ms per frame on abra, keeping up with
       # the segmenter. First start builds its TensorRT engines into the volume (about 2.5 minutes).
@@ -822,13 +823,13 @@ nodes:
       # the camera. static_tf attaches the camera from the active robot's transforms/ (on flatbot,
       # arm_mount -> scene_camera, so gravity_frame must be arm_mount there: nothing publishes
       # base_link); without it, every object comes out with has_pose false and the node logs the
-      # missing transform. On the OAK scene camera alternative set
-      # depth_topic to /scene_camera/depth/image_rect_raw (not yet tested).
+      # missing transform. The OAK scene camera's depth is /scene_camera/depth/image_rect_raw, synced
+      # to color on the device, so depth_slop_s can be tight there (profiles/flatbot.yaml sets all three).
       # BoxerNet's weights are CC-BY-NC 4.0 (non-commercial) and baked into the image.
       - id: boxer
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-f54ea8ed8e6e8d928a9b3ea63997229289901abe
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -845,6 +846,8 @@ nodes:
           camera_info_topic: /scene_camera/color/camera_info
           gravity_frame: base_link     # any frame with +z up; only its rotation is used
           min_prob: 0.5
+          depth_slop_s: 0.02           # how far in time a depth frame may be from its color frame
+          frame_stride: 1              # lift every Nth detections message; stacks on the detector's own stride
         publishes:
           - /perception/object_detections_3d
         subscribes:

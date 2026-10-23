@@ -812,8 +812,9 @@ nodes:
     description: 3D boxes (pose + size) for the scene segmenter's objects -> /perception/object_detections_3d
     select: single
     alternatives:
-      # Transcribed from rammp-org/rammp-perception's rammp-alternative.boxer.yaml; same NOT A RELEASE pin
-      # as scene_segmenter above. BoxerNet lifts every object of /perception/object_detections to a
+      # Transcribed from rammp-org/rammp-perception's rammp-alternative.boxer.yaml. NOT A RELEASE pin, like
+      # scene_segmenter above, but newer: rammp-perception#14's merge (frame_stride, and a log of why
+      # depth didn't match). BoxerNet lifts every object of /perception/object_detections to a
       # gravity-aligned 3D box and republishes the message on /perception/object_detections_3d with
       # pose (in the camera's optical frame) and size filled in. ~90 ms per frame on abra, keeping up with
       # the segmenter. First start builds its TensorRT engines into the volume (about 2.5 minutes).
@@ -828,7 +829,7 @@ nodes:
       - id: boxer
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-f54ea8ed8e6e8d928a9b3ea63997229289901abe
           runtime: nvidia
           network_mode: host
           ipc: host

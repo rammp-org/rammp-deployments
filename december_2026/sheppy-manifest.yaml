@@ -914,41 +914,90 @@ nodes:
           - /scene_camera/color/image_raw
           - /arm/robot_description
 
-  # MOVES THE ARM. Deliberately in no profile: it runs only when an operator
-  # selects it in the TUI (or `sheppy restart home_arm`), attended, e-stop in
-  # hand. Never add it to a profile — a profile converges on `sheppy up` and
-  # after a reboot, which would fly home with nobody watching. A one-shot:
-  # sheppy never restarts it, and a finished home shows as crashed with exit=0.
+  # rammp_box_opening's CLI tasks, one-shot process nodes. The *_execute ones
+  # MOVE THE ARM: deliberately in no profile, so they run only when an operator
+  # selects one in the TUI (or `sheppy restart <node>`), attended, e-stop in
+  # hand. Never add them to a profile — a profile converges on `sheppy up` and
+  # after a reboot, which would fly with nobody watching. sheppy never restarts
+  # them; a finished run shows as crashed with exit=0. Stopping the node in the
+  # TUI SIGINTs its process group: the same cancel path as Ctrl+C.
+  # scripts/sheppy_task.sh adds the host env and the flatbot world.
+  - name: preflight
+    description: Every-session checks before a mission (never moves anything)
+    select: single
+    alternatives:
+      - id: preflight_check
+        kind: process
+        command: /home/snorlax/RAMMP-box-opening/scripts/sheppy_task.sh preflight
+        subscribes:
+          - /joint_states
+          - /tf
+
   - name: home_arm
     description: Return the arm to the flatbot HOME (one-shot, attended; in no profile)
     select: single
     alternatives:
-      # Plans + prints the move, sends nothing. Select this first.
+      # Plans + prints the move, sends nothing.
       - id: home_arm_preview
         kind: process
-        command: >-
-          bash -lc 'source /opt/ros/humble/setup.bash &&
-          source ~/RAMMP-box-opening/install/setup.bash &&
-          export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp &&
-          export LD_LIBRARY_PATH=$HOME/RAMMP-box-opening/install/rammp_box_opening/lib/rammp_curobo_interfaces:$LD_LIBRARY_PATH &&
-          ros2 run rammp_box_opening home_arm
-          --bench-world $HOME/RAMMP-box-opening/install/rammp_box_opening/share/rammp_box_opening/config/world_flatbot.yaml
-          --speed-scale 0.2'
+        command: /home/snorlax/RAMMP-box-opening/scripts/sheppy_task.sh home_arm
         subscribes:
           - /joint_states
           - /tf
-      # Flies it. Stopping the node in the TUI SIGINTs its process group — the
-      # same cancel path as Ctrl+C — and the e-stop always works.
       - id: home_arm_execute
         kind: process
-        command: >-
-          bash -lc 'source /opt/ros/humble/setup.bash &&
-          source ~/RAMMP-box-opening/install/setup.bash &&
-          export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp &&
-          export LD_LIBRARY_PATH=$HOME/RAMMP-box-opening/install/rammp_box_opening/lib/rammp_curobo_interfaces:$LD_LIBRARY_PATH &&
-          ros2 run rammp_box_opening home_arm
-          --bench-world $HOME/RAMMP-box-opening/install/rammp_box_opening/share/rammp_box_opening/config/world_flatbot.yaml
-          --speed-scale 0.2 --execute'
+        command: /home/snorlax/RAMMP-box-opening/scripts/sheppy_task.sh home_arm --execute
         subscribes:
           - /joint_states
           - /tf
+
+  # Needs the box_opening node (OWL detectors) up; ankou_pink by default.
+  - name: press_demo
+    description: Box-opening mission steps (one-shot, attended; in no profile)
+    select: single
+    alternatives:
+      # Plans + prints, sends nothing.
+      - id: press_demo_preview
+        kind: process
+        command: /home/snorlax/RAMMP-box-opening/scripts/sheppy_task.sh press_demo
+        subscribes:
+          - /joint_states
+          - /tf
+      # The scene camera's fixes for 15 s. Nothing moves (no --execute).
+      - id: press_demo_detect_only
+        kind: process
+        command: /home/snorlax/RAMMP-box-opening/scripts/sheppy_task.sh press_demo --detect-only
+        subscribes:
+          - /joint_states
+          - /tf
+          - /rammp_box_opening/owl_bbox
+          - /rammp_box_opening/owl_bbox_scene
+      # Press, retreat, home.
+      - id: press_demo_press_only
+        kind: process
+        command: /home/snorlax/RAMMP-box-opening/scripts/sheppy_task.sh press_demo --press-only --execute
+        subscribes:
+          - /joint_states
+          - /tf
+          - /rammp_box_opening/owl_bbox
+          - /rammp_box_opening/owl_bbox_scene
+      # Press only, the depth press (--depth-press): over the box the usual way, then the
+      # hand straight down, the wrist camera's own depth bounds the stroke and the joint
+      # torques find the lid and feel the press.
+      - id: press_demo_depth_press
+        kind: process
+        command: /home/snorlax/RAMMP-box-opening/scripts/sheppy_task.sh press_demo --press-only --depth-press --execute
+        subscribes:
+          - /joint_states
+          - /tf
+          - /rammp_box_opening/owl_bbox
+          - /rammp_box_opening/owl_bbox_scene
+      # The whole mission.
+      - id: press_demo_execute
+        kind: process
+        command: /home/snorlax/RAMMP-box-opening/scripts/sheppy_task.sh press_demo --execute
+        subscribes:
+          - /joint_states
+          - /tf
+          - /rammp_box_opening/owl_bbox
+          - /rammp_box_opening/owl_bbox_scene

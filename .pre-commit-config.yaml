@@ -2,7 +2,7 @@
 # deliberate PR (`pre-commit autoupdate`), never silent drift.
 #
 # Mirrors the module repos, minus the compiled-language hooks — this repo is
-# YAML, Markdown, and one Python script.
+# YAML, Markdown, and Python tooling.
 repos:
   # General housekeeping
   - repo: https://github.com/pre-commit/pre-commit-hooks

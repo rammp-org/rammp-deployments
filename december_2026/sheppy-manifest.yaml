@@ -95,9 +95,16 @@ nodes:
           color.i_width: 640
           color.i_height: 400
           color.i_fps: 15.0
+          color.i_synced: true
           depth.i_width: 640
           depth.i_height: 400
           depth.i_fps: 15.0
+          depth.i_synced: true
+          # Synced on the device, as on the wrist (see its sync_threshold), so
+          # each color frame's depth carries the same stamp. Unsynced, only
+          # half the color frames had depth within 20 ms, which consumers
+          # pairing by stamp (boxer) had to cover with a wider slop.
+          sync.sync_threshold: 33
         publishes:
           - /scene_camera/color/image_raw
           - /scene_camera/depth/image_rect_raw

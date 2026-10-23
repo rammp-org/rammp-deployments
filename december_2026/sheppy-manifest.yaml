@@ -72,7 +72,9 @@ nodes:
       - id: oak_d_pro_w_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.1
+          # NOT A RELEASE pin: rammp-suite-software main at #9's merge (opt-in encoded
+          # color, RAMMP_OAK_COLOR_CODEC; unset here, so raw as before). Tag at the next oak release.
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-7d1c78ffbaceb0a102f68cfd5404b2b3b23586da
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
@@ -155,7 +157,7 @@ nodes:
       - id: oak_d_pro_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.1
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-7d1c78ffbaceb0a102f68cfd5404b2b3b23586da  # as the scene OAK
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host

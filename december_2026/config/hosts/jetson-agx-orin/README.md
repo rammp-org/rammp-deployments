@@ -9,13 +9,22 @@ sudo december_2026/config/hosts/jetson-agx-orin/tuning.sh install   # once per f
 december_2026/config/hosts/jetson-agx-orin/tuning.sh check           # any time: ok/FAIL per setting, with the fix
 ```
 
-`install` copies the script to `/usr/local/sbin/rammp-host-tuning` and enables `rammp-host-tuning.service`, which
-runs `apply` at every boot. `undo` removes it all except the DDS buffer sysctl. Default NICs follow flatbot's cabling
-(`config/robots/flatbot/network.yaml`); set `ARM_IF=` / `CAM_IF=` for another robot.
+`install` copies the script to `/usr/local/sbin/rammp-host-tuning` and installs two triggers for `apply`:
+
+- `rammp-host-tuning.service` runs at boot, once the arm NIC exists. It sets the multicast filter, which doesn't need
+  the link up. The sysctl is in `/etc/sysctl.d` and needs neither.
+- A NetworkManager dispatcher hook (`/etc/NetworkManager/dispatcher.d/60-rammp-host-tuning`) runs `apply` each time
+  either NIC comes up: at boot, after `nmcli con up` (e.g. `network_config.py`), after a replug. EEE and the camera
+  IRQs can only be set on an open NIC, and every open resets them. At boot the NICs open after the unit has run.
+
+`apply` logs each step that fails and exits 1. The others still run. Its output is in
+`journalctl -u rammp-host-tuning -u NetworkManager-dispatcher`. `undo` removes it all except the DDS buffer sysctl.
+Default NICs follow flatbot's cabling (`config/robots/flatbot/network.yaml`); set `ARM_IF=` / `CAM_IF=` for another
+robot.
 
 | Setting | Why | Measured |
 | --- | --- | --- |
-| Drop IPv4 multicast leaving the arm NIC (tc clsact + flower) | Cyclone DDS picks the arm NIC and multicasts topic data on it. The NIC (lan743x) has one TX queue, so each camera frame delays the arm's packets. Local subscribers are unaffected. | 3.8 MB/s of DDS on the arm link: driver overruns ~0.05/s → ~14/s, 3–4 ms Kortex gaps. With the filter: 38 MB/s had no effect. |
+| Drop IPv4 multicast leaving the arm NIC (tc clsact + flower) | Cyclone DDS picks the arm NIC (`autodetermine`) and multicasts topic data on it. The NIC (lan743x) has one TX queue, so each camera frame delays the arm's packets. Local subscribers are unaffected. This drop is a backstop: the real fix is pinning Cyclone's interface. | 3.8 MB/s of DDS on the arm link: driver overruns ~0.05/s → ~14/s, 3–4 ms Kortex gaps. With the filter: 38 MB/s had no effect. |
 | EEE off on the arm NIC | Waking the link from low-power idle adds latency to every 1 kHz packet. | Kortex round trip p50 372 → 355 µs. |
 | Camera NIC (`eno1`, nvethernet) queue IRQs vm0–vm4 → CPUs 4–8 | The arm NIC's interrupts are fixed on CPU0 (they come through the PCIe controller's MSI and can't be moved), and `eno1`'s default to CPU0 too. | Kortex round trip max 1.28 → 1.16 ms. |
 | `net.core.rmem_max` 32 MiB, `rmem_default` 16 MiB | DDS drops large messages (images) with the 208 KB default buffers. | 20–40% of large messages lost before. |

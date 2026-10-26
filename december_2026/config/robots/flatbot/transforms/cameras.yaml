@@ -17,11 +17,17 @@ mounts:
       child: scene_camera
       xyz: [0.20, -0.50, 0.40]
       quat_xyzw: [1.0, 0.0, 0.0, 0.0]
-    # OAK-D Pro, hand-measured 2026-10-19 (not calibrated): 0.10 m back along the
-    # tool (+z) and 0.10 m out along +y, looking along the tool. Mounted upside down:
-    # its up (+z) points back at the arm (-y). Roll checked against a live frame (#114).
+    # OAK-D Pro, looking along the tool. Mounted upside down: its up (+z) points
+    # back at the arm (-y). Roll checked against a live frame (#114).
+    # Position fitted 2026-10-22 from one rammp_box_opening depth-press run (not a
+    # calibration): 0.065 m out along +y, 0.015 m along the tool (+z). The hand
+    # measurement of 2026-10-19, [0, 0.10, -0.10], failed all three checks of that
+    # run — its two wrist views of the same button 81 mm apart, the touch 41 mm off,
+    # and fingertips it puts in view that the frame does not show; this fits all
+    # three within 15 mm. x is not observable from those views (kept 0). A
+    # rammp-calibration session replaces it.
     wrist_camera:
       parent: arm_end_effector_link
       child: wrist_camera
-      xyz: [0.0, 0.10, -0.10]
+      xyz: [0.0, 0.065, 0.015]
       quat_xyzw: [0.5, -0.5, 0.5, 0.5]

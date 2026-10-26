@@ -1,8 +1,13 @@
-# Jetson AGX Orin Developer Kit
+# Seeed reComputer Robotics J5012
 
-Host tuning for an AGX Orin dev kit (L4T R36) that runs the Kinova arm driver on one NIC and the OAK cameras on the
-other: flatbot's `snorlax`. Everything here was measured on that Jetson on 2026-10-22 with the 1 kHz arm loop running
-under the full perception load (rammp-deployments#120).
+Host tuning for a Seeed Studio reComputer Robotics J5012 with GMSL: a Jetson AGX Orin 64GB module (L4T R36) on
+Seeed's carrier. It runs the Kinova arm driver on one NIC and the OAK cameras on the other: flatbot's `snorlax`.
+Everything here was measured on that Jetson on 2026-10-22 with the 1 kHz arm loop running under the full perception
+load (rammp-deployments#120).
+
+The arm NIC is one of the carrier's three Microchip LAN7430 ports (`lan743x`, `enp3s0`-`enp5s0`); the camera NIC is
+the module's own `eno1` (`nvethernet`). The device tree still reports "NVIDIA Jetson AGX Orin Developer Kit"; the
+carrier shows in `/etc/nv_boot_control.conf` (`recomputer-robo-agx-orin-j501x`).
 
 ```bash
 sudo december_2026/config/hosts/jetson-agx-orin/tuning.sh install   # once per flash: persists and applies

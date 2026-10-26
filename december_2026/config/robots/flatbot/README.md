@@ -1,7 +1,8 @@
 # flatbot
 
 A mobile test platform for the December 2026 deployment, not the chair: a Kinova Gen3
-with a Robotiq 2F-85, two OAK-D PoE cameras, and a Jetson AGX Orin (`snorlax`).
+with a Robotiq 2F-85, two OAK-D PoE cameras, and a Seeed reComputer Robotics J5012 with
+GMSL (Jetson AGX Orin 64GB, `snorlax`).
 
 ## Cabling
 

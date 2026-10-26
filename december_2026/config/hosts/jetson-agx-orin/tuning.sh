@@ -1,6 +1,6 @@
 #!/bin/bash
-# Host tuning for a Jetson AGX Orin Developer Kit (L4T R36) that runs the arm driver on one NIC and the cameras on
-# another. Why each setting, and what it measured, is in README.md next to this file.
+# Host tuning for a Seeed reComputer Robotics J5012 (Jetson AGX Orin 64GB, L4T R36) that runs the arm driver on one
+# NIC and the cameras on another. Why each setting, and what it measured, is in README.md next to this file.
 #
 #   sudo ./tuning.sh install   persist everything (boot unit + NetworkManager hook + sysctl + modules), apply it now
 #   sudo ./tuning.sh apply     apply the runtime settings once (what the unit and the hook run)

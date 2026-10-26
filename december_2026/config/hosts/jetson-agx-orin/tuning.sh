@@ -97,7 +97,7 @@ ExecStart=$BIN apply
 [Install]
 WantedBy=multi-user.target
 EOF
-  # Every time NetworkManager brings either NIC up (boot, nmcli con up, cable replugged): EEE and the IRQs.
+  # Every time NetworkManager brings either NIC up: EEE and the IRQs, which each open of the NIC resets.
   # NetworkManager logs the output, and a non-zero exit, to the journal.
   cat >"$HOOK" <<EOF
 #!/bin/sh
@@ -121,7 +121,8 @@ undo() {
   systemctl daemon-reload
   tc qdisc del dev "$ARM_IF" clsact 2>/dev/null
   cam_irqs | while read -r irq _; do echo 0 >"/proc/irq/$irq/smp_affinity_list"; done
-  if arm_driver_up; then echo "EEE left off: arm driver running" >&2; else ethtool --set-eee "$ARM_IF" eee on; fi
+  # A live link can't take EEE back (lan743x: "EEE initialization failed"); a reboot restores it.
+  echo "EEE left off on $ARM_IF until the next reboot"
   echo "left in place: $SYSCTL (DDS buffers)"
 }
 

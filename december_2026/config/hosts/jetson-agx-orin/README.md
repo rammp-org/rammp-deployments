@@ -14,11 +14,13 @@ december_2026/config/hosts/jetson-agx-orin/tuning.sh check           # any time:
 - `rammp-host-tuning.service` runs at boot, once the arm NIC exists. It sets the multicast filter, which doesn't need
   the link up. The sysctl is in `/etc/sysctl.d` and needs neither.
 - A NetworkManager dispatcher hook (`/etc/NetworkManager/dispatcher.d/60-rammp-host-tuning`) runs `apply` each time
-  either NIC comes up: at boot, after `nmcli con up` (e.g. `network_config.py`), after a replug. EEE and the camera
-  IRQs can only be set on an open NIC, and every open resets them. At boot the NICs open after the unit has run.
+  NetworkManager brings either NIC up. EEE and the camera IRQs can only be set on an open NIC, and every open resets
+  them. At boot the NICs open after the unit has run, so the hook is what sets them. `nmcli con up` and
+  `nmcli dev disconnect` don't close the NIC (snorlax, 2026-10-26), so they reset nothing; the hook runs anyway.
 
 `apply` logs each step that fails and exits 1. The others still run. Its output is in
-`journalctl -u rammp-host-tuning -u NetworkManager-dispatcher`. `undo` removes it all except the DDS buffer sysctl.
+`journalctl -u rammp-host-tuning -u NetworkManager-dispatcher`. `undo` removes it all except the DDS buffer sysctl,
+and EEE stays off until the next reboot: a live link refuses to turn it back on.
 Default NICs follow flatbot's cabling (`config/robots/flatbot/network.yaml`); set `ARM_IF=` / `CAM_IF=` for another
 robot.
 

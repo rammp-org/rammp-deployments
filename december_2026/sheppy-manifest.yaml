@@ -88,9 +88,9 @@ nodes:
           driver.i_device_id: "19443010219A974800"
           driver.i_tf_base_frame: scene_camera
           driver.i_tf_parent_frame: scene_camera_link
-          # Full sensor resolution on both the stereo pair and the color
-          # sensor; the driver undistorts color by default, which is what
-          # makes the wide lens usable as-is.
+          # The same resolution on the stereo pair and the color sensor; the
+          # driver undistorts color by default, which is what makes the wide
+          # lens usable as-is.
           # 640x400 @ 15 fps (2026-10-22): 1280x800 @ 30 raw put 677 Mbit/s on
           # eno1 and the camera delivered only ~15 Hz at 550 ms (depth 1 s)
           # age; 640x400 @ 15 delivers 15 Hz at 24-31 ms.

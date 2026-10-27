@@ -7,9 +7,9 @@ measured topic, then for --duration seconds record
   - per-container CPU and memory from the cgroups, and the same for the bench's host processes,
 and write results/<run>.json. The stack is left up between runs; `sheppy up` restarts only what changed.
 
-  python3 perf/bench.py --list
-  python3 perf/bench.py yoloe26m_gpu-s1 rfdetr_s-s3-track     # some runs
-  python3 perf/bench.py all                                   # every run
+  python3 tests/perf/bench.py --list
+  python3 tests/perf/bench.py yoloe26m_gpu-s1 rfdetr_s-s3-track     # some runs
+  python3 tests/perf/bench.py all                                   # every run
 """
 
 import argparse

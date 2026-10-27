@@ -28,7 +28,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 RESULTS = HERE / os.environ.get("PB_RESULTS", "results")
 PARAMS = HERE / "params"
-PERF = HERE.parents[1]  # perf/: ros_probe.py, gpu_load.py
+PERF = HERE.parents[1]  # tests/perf/: ros_probe.py, gpu_load.py
 SAM3_WEIGHTS = Path(
     os.environ.get(
         "PB_SAM3_WEIGHTS", Path.home() / "perf-bench" / "data" / "models" / "sam3"
@@ -277,7 +277,7 @@ def converge(r):
             start(n, s, r["blas"])
 
 
-# --- sampling (from rammp-deployments perf/bench.py) -----------------------------------------------------
+# --- sampling (from rammp-deployments tests/perf/bench.py) -----------------------------------------------------
 
 
 def parse_tegrastats(path):

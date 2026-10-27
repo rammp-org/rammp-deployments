@@ -1,6 +1,6 @@
 """Markdown tables from bench.py's results/*.json.
 
-python3 perf/report.py ~/perf-bench/results > report.md
+python3 tests/perf/report.py ~/perf-bench/results > report.md
 """
 
 import json

@@ -2,7 +2,7 @@
 frames and times each stage of rammp_detection_common's _process, then prints cProfile's top functions.
 
   docker run --rm --runtime nvidia -v rammp_perception_engines:/cache/engines -v ~/perf-bench:/b \\
-    --entrypoint /ros_entrypoint.sh <yoloe or rfdetr image> python3 /b/perf/profile_segmenter.py yoloe \\
+    --entrypoint /ros_entrypoint.sh <yoloe or rfdetr image> python3 /b/tests/perf/profile_segmenter.py yoloe \\
     /b/recording.npz model=yoloe-26m-seg device=gpu
 """
 

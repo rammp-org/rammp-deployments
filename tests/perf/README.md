@@ -29,20 +29,20 @@ From this directory on the workstation:
 ```bash
 uv run --project ~/.claude/skills/hardware-loop ~/.claude/skills/hardware-loop/scripts/hil.py sync
 uv run --project ~/.claude/skills/hardware-loop ~/.claude/skills/hardware-loop/scripts/hil.py exec -- \
-  bash -c 'cd ~/perf-bench && python3 perf/bench.py all && python3 perf/report.py results'
+  bash -c 'cd ~/perf-bench && python3 tests/perf/bench.py all && python3 tests/perf/report.py results'
 ```
 
-`sync` mirrors `perf/` and `december_2026/` into `~/perf-bench` only; abra's `~/rammp-deployments` is not
-touched. `python3 perf/bench.py --list` shows the runs; `all` is about 60 runs, three hours. Each run brings the
+`sync` mirrors `tests/perf/` and `december_2026/` into `~/perf-bench` only; abra's `~/rammp-deployments` is not
+touched. `python3 tests/perf/bench.py --list` shows the runs; `all` is about 60 runs, three hours. Each run brings the
 stack to its profile, waits for every measured topic (a first start builds TensorRT engines), warms up 15 s
 and measures 60 s.
 
 On a machine with no camera (snorlax before its OAKs were cabled), record on abra and replay:
 
 ```bash
-python3 perf/replay_camera.py record recording.npz          # on abra, scene camera up
+python3 tests/perf/replay_camera.py record recording.npz          # on abra, scene camera up
 BENCH_CAMERA=replay BENCH_RECORDING=~/perf-bench/data/recording.npz \
-  BENCH_SAM3_WEIGHTS=~/perf-bench/data/models/sam3 python3 perf/bench.py ...
+  BENCH_SAM3_WEIGHTS=~/perf-bench/data/models/sam3 python3 tests/perf/bench.py ...
 ```
 
 ## What is measured, and how

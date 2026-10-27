@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Mounted into every docker node in sheppy-manifest.yaml, with CYCLONEDDS_URI
+  pointing at it. A verbatim copy of rammp-base's docker/cyclonedds.xml as of
+  rammp-org/RAMMP-docker#12 (AllowMulticast spdp, MaxAutoParticipantIndex 100).
+  The images pinned here still carry the old file: its default cap of 10
+  participants per host is already full with the flatbot profile alone, and
+  rammp-curobo sets no CYCLONEDDS_URI at all. Delete this file and the mounts
+  once every pinned image is built on a rammp-base that includes #12.
+-->
+<!--
+  Default Cyclone DDS configuration for RAMMP containers.
+
+  Installing ros-humble-rmw-cyclonedds-cpp is not enough to actually use
+  Cyclone: without RMW_IMPLEMENTATION set, ROS 2 silently falls back to Fast
+  DDS. The base image sets both RMW_IMPLEMENTATION and CYCLONEDDS_URI so every
+  module inherits a consistent, working middleware.
+
+  autodetermine="true" makes Cyclone pick the first non-loopback,
+  multicast-capable interface. Run containers with `--network host` so that
+  interface is the robot's real NIC; on a Docker bridge network, Cyclone will
+  bind the bridge and nodes in other containers will not discover each other.
+
+  Override for a specific robot or bench setup by mounting your own file and
+  pointing CYCLONEDDS_URI at it:
+      docker run -e CYCLONEDDS_URI=file:///cfg/my.xml -v ./my.xml:/cfg/my.xml ...
+-->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface autodetermine="true" priority="default" multicast="default" />
+      </Interfaces>
+      <!--
+        spdp: multicast for participant discovery only; user data goes
+        unicast. With "default", any topic with more than one reader is
+        multicast onto the selected NIC. On a robot that NIC is usually the
+        arm's network, and camera images multicast there (~39 MB/s measured)
+        starve the Kinova's 1 kHz cyclic UDP channel until BaseCyclic Refresh
+        times out. Unicast between processes on the same host never leaves
+        the machine.
+      -->
+      <AllowMulticast>spdp</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <!--
+        Cyclone's default of 9 caps a host at 10 participants per domain, and
+        every process in every --network host container counts. A full robot
+        stack exceeds that; the next node then fails with "Failed to find a
+        free participant index".
+      -->
+      <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

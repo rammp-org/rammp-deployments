@@ -112,7 +112,9 @@ check() {
 
 install_() {
   [ "$0" -ef "$BIN" ] || install -m 0755 "$0" "$BIN"
-  [ -f "$SYSCTL" ] || printf 'net.core.rmem_max=33554432\nnet.core.rmem_default=16777216\n' >"$SYSCTL"
+  # Rewritten on every install: earlier installs also raised rmem_default, which DDS doesn't need (README). The running
+  # rmem_default keeps that value until the next reboot.
+  printf 'net.core.rmem_max=33554432\n' >"$SYSCTL"
   sysctl -q -p "$SYSCTL"
   printf 'sch_ingress\ncls_flower\nact_gact\n' >"$MODULES"
   modprobe -a sch_ingress cls_flower act_gact

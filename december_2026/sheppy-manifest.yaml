@@ -706,10 +706,10 @@ nodes:
       # rammp-interfaces-ros2#16 (DetectedObject.size) the message's wire format changed, and a node
       # built against the old definition silently misreads messages from one built against the new.
       #
-      # YOLOE-26m on the GPU: the best YOLOE masks. The always-on detector of the finalized stack
-      # (rammp-deployments#106): 10 Hz, ~100 ms camera to result, ~10% GPU and ~0.5 CPU core on abra
-      # next to SAM3 and the planner; it held 10 Hz next to another GPU user busy 70% of the time.
-      # The first start builds a TensorRT engine into the volume (about 9 minutes); later starts reuse it.
+      # YOLOE-26m on the GPU: the best YOLOE masks (and the best open-vocabulary quality score, #106):
+      # 10 Hz, ~100 ms camera to result, ~10% GPU on abra next to SAM3 and the planner. Not the always-on
+      # segmenter; RF-DETR is (below). The first start builds a TensorRT engine into the volume (about 9
+      # minutes); later starts reuse it.
       - id: yoloe_gpu
         kind: docker
         container:
@@ -768,8 +768,12 @@ nodes:
           - /perception/scene_segmenter/overlay/compressed
         subscribes:
           - /scene_camera/color/image_raw
-      # RF-DETR-Seg S, COCO weights, on the GPU: 10 Hz, ~100 ms camera to result, ~18% GPU on abra. Cleanest
-      # masks, but COCO classes only: "food container" is found only when it looks like a bowl.
+      # RF-DETR-Seg S, COCO weights, on the GPU: the always-on segmenter (#106). Cleanest masks, but COCO
+      # classes only: "food container" is found only when it looks like a bowl, and #106's quality check
+      # scores it below YOLOE-26m (mAP 0.68 vs 0.86 on Gemini and handheld images), the accepted tradeoff.
+      # frame_stride 3 is 5 Hz from flatbot's 15 fps OAKs (10 Hz from the dojo's 30 fps Gemini). On snorlax
+      # at 5 Hz: ~75 ms camera to result (~40 ms of it in the node), ~7% GPU, 0.2 CPU core; at 15 Hz
+      # (stride 1), ~20% GPU, 0.5 core. On abra at 10 Hz: ~100 ms, ~18% GPU.
       - id: rfdetr
         kind: docker
         container:
@@ -840,9 +844,10 @@ nodes:
             # In the images from rammp-perception#6 on; drop this when they are pinned.
             OPENBLAS_NUM_THREADS: "1"
         params:
-          # Tracking at 5 Hz takes ~24% of the GPU instead of ~48% uncapped (~12 Hz), leaving it to the rest
-          # of the chair (#106). Before rammp-perception#8 a capped step tracked a stale frame: ~270 ms camera
-          # to result instead of ~150 ms.
+          # Tracking at 5 Hz takes ~22% of the GPU instead of ~60% uncapped (~13 Hz on snorlax, ~48% at
+          # ~12 Hz on abra), leaving it to the rest of the chair (#106). Until an image with
+          # rammp-perception#8 is pinned, a capped step tracks a stale frame: ~270 ms camera to result
+          # instead of ~150 ms (~110 ms with rammp-perception#17).
           max_tracking_rate_hz: 5.0
         publishes:
           - /perception/sam3/object_detections

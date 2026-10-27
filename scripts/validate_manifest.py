@@ -14,13 +14,47 @@ Warnings are re-derived separately because `validate()` drops them, and they
 are the more interesting half. sheppy IGNORES `depends_on`, `restart` and
 `healthcheck` — it owns lifecycle — so a manifest that quietly relies on one
 loads green and then does not do what it says.
+
+Each manifest's profiles (`profiles/*.yaml` beside it) are checked against it
+too. sheppy DROPS a selection naming an alternative the manifest lacks, and an
+override of a param the alternative does not declare, with only a warning, so
+a stale profile brings a robot up missing a node or with a default it meant
+to override. Here every such warning is an error.
 """
 
 import glob
+import os
 import sys
 
 from sheppy.launch.docker.compose import service_to_docker_args
 from sheppy.manifest.loader import load_manifest
+from sheppy.profiles.reconcile import reconcile
+from sheppy.profiles.store import ProfileStore
+
+
+def params_problems(alt) -> list[str]:
+    """`params:` that sheppy accepts but that never reach a node.
+
+    sheppy ignores params on a `process` alternative. On a docker one it appends
+    `--ros-args --params-file` to the command, which Humble's `ros2 launch`
+    rejects ("unrecognized arguments"), so the container exits at start.
+    """
+    if not alt.params:
+        return []
+    if alt.kind == "process":
+        return ["params on a process alternative are ignored; put them in its command"]
+    command = alt.raw.get("container", {}).get("command") or []
+    if isinstance(command, str):
+        command = command.split()
+    if alt.kind == "docker" and any(
+        word == "launch" or word.endswith((".launch.py", ".launch.xml"))
+        for word in command
+    ):
+        return [
+            "params with a `ros2 launch` command: ros2 launch rejects the "
+            "--ros-args sheppy appends; run the node's executable instead"
+        ]
+    return []
 
 
 def check(path: str) -> int:
@@ -37,7 +71,10 @@ def check(path: str) -> int:
 
     for node in result.manifest.nodes:
         for alt in node.alternatives:
-            container = alt.config.get("container")
+            for problem in params_problems(alt):
+                print(f"  {path}: {node.name}/{alt.id}: {problem}")
+                problems += 1
+            container = alt.raw.get("container")
             if alt.kind != "docker" or not isinstance(container, dict):
                 continue
             *_, warns = service_to_docker_args(container)
@@ -45,10 +82,23 @@ def check(path: str) -> int:
                 print(f"  {path}: {node.name}/{alt.id}: warning: {warn}")
                 problems += 1
 
+    store = ProfileStore(os.path.join(os.path.dirname(path), "profiles"))
+    names = store.list_profiles()
+    for name in names:
+        loaded = store.load(name)
+        issues = list(loaded.errors)
+        if loaded.profile is not None:
+            issues += reconcile(loaded.profile, result.manifest).warnings
+        for issue in issues:
+            print(f"  {path}: profile {name}: {issue}")
+            problems += 1
+
     if not problems:
         nodes = len(result.manifest.nodes)
         alts = sum(len(n.alternatives) for n in result.manifest.nodes)
-        print(f"  {path}: ok — {nodes} nodes, {alts} alternatives")
+        print(
+            f"  {path}: ok — {nodes} nodes, {alts} alternatives, {len(names)} profiles"
+        )
     return problems
 
 

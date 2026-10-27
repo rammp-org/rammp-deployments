@@ -1,0 +1,52 @@
+# Seeed reComputer Robotics J5012
+
+Host tuning for a Seeed Studio reComputer Robotics J5012 with GMSL: a Jetson AGX Orin 64GB module (L4T R36) on
+Seeed's carrier. It runs the Kinova arm driver on one NIC and the OAK cameras on the other: flatbot's `snorlax`.
+Everything here was measured on that Jetson on 2026-10-22 with the 1 kHz arm loop running under the full perception
+load (rammp-deployments#120).
+
+The arm NIC is one of the carrier's three Microchip LAN7430 ports (`lan743x`, `enp3s0`-`enp5s0`); the camera NIC is
+the module's own `eno1` (`nvethernet`). The device tree still reports "NVIDIA Jetson AGX Orin Developer Kit"; the
+carrier shows in `/etc/nv_boot_control.conf` (`recomputer-robo-agx-orin-j501x`).
+
+```bash
+sudo december_2026/config/hosts/jetson-agx-orin/tuning.sh install   # once per flash: persists and applies
+december_2026/config/hosts/jetson-agx-orin/tuning.sh check           # any time: ok/FAIL per setting, with the fix
+```
+
+`install` copies the script to `/usr/local/sbin/rammp-host-tuning` and installs two triggers for `apply`:
+
+- `rammp-host-tuning.service` runs at boot, once the arm NIC exists. It sets the multicast filter, which doesn't need
+  the link up. The sysctl is in `/etc/sysctl.d` and needs neither.
+- A NetworkManager dispatcher hook (`/etc/NetworkManager/dispatcher.d/60-rammp-host-tuning`) runs `apply` each time
+  NetworkManager brings either NIC up. EEE and the camera IRQs can only be set on an open NIC, and every open resets
+  them. At boot the NICs open after the unit has run, so the hook is what sets them. `nmcli con up` and
+  `nmcli dev disconnect` don't close the NIC (snorlax, 2026-10-26), so they reset nothing; the hook runs anyway.
+
+`apply` logs each step that fails and exits 1. The others still run. Its output is in
+`journalctl -u rammp-host-tuning -u NetworkManager-dispatcher`. `undo` removes it all except the DDS buffer sysctl,
+and EEE stays off until the next reboot: a live link refuses to turn it back on.
+Default NICs follow flatbot's cabling (`config/robots/flatbot/network.yaml`); set `ARM_IF=` / `CAM_IF=` for another
+robot.
+
+| Setting                                                        | Why                                                                                                                                                                                                                                                                                                                                                             | Measured                                                                                                                                                                            |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Drop IPv4 multicast leaving the arm NIC (tc clsact + flower)   | Cyclone DDS picks the arm NIC (`autodetermine`) and multicasts topic data on it. The NIC (lan743x) has one TX queue, so each camera frame delays the arm's packets. Local subscribers are unaffected. This drop is a backstop: the real fix is pinning Cyclone's interface.                                                                                     | 3.8 MB/s of DDS on the arm link: driver overruns ~0.05/s → ~14/s, 3–4 ms Kortex gaps. With the filter: 38 MB/s had no effect.                                                       |
+| EEE off on the arm NIC                                         | Waking the link from low-power idle adds latency to every 1 kHz packet.                                                                                                                                                                                                                                                                                         | Kortex round trip p50 372 → 355 µs.                                                                                                                                                 |
+| Camera NIC (`eno1`, nvethernet) queue IRQs vm0–vm4 → CPUs 4–8  | The arm NIC's interrupts are fixed on CPU0 (they come through the PCIe controller's MSI and can't be moved), and `eno1`'s default to CPU0 too.                                                                                                                                                                                                                  | Kortex round trip max 1.28 → 1.16 ms.                                                                                                                                               |
+| Threaded NAPI on the arm NIC, its threads on CPU 11 at FIFO 78 | The arm NIC's interrupts stay on CPU0, so its receive processing (softirq) ran there too, and under load in `ksoftirqd/0` at normal priority, behind everything else on CPU0. Threaded NAPI moves it into `napi/enp3s0-*` kthreads, pinned next to the RT loop (80) and Kortex's UDP receive thread (79). Tied to the driver's `--cpu 11` / `--rt-priority 80`. | 2026-10-26, 30 min, CPUs 0–10 ~90%, GPU ~64% (SAM3 bursts, RANSAC, cuRobo): max Kortex request gap 5.49 → 2.38 ms, reply max 4.4 → 1.28 ms; overruns 51 → 42 (kinova-gen3-ros2#62). |
+| `net.core.rmem_max` 32 MiB, `rmem_default` 16 MiB              | DDS drops large messages (images) with the 208 KB default buffers.                                                                                                                                                                                                                                                                                              | 20–40% of large messages lost before.                                                                                                                                               |
+| Checked only: `isolcpus=11 rcu_nocbs=11`, MAXN                 | The arm driver's RT loop runs on CPU 11 (`--cpu 11`). Edit `/boot/extlinux/extlinux.conf` by hand.                                                                                                                                                                                                                                                              | —                                                                                                                                                                                   |
+
+Not set here, on purpose:
+
+- **The whole arm driver on CPU 11:** worse. Missed deadlines rose ~6× and the host crashed 10 minutes in. The arm
+  driver keeps only its loop and Kortex's receive thread there (kinova-gen3-ros2 `fix/kortex-rx-thread-rt`).
+- **`kernel.sched_rt_runtime_us`:** this kernel ships `-1` (RT throttling off), so a stuck FIFO thread can starve
+  its CPU. The kernel default `950000` is safer; it hasn't been tested with the arm loop yet.
+- **Separating arm traffic from other traffic on the arm NIC:** lan743x has fixed-off ntuple filters and receive
+  hashing (everything lands in RX queue 0), so the NAPI thread above processes every packet on the arm link. Today
+  that's only Kortex. If camera data ever shares the arm link (e.g. a wrist camera downlinked through the arm), it
+  would land on CPU 11 too: re-measure before keeping this setting.
+- **Arm traffic priority on the Jetson:** this kernel has no `prio`/`htb` qdiscs and no DSCP marking. The only lever
+  is `SO_PRIORITY` on the Kortex socket, in the driver.

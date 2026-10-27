@@ -95,19 +95,54 @@ published ones.
 Setup that happens outside any node lives in `<deployment>/config/robots/<robot>/`, one
 file per script, applied on the robot:
 
-| File           | Script                      | Sets                                    |
-| -------------- | --------------------------- | --------------------------------------- |
-| `network.yaml` | `scripts/network_config.py` | the host's NICs, through NetworkManager |
-| `oak_d.yaml`   | `scripts/oak_d_config.py`   | each OAK-D PoE camera's addressing      |
+| File           | Script                      | Sets                                                                                   |
+| -------------- | --------------------------- | -------------------------------------------------------------------------------------- |
+| `network.yaml` | `scripts/network_config.py` | the host's NICs, through NetworkManager                                                |
+| `oak_d.yaml`   | `scripts/oak_d_config.py`   | each OAK-D PoE camera's addressing                                                     |
+| `mount.yaml`   | `scripts/set_robot.py`      | the arm's mount rotation; makes this the host's active robot (`config/robots/current`) |
+| `transforms/`  | the `static_tf` node        | fixed and calibrated transforms (camera mounts), on `/tf_static` (rammp-tools image)   |
 
 ```bash
 uv run scripts/network_config.py december_2026/config/robots/flatbot
 ```
 
-Node configuration is not here: parameters and their defaults are the manifest's
-`params:`, per-robot values are `profiles/<robot>.yaml`, large static config ships in
-the module's image. The robot name joins the two: `config/robots/flatbot/` and
-`profiles/flatbot.yaml`.
+`mount.yaml` and `transforms/` are also read by nodes: `set_robot.py` points
+`config/robots/current` at the robot, and `arm_state_publisher` and `static_tf`
+bind-mount it read-only at `/config/robot`. Only per-robot data that a node needs as
+a file goes there. Everything else a node is configured with is a parameter (below).
+The robot name joins the two: `config/robots/flatbot/` and `profiles/flatbot.yaml`.
+
+## Node parameters
+
+| Value                            | Where it goes                                  |
+| -------------------------------- | ---------------------------------------------- |
+| A parameter and its default      | the alternative's `params:` in the manifest    |
+| Its value on one robot           | `profiles/<robot>.yaml`, under `overrides:`    |
+| Its value for one run            | `p` in the sheppy TUI                          |
+| Large config that rarely changes | a file in the module's image, named by a param |
+
+Put every value someone might change per robot in `params:`, with its default. A
+profile override or a TUI edit applies only to a key the selected alternative
+lists there; `validate_manifest.py` fails a profile that overrides anything else.
+A value written into `command:` can only be changed by editing the manifest.
+
+For a docker alternative:
+
+- sheppy writes `params:` to a params file and appends
+  `--ros-args --params-file /sheppy/params.yaml` to the command. The file is
+  keyed by `ros_node_name`, or `/**` without one. Set `ros_node_name` when a
+  parameter must land on one particular node, such as the arm's read-only
+  `arbitration_mode`.
+- With no `command:`, those args *replace* the image's CMD. That works only when
+  the image's entrypoint runs the node itself, as the camera images' does.
+  Otherwise give the command explicitly, ending at the node's executable.
+- `ros2 launch` rejects the appended args and the container exits at start. An
+  alternative that runs a launch file takes no `params:`; its values are launch
+  arguments in `command:`. `validate_manifest.py` fails `params:` on one, and on
+  a `process` alternative, where sheppy ignores them.
+
+Exception: the arm driver's `--ip` and `--cpu` are command-line flags, not ROS
+parameters, so they stay in `command:` (rammp-org/kinova-gen3-ros2#57).
 
 ## On hardware
 

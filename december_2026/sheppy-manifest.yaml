@@ -29,7 +29,7 @@ nodes:
       - id: gemini336l_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/gemini:0.3.0
+          image: ghcr.io/rammp-org/rammp-suite-software/gemini:0.3.1
           # Userspace-USB device: privileged + /dev survives replugs. The
           # camera needs no root, so it runs as the host user.
           privileged: true
@@ -72,7 +72,9 @@ nodes:
       - id: oak_d_pro_w_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.1
+          # NOT A RELEASE pin: rammp-suite-software main at #9's merge (opt-in encoded
+          # color, RAMMP_OAK_COLOR_CODEC; unset here, so raw as before). Tag at the next oak release.
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-7d1c78ffbaceb0a102f68cfd5404b2b3b23586da
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
@@ -86,15 +88,29 @@ nodes:
           driver.i_device_id: "19443010219A974800"
           driver.i_tf_base_frame: scene_camera
           driver.i_tf_parent_frame: scene_camera_link
-          # Full sensor resolution on both the stereo pair and the color
-          # sensor; the driver undistorts color by default, which is what
-          # makes the wide lens usable as-is.
-          color.i_width: 1280
-          color.i_height: 800
-          color.i_fps: 30.0
-          depth.i_width: 1280
-          depth.i_height: 800
-          depth.i_fps: 30.0
+          # The same resolution on the stereo pair and the color sensor; the
+          # driver undistorts color by default, which is what makes the wide
+          # lens usable as-is.
+          # 640x400 @ 15 fps (2026-10-22): 1280x800 @ 30 raw put 677 Mbit/s on
+          # eno1 and the camera delivered only ~15 Hz at 550 ms (depth 1 s)
+          # age; 640x400 @ 15 delivers 15 Hz at 24-31 ms.
+          color.i_width: 640
+          color.i_height: 400
+          color.i_fps: 15.0
+          color.i_synced: true
+          depth.i_width: 640
+          depth.i_height: 400
+          depth.i_fps: 15.0
+          depth.i_synced: true
+          # Synced on the device, as on the wrist (see its sync_threshold), so
+          # each color frame's depth carries the same stamp. Unsynced, only
+          # half the color frames had depth within 20 ms, which consumers
+          # pairing by stamp (boxer) had to cover with a wider slop.
+          sync.sync_threshold: 33
+          # The driver's FAST_ACCURACY default streaks along rows on this
+          # camera; ROBOTICS (median, spatial and speckle filters) does not
+          # (2026-10-26, snorlax).
+          depth.i_depth_preset: ROBOTICS
         publishes:
           - /scene_camera/color/image_raw
           - /scene_camera/depth/image_rect_raw
@@ -111,7 +127,7 @@ nodes:
       - id: d405_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/realsense:0.3.0
+          image: ghcr.io/rammp-org/rammp-suite-software/realsense:0.3.1
           privileged: true
           network_mode: host
           ipc: host
@@ -141,11 +157,11 @@ nodes:
       # Same topics as the D405, so consumers cannot tell which is selected —
       # except at range: the D405 sees from ~7 cm, this from ~15-30 cm (75 mm
       # baseline, even with the near-field tuning in params below: ROBOTICS
-      # preset, extended disparity, dot projector on).
+      # preset, stereo at 320x200, dot projector on).
       - id: oak_d_pro_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.1
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-7d1c78ffbaceb0a102f68cfd5404b2b3b23586da  # as the scene OAK
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
@@ -167,16 +183,26 @@ nodes:
           pipeline_gen.i_enable_imu: false
           color.i_width: 640
           color.i_height: 400
-          color.i_fps: 30.0
+          color.i_fps: 15.0
           color.i_synced: true
-          depth.i_width: 640
-          depth.i_height: 400
-          depth.i_fps: 30.0
+          depth.i_fps: 15.0
           depth.i_synced: true
-          # Near-field tuning: extended disparity doubles the search range,
-          # which halves the minimum depth; 400P halves it again versus 800P.
+          # The device-side Sync node pairs color and depth only when their
+          # stamps are within this many ms (driver 3.3.0 default 10). The
+          # sensors are not phase-locked, so at 15 fps the default starved the
+          # pairing to 2.5 Hz; use half the frame period (33 ms at 15 fps,
+          # 16 at 30). The driver stamps both messages with color's stamp.
+          sync.sync_threshold: 33
+          # Near-field tuning: stereo at 320x200 halves the focal length, so
+          # the 96-pixel search reaches ~16 cm without extended disparity.
+          # Extended disparity reaches the same, but pushes the disparity range
+          # past the median filter's limit: the device drops ROBOTICS' 7x7
+          # median and depth streaks along rows. Plain 640x400 stops at ~31 cm
+          # and reports closer surfaces as false depth near that limit
+          # (2026-10-26, snorlax). Depth is still aligned to 640x400 color.
           depth.i_depth_preset: ROBOTICS
-          depth.i_extended_disp: true
+          depth.i_width: 320
+          depth.i_height: 200
         publishes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/depth/image_rect_raw
@@ -190,7 +216,7 @@ nodes:
       - id: d435i_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/d435i:0.3.0
+          image: ghcr.io/rammp-org/rammp-suite-software/d435i:0.3.1
           privileged: true
           network_mode: host
           ipc: host
@@ -249,13 +275,26 @@ nodes:
     alternatives:
       # Transcribed from kinova-gen3-ros2's rammp-alternative.yaml. That
       # fragment uses `compose:` against the module's own deploy/compose.yaml,
-      # which builds images locally; inline here, pinned to the release, per
-      # this file's convention.
+      # which builds images locally; inline here, per this file's convention.
       #
-      # The module is TWO containers — this one and the `planner` node below.
-      # Three of its four action servers (go_to_ee_pose, go_to_joint_config,
+      # TWO GENERATIONS, NOT INTERCHANGEABLE. Select the same generation for
+      # arm, arm_state_publisher and planner -- all three `_nightly`, or none:
+      #   * the release (1.1.0, no suffix) loads the LEVEL model from a file in
+      #     the image. It is right only on a level mount (dojo); on flatbot or
+      #     gen_1_5 its gravity model is 30° off.
+      #   * `_nightly` (kinova-arm nightly channel, rammp-org/rammp-nightly)
+      #     reads the arm's model from /arm/robot_description, rendered from the
+      #     active robot's mount.yaml, and takes Cartesian goals in arm_mount.
+      #     Required on a tilted mount. Its planner must be the nightly one too:
+      #     it refuses pose plans not stamped arm_mount, which the release
+      #     planner does not stamp.
+      #
+      # SELECT arm, arm_state_publisher AND planner TOGETHER. Three of the
+      # driver's four action servers (go_to_ee_pose, go_to_joint_config,
       # go_to_preset) accept goals that can NEVER succeed without the planner,
-      # and sheppy ignores depends_on, so the pairing lives here.
+      # and on the nightly the driver and planner both wait for the model
+      # arm_state_publisher publishes. sheppy ignores depends_on, so the pairing
+      # lives here.
       - id: kinova_gen3_driver
         kind: docker
         # Keys the params file sheppy writes, so the params below land on this
@@ -263,7 +302,7 @@ nodes:
         # launch, so a params file at startup is the only way it can be set.
         ros_node_name: kinova_gen3_node
         container:
-          image: ghcr.io/rammp-org/kinova-gen3-ros2:1.0.1
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:1.1.0
           network_mode: host
           ipc: host
           # SYS_NICE permits sched_setscheduler; the ulimits are what let it
@@ -285,6 +324,9 @@ nodes:
           # Paths are /module_ws, NOT the /ros2_ws the module's own
           # deploy/compose.yaml still says: rammp-base owns /ros2_ws (the
           # interface contract) and this node builds into /module_ws on top.
+          #
+          # --ip, --urdf and --cpu are command-line flags, not ROS parameters:
+          # no profile can override them (rammp-org/kinova-gen3-ros2#57).
           command:
             - /module_ws/install/kinova_gen3_ros2/lib/kinova_gen3_ros2/kinova_gen3_node
             - --ip
@@ -315,6 +357,52 @@ nodes:
           - /setpoint/pose
           - /setpoint/twist
           - /setpoint/gripper
+      # The nightly: as above, except the image, the pull, and no --urdf (the
+      # node refuses it: the model comes from /arm/robot_description, and the
+      # node exits naming arm_state_publisher if none arrives).
+      - id: kinova_gen3_driver_nightly
+        kind: docker
+        ros_node_name: kinova_gen3_node
+        container:
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:nightly
+          # `:nightly` moves to each green set; without this a robot keeps
+          # running whichever one it pulled first. Pin a dated tag
+          # (`:nightly-YYYYMMDD`) instead to hold a set still.
+          pull_policy: always
+          network_mode: host
+          ipc: host
+          cap_add: [SYS_NICE]
+          ulimits:
+            rtprio: 99
+            memlock: -1
+          environment:
+            ROS_DOMAIN_ID: "0"
+          command:
+            - /module_ws/install/kinova_gen3_ros2/lib/kinova_gen3_ros2/kinova_gen3_node
+            - --ip
+            - 192.168.1.10
+            - --cpu
+            - "11"
+        params:
+          arbitration_mode: disabled
+          estop_clear_max_age_s: 1.0
+          expect_gripper: true
+        publishes:
+          - /joint_states
+          - /ee_state
+          - /control_status
+          - /stream_status
+          - /gripper_state
+          - /diagnostics
+        subscribes:
+          - /arm/robot_description
+          - /estop
+          - /setpoint/joint_position
+          - /setpoint/joint_velocity
+          - /setpoint/joint_torque
+          - /setpoint/pose
+          - /setpoint/twist
+          - /setpoint/gripper
       # The image also ships a --sim mode that is a real simulated arm, but it
       # is arm64-only, so it would not serve the "runs on a workstation" job
       # this mock exists for. Publish-only, as above.
@@ -334,17 +422,17 @@ nodes:
       # package. The driver itself publishes NO tf (only /joint_states); its
       # container is deliberately austere (root, SYS_NICE, rtprio, bare binary
       # as PID 1 on the isolated core), so TF runs here, separate, and bouncing
-      # it never touches the 1 kHz loop.
+      # it never touches the 1 kHz loop. Same generation as `arm` (see there).
       #
-      # description.launch.py defaults to the articulated 13-DOF model; the
-      # driver publishes robotiq_85_left_knuckle_joint and robot_state_publisher
-      # derives the five mimic joints. Scoped to the arm on purpose — a mobile
-      # base brings its own state publisher, and a static mount transform
-      # stitches the trees.
+      # The release: the articulated 13-DOF LEVEL model. The driver publishes
+      # robotiq_85_left_knuckle_joint and robot_state_publisher derives the
+      # five mimic joints. Scoped to the arm on purpose — a mobile base brings
+      # its own state publisher, and a static mount transform stitches the
+      # trees.
       - id: kinova_gen3_description
         kind: docker
         container:
-          image: ghcr.io/rammp-org/kinova-gen3-ros2:1.0.1
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:1.1.0
           network_mode: host
           ipc: host
           # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base,
@@ -364,6 +452,37 @@ nodes:
           - /tf_static
         subscribes:
           - /joint_states
+      # The nightly renders the model at launch, rooted at arm_mount and
+      # rotated by the active robot's mount.yaml (config/robots/current, set by
+      # scripts/set_robot.py), and publishes it latched on
+      # /arm/robot_description; the nightly driver and planner read it from
+      # there. Its joints carry the arm_ prefix.
+      - id: kinova_gen3_description_nightly
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:nightly
+          pull_policy: always  # see kinova_gen3_driver_nightly
+          network_mode: host
+          ipc: host
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          user: "1000:1000"
+          # The active robot's config, relative to this manifest. A missing
+          # `current` link makes Docker create an empty root-owned directory
+          # here and the launch fails on the missing mount.yaml; run
+          # scripts/set_robot.py, which tells you how to remove it.
+          # The relative path resolves against this manifest only in sheppy at or
+          # after #149 (df89566); older sheppy hands it to docker unchanged.
+          volumes:
+            - ./config/robots/current:/config/robot:ro
+          command: ros2 launch kinova_gen3_description description.launch.py mount_file:=/config/robot/mount.yaml
+        publishes:
+          - /arm/robot_description
+          - /tf
+          - /tf_static
+        subscribes:
+          - /joint_states
       # Wiring-only, like every mock here: /tf with no transforms in it. Needed
       # because the real alternative's image is arm64-only (same constraint as
       # the arm's --sim mode), so a workstation profile selects this.
@@ -373,17 +492,54 @@ nodes:
         publishes:
           - /tf
 
+  - name: static_tf
+    description: Fixed and calibrated transforms from the active robot's transforms/ on /tf_static
+    select: single
+    alternatives:
+      # Every *.yaml in config/robots/<robot>/transforms/ (rammp-calibration's
+      # mounts.yaml format), published once, latched. The image is rammp-tools'
+      # generic static_tf; the robot-specific part is the data, mounted below.
+      # Robot-specific geometry moves to the robot's URDF once one exists; what
+      # stays here is what a calibration measures.
+      - id: static_tf_docker
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-tools/static_tf:0.2.0
+          network_mode: host
+          ipc: host
+          # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base,
+          # which sets Cyclone plus CYCLONEDDS_URI.
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          user: "1000:1000"
+          # Same `current` link as arm_state_publisher: run scripts/set_robot.py
+          # first. The image's default command reads /config/robot/transforms.
+          volumes:
+            - ./config/robots/current:/config/robot:ro
+        publishes:
+          - /tf_static
+      # Wiring-only: rammp-base is arm64-only, so a workstation profile selects this.
+      - id: static_tf_mock
+        kind: process
+        command: "bash -lc 'source /opt/ros/humble/setup.bash && ros2 topic pub -r 1 /tf_static tf2_msgs/msg/TFMessage \"{}\"'"
+        publishes:
+          - /tf_static
+
   - name: planner
     description: cuRobo motion planner for the arm's go_to_* actions
     select: single
     alternatives:
       # Owned by rammp-org/RAMMP-CuRobo; declared here because sheppy cannot
       # express "and also start that one". Its own rammp-alternative.curobo.yaml
-      # in kinova-gen3-ros2 says the same thing against a local build.
+      # in kinova-gen3-ros2 says the same thing against a local build. Same
+      # generation as `arm` (see there).
+      #
+      # The release plans on NVIDIA's bundled level Gen3 against dojo's bench.
       - id: curobo_planner
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-curobo:1.0.0
+          image: ghcr.io/rammp-org/rammp-curobo:1.1.0
           runtime: nvidia              # JetPack exposes the GPU this way, NOT --gpus
           network_mode: host
           ipc: host
@@ -399,6 +555,41 @@ nodes:
         # to declare. Nothing here is starved; there is just nothing to list.
         publishes: []
         subscribes: []
+      # The nightly plans on the arm's own model from /arm/robot_description,
+      # in arm_mount, and stamps every plan arm_mount. It exits 1 if no model
+      # arrives within 30 s, and sheppy does not restart it: after fixing
+      # arm_state_publisher, `sheppy restart planner`.
+      #
+      # The world is a param so a profile can override it per robot: dojo's
+      # bench is the default; profiles/flatbot.yaml sets world_empty.yaml,
+      # because the bench's boxes are wrong under a tilted arm_mount. sheppy
+      # appends --ros-args --params-file only AFTER a command -- with params
+      # and no command it replaces the image CMD and the container exits 2 --
+      # hence the explicit command.
+      - id: curobo_planner_nightly
+        kind: docker
+        ros_node_name: rammp_curobo
+        container:
+          image: ghcr.io/rammp-org/rammp-curobo:nightly
+          pull_policy: always  # see kinova_gen3_driver_nightly
+          runtime: nvidia
+          network_mode: host
+          ipc: host
+          environment:
+            ROS_DOMAIN_ID: "0"
+          volumes:
+            - curobo_kernel_cache:/root/.cache
+          command:
+            - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
+        params:
+          # Both name files that ship in the image.
+          config: gen3_real.yaml
+          world: world_real_bench.yaml
+        # Otherwise reached over the plan_to_pose / plan_to_joints ACTIONS (see
+        # above). The one topic is the arm's model, read once at startup.
+        publishes: []
+        subscribes:
+          - /arm/robot_description
       # No mock. The mock convention here is "publish an empty message at the
       # right topic and type", and an action server has no topic to publish —
       # a mock would have to implement the action to be worth anything. Select
@@ -421,7 +612,7 @@ nodes:
       - id: xbox_pad
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-teleop:0.1.0
+          image: ghcr.io/rammp-org/rammp-teleop:0.2.0
           network_mode: host
           ipc: host
           privileged: true
@@ -450,7 +641,7 @@ nodes:
       - id: quest3
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-teleop:0.1.0
+          image: ghcr.io/rammp-org/rammp-teleop:0.2.0
           network_mode: host
           ipc: host
           privileged: true
@@ -665,22 +856,24 @@ nodes:
     description: 3D boxes (pose + size) for the scene segmenter's objects -> /perception/object_detections_3d
     select: single
     alternatives:
-      # Transcribed from rammp-org/rammp-perception's rammp-alternative.boxer.yaml; same NOT A RELEASE pin
-      # as scene_segmenter above. BoxerNet lifts every object of /perception/object_detections to a
+      # Transcribed from rammp-org/rammp-perception's rammp-alternative.boxer.yaml. NOT A RELEASE pin, like
+      # scene_segmenter above, but newer: rammp-perception#14's merge (frame_stride, and a log of why
+      # depth didn't match). BoxerNet lifts every object of /perception/object_detections to a
       # gravity-aligned 3D box and republishes the message on /perception/object_detections_3d with
       # pose (in the camera's optical frame) and size filled in. ~90 ms per frame on abra, keeping up with
       # the segmenter. First start builds its TensorRT engines into the volume (about 2.5 minutes).
       #
       # Needs, per frame: the Gemini's registered depth (scene_camera above) and TF from gravity_frame to
-      # the camera. Nothing in this manifest publishes base_link -> scene_camera yet (the arm's state
-      # publisher covers the arm only); until a mount transform does, every object comes out with
-      # has_pose false and the node logs the missing transform. On the OAK scene camera alternative set
-      # depth_topic to /scene_camera/depth/image_rect_raw (not yet tested).
+      # the camera. static_tf attaches the camera from the active robot's transforms/ (on flatbot,
+      # arm_mount -> scene_camera, so gravity_frame must be arm_mount there: nothing publishes
+      # base_link); without it, every object comes out with has_pose false and the node logs the
+      # missing transform. The OAK scene camera's depth is /scene_camera/depth/image_rect_raw, synced
+      # to color on the device, so depth_slop_s can be tight there (profiles/flatbot.yaml sets all three).
       # BoxerNet's weights are CC-BY-NC 4.0 (non-commercial) and baked into the image.
       - id: boxer
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-f54ea8ed8e6e8d928a9b3ea63997229289901abe
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -700,9 +893,8 @@ nodes:
           camera_info_topic: /scene_camera/color/camera_info
           gravity_frame: base_link     # any frame with +z up; only its rotation is used
           min_prob: 0.5
-          # Lifting every 10 Hz detection took ~40% of the GPU; at 5 Hz the stack uses 61% instead of 75% (#106).
-          # Takes effect from the image with rammp-perception#9; an older image ignores it.
-          max_rate_hz: 5.0
+          depth_slop_s: 0.02           # how far in time a depth frame may be from its color frame
+          frame_stride: 1              # lift every Nth detections message; stacks on the detector's own stride
         publishes:
           - /perception/object_detections_3d
         subscribes:

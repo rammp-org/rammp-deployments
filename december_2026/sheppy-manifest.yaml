@@ -220,6 +220,11 @@ nodes:
           depth.i_depth_preset: ROBOTICS
           depth.i_width: 320
           depth.i_height: 200
+          # Mounted upside down, as the scene OAK: rotate color and depth 180°
+          # on the device. The frame names do not change: the mount in the
+          # robot's transforms/cameras.yaml is the rotated (upright) one.
+          color.i_rotation: 180
+          depth.i_rotation: 180
         publishes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/depth/image_rect_raw

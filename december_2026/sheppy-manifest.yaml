@@ -713,7 +713,7 @@ nodes:
       - id: yoloe_gpu
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -723,9 +723,6 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
-            # numpy's OpenBLAS pool busy-waits on every core: ~5 cores at 10 Hz without this (#106).
-            # In the images from rammp-perception#6 on; drop this when they are pinned.
-            OPENBLAS_NUM_THREADS: "1"
         params:
           model: yoloe-26m-seg
           device: gpu
@@ -742,7 +739,7 @@ nodes:
       - id: yoloe_dla
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -752,9 +749,6 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
-            # numpy's OpenBLAS pool busy-waits on every core: ~5 cores at 10 Hz without this (#106).
-            # In the images from rammp-perception#6 on; drop this when they are pinned.
-            OPENBLAS_NUM_THREADS: "1"
         params:
           model: yoloe-26s-seg
           device: dla0
@@ -777,7 +771,7 @@ nodes:
       - id: rfdetr
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/rfdetr:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/rfdetr:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -785,9 +779,6 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
-            # numpy's OpenBLAS pool busy-waits on every core: ~5 cores at 10 Hz without this (#106).
-            # In the images from rammp-perception#6 on; drop this when they are pinned.
-            OPENBLAS_NUM_THREADS: "1"
         params:
           model: small
           image_topic: /scene_camera/color/image_raw
@@ -801,7 +792,7 @@ nodes:
       - id: scene_segmenter_mock
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           network_mode: host
           ipc: host
           user: "1000:1000"
@@ -829,7 +820,7 @@ nodes:
       - id: sam3_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/sam3:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/sam3:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -840,14 +831,10 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
-            # numpy's OpenBLAS pool busy-waits on every core: ~5 cores at 10 Hz without this (#106).
-            # In the images from rammp-perception#6 on; drop this when they are pinned.
-            OPENBLAS_NUM_THREADS: "1"
         params:
           # Tracking at 5 Hz takes ~22% of the GPU instead of ~60% uncapped (~13 Hz on snorlax, ~48% at
-          # ~12 Hz on abra), leaving it to the rest of the chair (#106). Until an image with
-          # rammp-perception#8 is pinned, a capped step tracks a stale frame: ~270 ms camera to result
-          # instead of ~150 ms (~110 ms with rammp-perception#17).
+          # ~12 Hz on abra), leaving it to the rest of the chair (#106). A capped step tracks the
+          # first frame after it is due (rammp-perception#8, #17): ~110 ms camera to result, not ~270 ms.
           max_tracking_rate_hz: 5.0
         publishes:
           - /perception/sam3/object_detections
@@ -861,9 +848,8 @@ nodes:
     description: 3D boxes (pose + size) for the scene segmenter's objects -> /perception/object_detections_3d
     select: single
     alternatives:
-      # Transcribed from rammp-org/rammp-perception's rammp-alternative.boxer.yaml. NOT A RELEASE pin, like
-      # scene_segmenter above, but newer: rammp-perception#14's merge (frame_stride, and a log of why
-      # depth didn't match). BoxerNet lifts every object of /perception/object_detections to a
+      # Transcribed from rammp-org/rammp-perception's rammp-alternative.boxer.yaml. NOT A RELEASE pin, the
+      # same build as scene_segmenter above. BoxerNet lifts every object of /perception/object_detections to a
       # gravity-aligned 3D box and republishes the message on /perception/object_detections_3d with
       # pose (in the camera's optical frame) and size filled in. ~90 ms per frame on abra, keeping up with
       # the segmenter. First start builds its TensorRT engines into the volume (about 2.5 minutes).
@@ -878,7 +864,7 @@ nodes:
       - id: boxer
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-f54ea8ed8e6e8d928a9b3ea63997229289901abe
+          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -888,9 +874,6 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
-            # numpy's OpenBLAS pool busy-waits on every core: ~5 cores at 10 Hz without this (#106).
-            # In the images from rammp-perception#6 on; drop this when they are pinned.
-            OPENBLAS_NUM_THREADS: "1"
         params:
           detections_topic: /perception/object_detections
           image_topic: /scene_camera/color/image_raw
@@ -914,7 +897,7 @@ nodes:
       - id: object_lifter_mock
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           network_mode: host
           ipc: host
           user: "1000:1000"

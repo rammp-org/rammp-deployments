@@ -22,7 +22,7 @@ out = f"{data}/dets/sam3"
 os.makedirs(out, exist_ok=True)
 proc = Sam3Processor.from_pretrained(MODEL)
 model = Sam3Model.from_pretrained(MODEL, dtype=torch.bfloat16).to("cuda").eval()
-flat = [(l, p) for l, ps in PROMPTS.items() for p in ps]
+flat = [(lab, p) for lab, ps in PROMPTS.items() for p in ps]
 ti = proc(text=[p for _, p in flat], return_tensors="pt").to("cuda")
 
 

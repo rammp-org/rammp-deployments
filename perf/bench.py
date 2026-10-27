@@ -476,7 +476,7 @@ def containers():
         capture_output=True,
         text=True,
     ).stdout
-    return {name: cid for cid, name in (l.split() for l in out.splitlines())}
+    return {name: cid for cid, name in (ln.split() for ln in out.splitlines())}
 
 
 def cgroup_read(cid):
@@ -637,7 +637,7 @@ def segmenter_log(run):
         ],
     ):
         _, log = sheppy("logs", n, "-n", "40", timeout=30)
-        lines = [l for l in log.splitlines() if re.search(r"Hz|ms|infer|rate", l)]
+        lines = [ln for ln in log.splitlines() if re.search(r"Hz|ms|infer|rate", ln)]
         out[n] = lines[-4:]
     return out
 
@@ -706,7 +706,7 @@ def execute(name, duration, settle):
                 break
             else:
                 lines.append(line)
-        lines += [l.rstrip() for l in probe.stdout]
+        lines += [ln.rstrip() for ln in probe.stdout]
         probe.wait()
     if sampler:
         sampler.read()

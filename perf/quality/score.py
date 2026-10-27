@@ -36,7 +36,10 @@ def iou_matrix(a, b):
     x1 = np.minimum(a[:, None, 2], b[None, :, 2])
     y1 = np.minimum(a[:, None, 3], b[None, :, 3])
     inter = np.clip(x1 - x0, 0, None) * np.clip(y1 - y0, 0, None)
-    area = lambda r: (r[:, 2] - r[:, 0]) * (r[:, 3] - r[:, 1])
+
+    def area(r):
+        return (r[:, 2] - r[:, 0]) * (r[:, 3] - r[:, 1])
+
     return inter / (area(a)[:, None] + area(b)[None, :] - inter + 1e-9)
 
 
@@ -59,10 +62,10 @@ def load(det, img, owl_nms=OWL_NMS):
     if det.startswith("owlvit") and len(labels):
         keep = np.concatenate(
             [
-                np.flatnonzero(labels == l)[
-                    nms(boxes[labels == l], scores[labels == l], owl_nms)
+                np.flatnonzero(labels == lab)[
+                    nms(boxes[labels == lab], scores[labels == lab], owl_nms)
                 ]
-                for l in np.unique(labels)
+                for lab in np.unique(labels)
             ]
         )
         labels, scores, boxes = labels[keep], scores[keep], boxes[keep]
@@ -76,8 +79,8 @@ def match(det, label, owl_nms=OWL_NMS):
         rl, _, rb = load("sam3", img)
         rb = rb[rl == label]
         n_ref += len(rb)
-        l, s, b = load(det, img, owl_nms)
-        s, b = s[l == label], b[l == label]
+        lab, s, b = load(det, img, owl_nms)
+        s, b = s[lab == label], b[lab == label]
         order = np.argsort(-s)
         used = set()
         ious = iou_matrix(b[order], rb) if len(rb) and len(b) else np.zeros((len(b), 0))
@@ -196,8 +199,8 @@ for img in images:
     panels = []
     for det in ["sam3"] + DETECTORS:
         p = base.copy()
-        l, s, b = load(det, img)
-        for li, si, bi in zip(l, s, b):
+        lab, s, b = load(det, img)
+        for li, si, bi in zip(lab, s, b):
             if det != "sam3" and si < thr_for(det, li):
                 continue
             x0, y0, x1, y1 = map(int, bi)
@@ -237,6 +240,6 @@ for img in images:
     )
     cv2.imwrite(f"{outdir}/{img}.jpg", grid, [cv2.IMWRITE_JPEG_QUALITY, 80])
 json.dump(
-    {f"{d}|{l}": v for (d, l), v in results.items()},
+    {f"{d}|{lab}": v for (d, lab), v in results.items()},
     open(f"{outdir}/results.json", "w"),
 )

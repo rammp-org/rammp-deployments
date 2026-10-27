@@ -108,7 +108,10 @@ def table(runs, names, cols):
 
 def main():
     runs = load(sys.argv[1:])
-    W = lambda rs: fmt([r["power_w"] for r in rs], 1)
+
+    def W(rs):
+        return fmt([r["power_w"] for r in rs], 1)
+
     seg = [
         ("seg Hz", lambda rs: fmt(topic(rs, DETS, "hz"), 1)),
         ("seg p50 ms", lambda rs: fmt(topic(rs, DETS, "p50"))),

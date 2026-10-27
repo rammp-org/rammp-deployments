@@ -10,12 +10,12 @@ import os
 import sys
 import cv2
 import numpy as np
-from rammp_detection_common.classes import ClassMap, clean
+from rammp_detection_common.classes import ClassMap, Detection, clean
 
 LOW = 0.03
 name = sys.argv[1]
 classes = ClassMap.load("/repo/object_detection/config/classes.yaml")
-classes.min_scores = {l: LOW for l in classes.labels}
+classes.min_scores = {lab: LOW for lab in classes.labels}
 out = f"/data/dets/{name}"
 os.makedirs(out, exist_ok=True)
 
@@ -62,7 +62,7 @@ else:
     from rammp_nanoowl.boxes import to_source_xyxy
 
     groups = [
-        [p for p, l in classes.prompt_to_label.items() if l == g]
+        [p for p, lab in classes.prompt_to_label.items() if lab == g]
         for g in classes.labels
     ]
     det = owl.OwlDetector("/models/owlvit", "/engines", name, groups)
@@ -76,8 +76,6 @@ else:
         ]
 
 
-from rammp_detection_common.classes import Detection
-
 for p in sorted(glob.glob("/data/eval/*.jpg")):
     rgb = cv2.imread(p)[..., ::-1].copy()
     dets = detect(rgb)
@@ -85,7 +83,7 @@ for p in sorted(glob.glob("/data/eval/*.jpg")):
         dets = [
             (d.label, d.score, d.box)
             for d in clean(
-                [Detection(l, s, np.asarray(b, float)) for l, s, b in dets], classes
+                [Detection(lab, s, np.asarray(b, float)) for lab, s, b in dets], classes
             )
         ]
     np.savez(

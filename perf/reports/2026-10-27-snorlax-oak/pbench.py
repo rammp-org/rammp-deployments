@@ -216,7 +216,7 @@ def running():
         "--format",
         '{{.Names}} {{.Label "pbench.hash"}}',
     )
-    return dict(l.split() for l in out.splitlines() if len(l.split()) == 2)
+    return dict(ln.split() for ln in out.splitlines() if len(ln.split()) == 2)
 
 
 def start(name, spec, blas):
@@ -332,7 +332,7 @@ class Sampler(threading.Thread):
         _, out = sh("docker", "ps", "--no-trunc", "--format", "{{.ID}} {{.Names}}")
         self.ids = {
             n: c
-            for c, n in (l.split() for l in out.splitlines())
+            for c, n in (ln.split() for ln in out.splitlines())
             if n.startswith(("pbench-", "sheppy-"))
         }
         self.first, self.last, self.peak = {}, {}, {}
@@ -460,7 +460,7 @@ def execute(name, duration, warmup):
         sampler.stop.set()
         tegra.terminate()
         tegra.wait()
-    lines += [l.rstrip() for l in probe.stdout]
+    lines += [ln.rstrip() for ln in probe.stdout]
     probe.wait()
     timer.cancel()
 
@@ -475,7 +475,9 @@ def execute(name, duration, warmup):
     for n in r["nodes"]:
         _, log = sh("docker", "logs", "--tail", "60", "pbench-" + n)
         result["logs"][n] = [
-            l for l in log.splitlines() if re.search(r"Hz|ms|timing|WARN|ERROR|rror", l)
+            ln
+            for ln in log.splitlines()
+            if re.search(r"Hz|ms|timing|WARN|ERROR|rror", ln)
         ][-12:]
     result["wall_s"] = round(time.monotonic() - t0)
     (RESULTS / ("%s.json" % name)).write_text(json.dumps(result, indent=1))

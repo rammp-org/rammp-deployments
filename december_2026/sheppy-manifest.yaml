@@ -72,9 +72,9 @@ nodes:
       - id: oak_d_pro_w_docker
         kind: docker
         container:
-          # NOT A RELEASE pin: rammp-suite-software main at #9's merge (opt-in encoded
-          # color, RAMMP_OAK_COLOR_CODEC; unset here, so raw as before). Tag at the next oak release.
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-7d1c78ffbaceb0a102f68cfd5404b2b3b23586da
+          # NOT A RELEASE pin: rammp-suite-software main at #13's merge, the driver built from
+          # our depthai-ros fork (i_rotation, synced + encoded color). Tag at the next oak release.
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-6285a703abeacb1fcad505a9c6174e8e3a74f7bd
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
@@ -111,6 +111,12 @@ nodes:
           # camera; ROBOTICS (median, spatial and speckle filters) does not
           # (2026-10-26, snorlax).
           depth.i_depth_preset: ROBOTICS
+          # The camera is mounted upside down: rotate color and depth 180° on
+          # the device, so consumers get upright images. Both, so depth stays
+          # registered to color. The frame names do not change: the mount in
+          # the robot's transforms/cameras.yaml is the rotated (upright) one.
+          color.i_rotation: 180
+          depth.i_rotation: 180
         publishes:
           - /scene_camera/color/image_raw
           - /scene_camera/depth/image_rect_raw
@@ -161,15 +167,20 @@ nodes:
       - id: oak_d_pro_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-7d1c78ffbaceb0a102f68cfd5404b2b3b23586da  # as the scene OAK
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-6285a703abeacb1fcad505a9c6174e8e3a74f7bd  # as the scene OAK
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
           # From 0.3.1 the container exits 1 if no camera matching the device
           # ID is ready within RAMMP_OAK_READY_TIMEOUT seconds (default 60),
           # so a wrong ID or an unplugged camera shows as crashed. Both OAKs.
+          # H.264 color (#85): the camera encodes color on the device, and the
+          # image decodes it back onto color/image_raw with the same stamps, so
+          # consumers see raw images as before. Needs the color.i_low_bandwidth
+          # params below.
           environment:
             ROS_DOMAIN_ID: "0"
+            RAMMP_OAK_COLOR_CODEC: h264
           # The image's entrypoint runs the node with the driver's defaults;
           # only the rename is appended, and the wrist tuning lives in params.
           command: [--ros-args, -r, __node:=wrist_camera]
@@ -185,6 +196,12 @@ nodes:
           color.i_height: 400
           color.i_fps: 15.0
           color.i_synced: true
+          # The wrist link is 100 Mbit/s (#85). Raw color put 129 Mbit/s on it;
+          # H.264 (profile 2) brings the camera to 83 Mbit/s, most of it the
+          # aligned depth (2026-10-27, snorlax).
+          color.i_low_bandwidth: true
+          color.i_low_bandwidth_profile: 2
+          color.i_publish_compressed: true
           depth.i_fps: 15.0
           depth.i_synced: true
           # The device-side Sync node pairs color and depth only when their
@@ -203,6 +220,11 @@ nodes:
           depth.i_depth_preset: ROBOTICS
           depth.i_width: 320
           depth.i_height: 200
+          # Mounted upside down, as the scene OAK: rotate color and depth 180°
+          # on the device. The frame names do not change: the mount in the
+          # robot's transforms/cameras.yaml is the rotated (upright) one.
+          color.i_rotation: 180
+          depth.i_rotation: 180
         publishes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/depth/image_rect_raw

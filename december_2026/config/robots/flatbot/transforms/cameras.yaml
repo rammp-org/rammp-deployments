@@ -11,14 +11,24 @@ mounts:
   ros__parameters:
     transforms: [scene_camera, wrist_camera]
     # OAK-D Pro W, hand-measured 2026-10-19 (not calibrated): facing arm_mount's +x,
-    # mounted upside down (180° roll).
+    # mounted upside down (180° roll). The driver rotates its images 180° on the
+    # device (i_rotation) and keeps the frame names, so this is the mount of the
+    # rotated, upright camera: the physical 180° roll and the image rotation (180°
+    # about the optical axis, which is this frame's x) cancel. The colour sensor is
+    # at this frame's origin, so the position is unchanged. Only frames the rotated
+    # images use are right; the driver's IMU and stereo frames below it would need
+    # the physical roll, and nothing on flatbot uses them.
     scene_camera:
       parent: arm_mount
       child: scene_camera
       xyz: [0.20, -0.50, 0.40]
-      quat_xyzw: [1.0, 0.0, 0.0, 0.0]
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
     # OAK-D Pro, looking along the tool. Mounted upside down: its up (+z) points
-    # back at the arm (-y). Roll checked against a live frame (#114).
+    # back at the arm (-y). Roll checked against a live frame (#114). As for the
+    # scene camera, the driver rotates its images 180° (i_rotation) and keeps the
+    # frame names, so this is the mount of the rotated camera: the physical mount
+    # rolled 180° about the optical axis (this frame's x), up now +y. The colour
+    # sensor is at this frame's origin, so the position is unchanged.
     # Position fitted 2026-10-22 from one rammp_box_opening depth-press run (not a
     # calibration): 0.065 m out along +y, 0.015 m along the tool (+z). The hand
     # measurement of 2026-10-19, [0, 0.10, -0.10], failed all three checks of that
@@ -30,4 +40,4 @@ mounts:
       parent: arm_end_effector_link
       child: wrist_camera
       xyz: [0.0, 0.065, 0.015]
-      quat_xyzw: [0.5, -0.5, 0.5, 0.5]
+      quat_xyzw: [-0.5, -0.5, -0.5, 0.5]

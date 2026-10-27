@@ -9,10 +9,13 @@
 # mocks publish empty messages at the right topic and type — enough to develop
 # wiring against, and deliberately not a simulation.
 #
-# DDS: everything here speaks Cyclone. The arm, the planner and (from 0.1.0) the
-# camera images are all built FROM rammp-base, which sets RMW_IMPLEMENTATION and
-# a tuned CYCLONEDDS_URI — so no node below sets either, and overriding one
-# would strip the fleet config with it.
+# DDS: everything here speaks Cyclone. The images are built FROM rammp-base, which
+# sets RMW_IMPLEMENTATION and (all but rammp-curobo) a CYCLONEDDS_URI. Every docker
+# node below mounts config/dds/cyclonedds.xml over that file and sets
+# CYCLONEDDS_URI to it: rammp-base's config plus rammp-org/RAMMP-docker#12, which
+# the pinned images don't have yet. Without it a host fits 10 DDS participants,
+# and the flatbot profile alone fills them. Every participant needs the raised
+# cap, so a new docker node gets the same two lines.
 #
 # Container definitions are inline rather than a `compose:` reference: sheppy
 # resolves a compose file relative to this manifest, so a reference would mean
@@ -37,8 +40,10 @@ nodes:
           ipc: host
           volumes:
             - /dev:/dev
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           user: "1000:1000"
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           # The image's entrypoint runs the node with its defaults; only the
@@ -78,7 +83,10 @@ nodes:
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
+          volumes:
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
           command: [--ros-args, -r, __node:=scene_camera]
         params:
@@ -139,10 +147,12 @@ nodes:
           ipc: host
           volumes:
             - /dev:/dev
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           # gid 44 = video: librealsense streams over V4L2, and /dev/video* is
           # root:video 0660. The Orbbec needs no such group (libusb, node 0666).
           user: "1000:44"
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           # The image's entrypoint runs the node with its defaults; only the
@@ -174,11 +184,14 @@ nodes:
           # From 0.3.1 the container exits 1 if no camera matching the device
           # ID is ready within RAMMP_OAK_READY_TIMEOUT seconds (default 60),
           # so a wrong ID or an unplugged camera shows as crashed. Both OAKs.
+          volumes:
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           # H.264 color (#85): the camera encodes color on the device, and the
           # image decodes it back onto color/image_raw with the same stamps, so
           # consumers see raw images as before. Needs the color.i_low_bandwidth
           # params below.
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             RAMMP_OAK_COLOR_CODEC: h264
           # The image's entrypoint runs the node with the driver's defaults;
@@ -244,8 +257,10 @@ nodes:
           ipc: host
           volumes:
             - /dev:/dev
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           user: "1000:44"
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           command: [--ros-args, -r, __node:=wrist_camera]
@@ -278,7 +293,10 @@ nodes:
           image: ghcr.io/rammp-org/rammp-tools/foxglove:0.1.0
           network_mode: host
           ipc: host
+          volumes:
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
           command: ros2 launch foxglove_bridge foxglove_bridge_launch.xml
         # No topics: it is a WebSocket server, reached at ws://<machine>:8765
@@ -337,9 +355,11 @@ nodes:
             rtprio: 99
             memlock: -1
           # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base,
-          # which sets Cyclone plus CYCLONEDDS_URI. Overriding it would strip
-          # the tuned config with it.
+          # which sets Cyclone. CYCLONEDDS_URI is the shared config (top of file).
+          volumes:
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
           # Run as root: the RT loop needs the rlimits above.
           #
@@ -397,7 +417,10 @@ nodes:
           ulimits:
             rtprio: 99
             memlock: -1
+          volumes:
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
           command:
             - /module_ws/install/kinova_gen3_ros2/lib/kinova_gen3_ros2/kinova_gen3_node
@@ -458,9 +481,11 @@ nodes:
           network_mode: host
           ipc: host
           # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base,
-          # which sets Cyclone plus CYCLONEDDS_URI. Overriding it would strip
-          # the tuned config with it.
+          # which sets Cyclone. CYCLONEDDS_URI is the shared config (top of file).
+          volumes:
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           # Unlike the driver, nothing here needs root — run as the host user,
@@ -487,6 +512,7 @@ nodes:
           network_mode: host
           ipc: host
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           user: "1000:1000"
@@ -498,6 +524,7 @@ nodes:
           # after #149 (df89566); older sheppy hands it to docker unchanged.
           volumes:
             - ./config/robots/current:/config/robot:ro
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           command: ros2 launch kinova_gen3_description description.launch.py mount_file:=/config/robot/mount.yaml
         publishes:
           - /arm/robot_description
@@ -530,8 +557,9 @@ nodes:
           network_mode: host
           ipc: host
           # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base,
-          # which sets Cyclone plus CYCLONEDDS_URI.
+          # which sets Cyclone. CYCLONEDDS_URI is the shared config (top of file).
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           user: "1000:1000"
@@ -539,6 +567,7 @@ nodes:
           # first. The image's default command reads /config/robot/transforms.
           volumes:
             - ./config/robots/current:/config/robot:ro
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
         publishes:
           - /tf_static
       # Wiring-only: rammp-base is arm64-only, so a workstation profile selects this.
@@ -566,12 +595,14 @@ nodes:
           network_mode: host
           ipc: host
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
           # The first plan after a cold start compiles CUDA kernels — minutes,
           # during which go_to_* goals just sit there. The named volume keeps
           # them across restarts, so only the very first run pays.
           volumes:
             - curobo_kernel_cache:/root/.cache
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
         # No topics: this node is reached over the /rammp_curobo/plan_to_pose
         # and /rammp_curobo/plan_to_joints ACTIONS, which the schema has no way
         # to declare. Nothing here is starved; there is just nothing to list.
@@ -598,9 +629,11 @@ nodes:
           network_mode: host
           ipc: host
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
           volumes:
             - curobo_kernel_cache:/root/.cache
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           command:
             - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
         params:
@@ -640,7 +673,9 @@ nodes:
           privileged: true
           volumes:
             - /dev:/dev
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
           command: /module_ws/src/rammp-teleop/scripts/launch_entry.py rammp_teleop xbox.launch.py
         publishes:
@@ -671,7 +706,9 @@ nodes:
             - /dev:/dev
             - /home/abra/.android:/root/.android
             - /home/abra/.config/rammp_teleop:/config
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
           command: /module_ws/src/rammp-teleop/scripts/launch_entry.py rammp_teleop quest.launch.py r_align_file:=/config/quest_r_align.json
         publishes:
@@ -698,7 +735,9 @@ nodes:
           ipc: host
           volumes:
             - /var/run/spnav.sock:/var/run/spnav.sock
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
           command: /module_ws/src/rammp-teleop/scripts/launch_entry.py rammp_teleop space_mouse.launch.py
         publishes:
@@ -742,7 +781,9 @@ nodes:
           user: "1000:1000"
           volumes:
             - rammp_perception_engines:/cache/engines
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
         params:
@@ -768,7 +809,9 @@ nodes:
           user: "1000:1000"
           volumes:
             - rammp_perception_engines:/cache/engines
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
         params:
@@ -798,7 +841,10 @@ nodes:
           network_mode: host
           ipc: host
           user: "1000:1000"
+          volumes:
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
         params:
@@ -818,7 +864,10 @@ nodes:
           network_mode: host
           ipc: host
           user: "1000:1000"
+          volumes:
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
         params:
@@ -850,7 +899,9 @@ nodes:
           volumes:
             - /home/abra/sam3-test/models/sam3:/models/sam3:ro
             - sam3_engines:/cache/engines
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
         params:
@@ -893,7 +944,9 @@ nodes:
           user: "1000:1000"
           volumes:
             - rammp_perception_engines:/cache/engines
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
         params:
@@ -923,7 +976,10 @@ nodes:
           network_mode: host
           ipc: host
           user: "1000:1000"
+          volumes:
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           command: [--ros-args, -r, __node:=boxer, -r, /perception/object_detections:=/perception/object_detections_3d]

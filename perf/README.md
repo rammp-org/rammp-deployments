@@ -18,6 +18,10 @@ docs site (Perception compute budget).
 | `patches/`      | node files from open rammp-perception PRs, mounted over the image's by the runs that test them     |
 | `cyclonedds-local.xml` | DDS on loopback for every node (all on one Jetson)                                         |
 
+**flatbot (OAKs, RF-DETR always on):** `reports/2026-10-27-snorlax-oak/` has the stack at the OAK's 15 fps, measured
+next to a live sheppy stack with plain `docker run`. `bench.py` below still assumes the dojo's Gemini 336L at 30 fps,
+abra's camera TF and BoxerNet's unmerged `max_rate_hz` patch, so it does not run flatbot's stack as is.
+
 ## Run (abra)
 
 From this directory on the workstation:

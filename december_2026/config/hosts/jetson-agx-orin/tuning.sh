@@ -49,14 +49,18 @@ napi_pinned() {
 # Each step runs regardless of the others; one that fails says so, and apply exits 1. Steps 2-4 only stick once the
 # NIC is open (lan743x attaches its PHY and creates its NAPI threads there, nvethernet requests its queue IRQs there),
 # and all are reset on every open, so on a NIC that isn't up yet they wait for the NetworkManager hook.
+# A step already in place is left alone: the hook re-runs apply under a running arm driver (the camera NIC coming up),
+# and re-applying everything there cost the driver 2 comm timeouts (>20 ms) in 2 of 3 tries (snorlax, 2026-10-26).
 apply() {
   local rc=0 irq name t found=
   fail() { echo "FAIL  $*" >&2; rc=1; }
   # 1. No multicast out of the arm NIC: DDS discovery and data stay off the arm link. Doesn't need the link up.
-  tc qdisc del dev "$ARM_IF" clsact 2>/dev/null
-  { tc qdisc add dev "$ARM_IF" clsact &&
-    tc filter add dev "$ARM_IF" egress prio 10 protocol ip flower dst_ip 224.0.0.0/4 action drop; } ||
-    fail "multicast filter on $ARM_IF"
+  if ! tc filter show dev "$ARM_IF" egress 2>/dev/null | grep -q 'dst_ip 224.0.0.0/4'; then
+    tc qdisc del dev "$ARM_IF" clsact 2>/dev/null
+    { tc qdisc add dev "$ARM_IF" clsact &&
+      tc filter add dev "$ARM_IF" egress prio 10 protocol ip flower dst_ip 224.0.0.0/4 action drop; } ||
+      fail "multicast filter on $ARM_IF"
+  fi
   # 2. EEE off on the arm link. Changing it renegotiates the link (~3 s down), so never under a running driver.
   if ! is_up "$ARM_IF"; then echo "EEE: $ARM_IF not up yet, left to the NetworkManager hook"
   elif ethtool --show-eee "$ARM_IF" | grep -q "EEE status: disabled"; then :
@@ -64,6 +68,7 @@ apply() {
   else ethtool --set-eee "$ARM_IF" eee off || fail "EEE off on $ARM_IF"; fi
   # 3. Camera NIC queue interrupts vmN -> CPU 4+N, leaving CPU0 to the arm NIC (whose interrupts can't move).
   if ! is_up "$CAM_IF"; then echo "IRQs: $CAM_IF not up yet, left to the NetworkManager hook"
+  elif irqs_spread; then :
   else
     while read -r irq name; do
       found=1
@@ -73,8 +78,9 @@ apply() {
   fi
   # 4. Threaded NAPI on the arm NIC, its threads on NAPI_CPU at FIFO NAPI_PRIO. Its interrupts are fixed on CPU0, so
   # its receive processing otherwise runs there, behind everything else on CPU0. Not switched on under a running
-  # driver (untested live); re-pinning threads that already exist is always safe.
+  # driver (untested live); pinning threads that already exist is safe.
   if ! is_up "$ARM_IF"; then echo "NAPI: $ARM_IF not up yet, left to the NetworkManager hook"
+  elif napi_pinned; then :
   else
     if [ "$(cat "/sys/class/net/$ARM_IF/threaded")" != 1 ]; then
       if arm_driver_up; then fail "threaded NAPI on $ARM_IF: arm driver running, not switching it live; stop it and re-run"

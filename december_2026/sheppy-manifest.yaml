@@ -723,13 +723,14 @@ nodes:
       # rammp-interfaces-ros2#16 (DetectedObject.size) the message's wire format changed, and a node
       # built against the old definition silently misreads messages from one built against the new.
       #
-      # YOLOE-26m on the GPU: the best YOLOE masks, ~46 ms per frame with tracking and ~12% GPU at 10 Hz
-      # on abra. The first start builds a TensorRT engine into the volume (about 9 minutes); later
-      # starts reuse it.
+      # YOLOE-26m on the GPU: the best YOLOE masks (and the best open-vocabulary quality score, #106):
+      # 10 Hz, ~100 ms camera to result, ~10% GPU on abra next to SAM3 and the planner. Not the always-on
+      # segmenter; RF-DETR is (below). The first start builds a TensorRT engine into the volume (about 9
+      # minutes); later starts reuse it.
       - id: yoloe_gpu
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -749,13 +750,13 @@ nodes:
           - /perception/scene_segmenter/overlay/compressed
         subscribes:
           - /scene_camera/color/image_raw
-      # YOLOE-26s on DLA core 0: frees the GPU for cuRobo and SAM3 (~2% GPU on abra) at ~9.5 Hz,
-      # ~103 ms per frame. The detection head still falls back to the GPU. First start builds its
-      # engine (about 2 minutes).
+      # YOLOE-26s on DLA core 0: frees most of the GPU, but 94 ms per frame on the DLA does not hold
+      # 10 Hz in the stack (9.3 Hz; 7.7 Hz with BoxerNet; 7.2 Hz next to a busy GPU, since the
+      # detection head falls back to the GPU). First start builds its engine (about 2 minutes).
       - id: yoloe_dla
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -778,12 +779,16 @@ nodes:
           - /perception/scene_segmenter/overlay/compressed
         subscribes:
           - /scene_camera/color/image_raw
-      # RF-DETR-Seg S, COCO weights, on the GPU: 10 Hz at ~52 ms per frame and ~13% GPU on abra. Cleanest
-      # masks, but COCO classes only: "food container" is found only when it looks like a bowl.
+      # RF-DETR-Seg S, COCO weights, on the GPU: the always-on segmenter (#106). Cleanest masks, but COCO
+      # classes only: "food container" is found only when it looks like a bowl, and #106's quality check
+      # scores it below YOLOE-26m (mAP 0.68 vs 0.86 on Gemini and handheld images), the accepted tradeoff.
+      # frame_stride 3 is 5 Hz from flatbot's 15 fps OAKs (10 Hz from the dojo's 30 fps Gemini). On snorlax
+      # at 5 Hz: ~75 ms camera to result (~40 ms of it in the node), ~7% GPU, 0.2 CPU core; at 15 Hz
+      # (stride 1), ~20% GPU, 0.5 core. On abra at 10 Hz: ~100 ms, ~18% GPU.
       - id: rfdetr
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/rfdetr:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/rfdetr:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -804,7 +809,7 @@ nodes:
       - id: scene_segmenter_mock
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           network_mode: host
           ipc: host
           user: "1000:1000"
@@ -832,7 +837,7 @@ nodes:
       - id: sam3_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/sam3:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/sam3:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -843,6 +848,11 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
+        params:
+          # Tracking at 5 Hz takes ~22% of the GPU instead of ~60% uncapped (~13 Hz on snorlax, ~48% at
+          # ~12 Hz on abra), leaving it to the rest of the chair (#106). A capped step tracks the
+          # first frame after it is due (rammp-perception#8, #17): ~110 ms camera to result, not ~270 ms.
+          max_tracking_rate_hz: 5.0
         publishes:
           - /perception/sam3/object_detections
           - /perception/sam3/status
@@ -855,9 +865,8 @@ nodes:
     description: 3D boxes (pose + size) for the scene segmenter's objects -> /perception/object_detections_3d
     select: single
     alternatives:
-      # Transcribed from rammp-org/rammp-perception's rammp-alternative.boxer.yaml. NOT A RELEASE pin, like
-      # scene_segmenter above, but newer: rammp-perception#14's merge (frame_stride, and a log of why
-      # depth didn't match). BoxerNet lifts every object of /perception/object_detections to a
+      # Transcribed from rammp-org/rammp-perception's rammp-alternative.boxer.yaml. NOT A RELEASE pin, the
+      # same build as scene_segmenter above. BoxerNet lifts every object of /perception/object_detections to a
       # gravity-aligned 3D box and republishes the message on /perception/object_detections_3d with
       # pose (in the camera's optical frame) and size filled in. ~90 ms per frame on abra, keeping up with
       # the segmenter. First start builds its TensorRT engines into the volume (about 2.5 minutes).
@@ -872,7 +881,7 @@ nodes:
       - id: boxer
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-f54ea8ed8e6e8d928a9b3ea63997229289901abe
+          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -905,7 +914,7 @@ nodes:
       - id: object_lifter_mock
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           network_mode: host
           ipc: host
           user: "1000:1000"

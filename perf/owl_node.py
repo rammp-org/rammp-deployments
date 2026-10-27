@@ -22,8 +22,20 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Header
 
 PROMPTS = [
-    "bowl", "food container", "plastic food container", "tupperware", "lunch box",
-    "cup", "mug", "drink cup", "glass", "refrigerator", "fridge", "microwave", "table", "dining table",
+    "bowl",
+    "food container",
+    "plastic food container",
+    "tupperware",
+    "lunch box",
+    "cup",
+    "mug",
+    "drink cup",
+    "glass",
+    "refrigerator",
+    "fridge",
+    "microwave",
+    "table",
+    "dining table",
 ]  # every prompt in rammp-perception's object_detection/config/classes.yaml
 THRESHOLD = 0.1
 
@@ -35,7 +47,10 @@ def load(model):
         from rammp_box_opening.perception.owl_fast import FastOwl
 
         name = "google/owlv2-base-patch16-ensemble"
-        owl = FastOwl(Owlv2Processor.from_pretrained(name), Owlv2ForObjectDetection.from_pretrained(name).eval().cuda())
+        owl = FastOwl(
+            Owlv2Processor.from_pretrained(name),
+            Owlv2ForObjectDetection.from_pretrained(name).eval().cuda(),
+        )
         return lambda rgb: owl.detect(rgb, PROMPTS, THRESHOLD)
     if model == "nanoowl-b32":
         import PIL.Image
@@ -47,7 +62,10 @@ def load(model):
         )
         enc = p.encode_text(PROMPTS)
         return lambda rgb: p.predict(
-            image=PIL.Image.fromarray(rgb), text=PROMPTS, text_encodings=enc, threshold=THRESHOLD
+            image=PIL.Image.fromarray(rgb),
+            text=PROMPTS,
+            text_encodings=enc,
+            threshold=THRESHOLD,
         )
     raise SystemExit("unknown model %s" % model)
 
@@ -61,7 +79,12 @@ class OwlBench(Node):
         self.cond = threading.Condition()
         self.latest, self.n, self.taken = None, 0, -stride
         self.pub = self.create_publisher(Header, "/perception/bench/detections", 10)
-        self.create_subscription(Image, "/scene_camera/color/image_raw", self.on_image, qos_profile_sensor_data)
+        self.create_subscription(
+            Image,
+            "/scene_camera/color/image_raw",
+            self.on_image,
+            qos_profile_sensor_data,
+        )
         self.get_logger().info("%s ready, stride %d" % (model, stride))
 
     def on_image(self, msg):
@@ -73,7 +96,11 @@ class OwlBench(Node):
         times, last_log = [], time.monotonic()
         while rclpy.ok():
             with self.cond:
-                self.cond.wait_for(lambda: self.latest is not None and self.n - self.taken >= self.stride, timeout=1)
+                self.cond.wait_for(
+                    lambda: self.latest is not None
+                    and self.n - self.taken >= self.stride,
+                    timeout=1,
+                )
                 if self.latest is None or self.n - self.taken < self.stride:
                     continue
                 msg, self.taken = self.latest, self.n
@@ -87,7 +114,12 @@ class OwlBench(Node):
             if time.monotonic() - last_log > 10:
                 times.sort()
                 self.get_logger().info(
-                    "%d frames, infer p50 %.1f ms p95 %.1f ms" % (len(times), times[len(times) // 2], times[int(0.95 * (len(times) - 1))])
+                    "%d frames, infer p50 %.1f ms p95 %.1f ms"
+                    % (
+                        len(times),
+                        times[len(times) // 2],
+                        times[int(0.95 * (len(times) - 1))],
+                    )
                 )
                 times, last_log = [], time.monotonic()
 

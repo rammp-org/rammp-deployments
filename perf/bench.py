@@ -13,7 +13,6 @@ and write results/<run>.json. The stack is left up between runs; `sheppy up` res
 """
 
 import argparse
-import copy
 import json
 import os
 import re
@@ -35,9 +34,14 @@ RESULTS = ROOT / "results"
 LOOPBACK = str(Path(__file__).resolve().parent / "cyclonedds-local.xml")
 SAM3_WEIGHTS = os.environ.get("BENCH_SAM3_WEIGHTS", "/home/abra/sam3-test/models/sam3")
 # BENCH_CAMERA=replay: the scene camera is replay_camera.py playing BENCH_RECORDING (no camera attached).
-CAMERA_ALT = "replay" if os.environ.get("BENCH_CAMERA") == "replay" else "gemini336l_docker"
+CAMERA_ALT = (
+    "replay" if os.environ.get("BENCH_CAMERA") == "replay" else "gemini336l_docker"
+)
 RECORDING = os.environ.get("BENCH_RECORDING", str(ROOT / "recording.npz"))
-HOST_ENV = "export ROS_DOMAIN_ID=0 RMW_IMPLEMENTATION=rmw_cyclonedds_cpp CYCLONEDDS_URI=file://%s; " % LOOPBACK
+HOST_ENV = (
+    "export ROS_DOMAIN_ID=0 RMW_IMPLEMENTATION=rmw_cyclonedds_cpp CYCLONEDDS_URI=file://%s; "
+    % LOOPBACK
+)
 SHEPPY = str(Path.home() / ".local/bin/sheppy")
 
 CAMERA = "/scene_camera/color/image_raw"
@@ -58,60 +62,160 @@ DETECTORS = {
     "nanoowl_img_b32": ("nanoowl", {"model": "owlvit-b32"}),
     "nanoowl_img_b16": ("nanoowl", {"model": "owlvit-b16"}),
 }
-SAM3_PROMPTS = "microwave"   # tracking session: one object, in view of abra's scene camera
+SAM3_PROMPTS = (
+    "microwave"  # tracking session: one object, in view of abra's scene camera
+)
 DETECT_PROMPTS = "microwave,fridge,table,food container"
 
 
 def make_runs():
     runs = {
-        "idle": {},                                        # nothing running: the machine's own baseline
-        "base": {"base": True},                            # camera, arm and arm TF (mocks), mount TF, planner, foxglove
+        "idle": {},  # nothing running: the machine's own baseline
+        "base": {
+            "base": True
+        },  # camera, arm and arm TF (mocks), mount TF, planner, foxglove
         "base-sam3": {"base": True, "sam3": "idle"},
         "base-sam3-track": {"base": True, "sam3": "track"},
     }
     for d in DETECTORS:
         runs["%s-s1" % d] = {"base": True, "sam3": "idle", "detector": d, "stride": 1}
-        runs["%s-s3-track" % d] = {"base": True, "sam3": "track", "detector": d, "stride": 3}
+        runs["%s-s3-track" % d] = {
+            "base": True,
+            "sam3": "track",
+            "detector": d,
+            "stride": 3,
+        }
     for d in ("yoloe26m_gpu", "yoloe26s_dla", "rfdetr_s"):
-        runs["%s-s3-track-boxer" % d] = {"base": True, "sam3": "track", "detector": d, "stride": 3, "boxer": True}
+        runs["%s-s3-track-boxer" % d] = {
+            "base": True,
+            "sam3": "track",
+            "detector": d,
+            "stride": 3,
+            "boxer": True,
+        }
     # The target: always-on at 10 Hz, SAM3 tracking capped at 5 Hz, GPU left for the rest of the chair.
     for d in DETECTORS:
-        runs["%s-s3-track5" % d] = {"base": True, "sam3": "track", "sam3_hz": 5, "detector": d, "stride": 3}
+        runs["%s-s3-track5" % d] = {
+            "base": True,
+            "sam3": "track",
+            "sam3_hz": 5,
+            "detector": d,
+            "stride": 3,
+        }
     # ... and the same next to another GPU user (gpu_load.py busy 40% / 70% of the time).
-    for d in ("yoloe26m_gpu", "yoloe26s_gpu", "yoloe26s_dla", "rfdetr_s", "nanoowl_b32"):
+    for d in (
+        "yoloe26m_gpu",
+        "yoloe26s_gpu",
+        "yoloe26s_dla",
+        "rfdetr_s",
+        "nanoowl_b32",
+    ):
         for duty in (40, 70):
-            runs["%s-s3-track5-load%d" % (d, duty)] = {"base": True, "sam3": "track", "sam3_hz": 5, "detector": d,
-                                                     "stride": 3, "gpu_load": duty}
+            runs["%s-s3-track5-load%d" % (d, duty)] = {
+                "base": True,
+                "sam3": "track",
+                "sam3_hz": 5,
+                "detector": d,
+                "stride": 3,
+                "gpu_load": duty,
+            }
     # ... with numpy's OpenBLAS held to one thread in the perception containers (its idle workers spin).
     for d in ("yoloe26m_gpu", "yoloe26s_gpu", "yoloe26s_dla", "rfdetr_s"):
-        runs["%s-s3-track5-blas1" % d] = {"base": True, "sam3": "track", "sam3_hz": 5, "detector": d, "stride": 3,
-                                          "blas1": True}
-        runs["%s-s3-track5-boxer-blas1" % d] = {"base": True, "sam3": "track", "sam3_hz": 5, "detector": d,
-                                                "stride": 3, "boxer": True, "blas1": True}
+        runs["%s-s3-track5-blas1" % d] = {
+            "base": True,
+            "sam3": "track",
+            "sam3_hz": 5,
+            "detector": d,
+            "stride": 3,
+            "blas1": True,
+        }
+        runs["%s-s3-track5-boxer-blas1" % d] = {
+            "base": True,
+            "sam3": "track",
+            "sam3_hz": 5,
+            "detector": d,
+            "stride": 3,
+            "boxer": True,
+            "blas1": True,
+        }
         for duty in (40, 70):
-            runs["%s-s3-track5-load%d-blas1" % (d, duty)] = {"base": True, "sam3": "track", "sam3_hz": 5, "detector": d,
-                                                           "stride": 3, "gpu_load": duty, "blas1": True}
-    runs["nanoowl_b32-s3-track5-blas1"] = {"base": True, "sam3": "track", "sam3_hz": 5, "detector": "nanoowl_b32",
-                                           "stride": 3, "blas1": True}
-    runs["base-sam3-track5-blas1"] = {"base": True, "sam3": "track", "sam3_hz": 5, "blas1": True}
+            runs["%s-s3-track5-load%d-blas1" % (d, duty)] = {
+                "base": True,
+                "sam3": "track",
+                "sam3_hz": 5,
+                "detector": d,
+                "stride": 3,
+                "gpu_load": duty,
+                "blas1": True,
+            }
+    runs["nanoowl_b32-s3-track5-blas1"] = {
+        "base": True,
+        "sam3": "track",
+        "sam3_hz": 5,
+        "detector": "nanoowl_b32",
+        "stride": 3,
+        "blas1": True,
+    }
+    runs["base-sam3-track5-blas1"] = {
+        "base": True,
+        "sam3": "track",
+        "sam3_hz": 5,
+        "blas1": True,
+    }
     # SAM3 waiting out its rate cap before taking a frame (rammp-perception fix/sam3-rate-cap-fresh-frame).
-    runs["base-sam3-track5-blas1-fresh"] = {"base": True, "sam3": "track", "sam3_hz": 5, "blas1": True, "sam3_patch": True}
+    runs["base-sam3-track5-blas1-fresh"] = {
+        "base": True,
+        "sam3": "track",
+        "sam3_hz": 5,
+        "blas1": True,
+        "sam3_patch": True,
+    }
     # The finalized stack: every fix, SAM3 and BoxerNet capped at 5 Hz; alone and next to a 70% GPU user.
-    final = {"base": True, "sam3": "track", "sam3_hz": 5, "detector": "yoloe26m_gpu", "stride": 3, "blas1": True,
-             "sam3_patch": True, "boxer": True, "boxer_hz": 5}
+    final = {
+        "base": True,
+        "sam3": "track",
+        "sam3_hz": 5,
+        "detector": "yoloe26m_gpu",
+        "stride": 3,
+        "blas1": True,
+        "sam3_patch": True,
+        "boxer": True,
+        "boxer_hz": 5,
+    }
     runs["final"] = final
     runs["final-load70"] = dict(final, gpu_load=70)
     runs["final-rfdetr"] = dict(final, detector="rfdetr_s")
     runs["final-timing"] = dict(final, sam3_timing=True)
-    runs["yoloe26m_gpu-s3-track5-blas1-fresh"] = {"base": True, "sam3": "track", "sam3_hz": 5, "detector": "yoloe26m_gpu",
-                                                  "stride": 3, "blas1": True, "sam3_patch": True}
+    runs["yoloe26m_gpu-s3-track5-blas1-fresh"] = {
+        "base": True,
+        "sam3": "track",
+        "sam3_hz": 5,
+        "detector": "yoloe26m_gpu",
+        "stride": 3,
+        "blas1": True,
+        "sam3_patch": True,
+    }
     for d in ("nanoowl_img_b32", "nanoowl_img_b16"):
         runs["%s-s1" % d] = {"base": True, "sam3": "idle", "detector": d, "stride": 1}
         runs["final-%s" % d] = dict(final, detector=d)
-    runs["final-nanoowl_img_b32-load70"] = dict(final, detector="nanoowl_img_b32", gpu_load=70)
-    for d in ("yoloe26m_gpu", "yoloe26s_gpu", "yoloe26s_dla", "rfdetr_s", "nanoowl_b32"):
-        runs["%s-s3-track5-boxer" % d] = {"base": True, "sam3": "track", "sam3_hz": 5, "detector": d, "stride": 3,
-                                         "boxer": True}
+    runs["final-nanoowl_img_b32-load70"] = dict(
+        final, detector="nanoowl_img_b32", gpu_load=70
+    )
+    for d in (
+        "yoloe26m_gpu",
+        "yoloe26s_gpu",
+        "yoloe26s_dla",
+        "rfdetr_s",
+        "nanoowl_b32",
+    ):
+        runs["%s-s3-track5-boxer" % d] = {
+            "base": True,
+            "sam3": "track",
+            "sam3_hz": 5,
+            "detector": d,
+            "stride": 3,
+            "boxer": True,
+        }
     return runs
 
 
@@ -125,7 +229,11 @@ def loopback(container):
 
 
 def host_process(cmd):
-    return {"kind": "process", "command": "bash -lc '%s source /opt/ros/humble/setup.bash && %s'" % (HOST_ENV, cmd)}
+    return {
+        "kind": "process",
+        "command": "bash -lc '%s source /opt/ros/humble/setup.bash && %s'"
+        % (HOST_ENV, cmd),
+    }
 
 
 def build_stack(run):
@@ -136,28 +244,45 @@ def build_stack(run):
             if alt["kind"] == "docker":
                 loopback(alt["container"])
             elif alt["kind"] == "process":
-                alt["command"] = alt["command"].replace("bash -lc '", "bash -lc '" + HOST_ENV, 1)
+                alt["command"] = alt["command"].replace(
+                    "bash -lc '", "bash -lc '" + HOST_ENV, 1
+                )
 
     for alt in nodes["sam3"]["alternatives"]:
         if alt["kind"] == "docker":
-            alt["container"]["volumes"] = [v.replace("/home/abra/sam3-test/models/sam3", SAM3_WEIGHTS)
-                                           for v in alt["container"]["volumes"]]
-    nodes["scene_camera"]["alternatives"].append(dict(id="replay", **host_process(
-        "exec python3 %s replay %s" % (Path(__file__).resolve().parent / "replay_camera.py", RECORDING))))
+            alt["container"]["volumes"] = [
+                v.replace("/home/abra/sam3-test/models/sam3", SAM3_WEIGHTS)
+                for v in alt["container"]["volumes"]
+            ]
+    nodes["scene_camera"]["alternatives"].append(
+        dict(
+            id="replay",
+            **host_process(
+                "exec python3 %s replay %s"
+                % (Path(__file__).resolve().parent / "replay_camera.py", RECORDING)
+            ),
+        )
+    )
 
     # Into the alternative's params, not the profile: sheppy drops a profile override for a param the alternative
     # does not declare, and sam3_docker declares none.
     # Set even when the run gives none: the manifest's own caps would otherwise apply. 15 is the node's default.
     for alt in nodes["sam3"]["alternatives"]:
-        alt.setdefault("params", {})["max_tracking_rate_hz"] = float(run.get("sam3_hz", 15.0))
-        if run.get("sam3_timing"):  # the node logs where each tracking step's time goes, every 10 s
+        alt.setdefault("params", {})["max_tracking_rate_hz"] = float(
+            run.get("sam3_hz", 15.0)
+        )
+        if run.get(
+            "sam3_timing"
+        ):  # the node logs where each tracking step's time goes, every 10 s
             alt["params"]["timing_log_period_s"] = 10.0
     # sam3_patch: run the SAM3 node from patches/sam3_node.py (an unreleased rammp-perception fix) over the image's.
     if run.get("sam3_patch"):
         patch = Path(__file__).resolve().parent / "patches" / "sam3_node.py"
         for alt in nodes["sam3"]["alternatives"]:
             alt["container"]["volumes"].append(
-                "%s:/module_ws/install/rammp_sam3/lib/python3.10/site-packages/rammp_sam3/node.py:ro" % patch)
+                "%s:/module_ws/install/rammp_sam3/lib/python3.10/site-packages/rammp_sam3/node.py:ro"
+                % patch
+            )
     # boxer_hz: BoxerNet's max_rate_hz, from patches/boxer_node.py (unreleased rammp-perception feat/boxer-max-rate).
     for alt in nodes["object_lifter"]["alternatives"]:
         if alt["id"] == "boxer":
@@ -165,7 +290,9 @@ def build_stack(run):
             if run.get("boxer_hz"):
                 patch = Path(__file__).resolve().parent / "patches" / "boxer_node.py"
                 alt["container"]["volumes"].append(
-                    "%s:/module_ws/install/rammp_boxer/lib/python3.10/site-packages/rammp_boxer/node.py:ro" % patch)
+                    "%s:/module_ws/install/rammp_boxer/lib/python3.10/site-packages/rammp_boxer/node.py:ro"
+                    % patch
+                )
     if run.get("blas1"):
         for name in ("scene_segmenter", "sam3", "object_lifter"):
             for alt in nodes[name]["alternatives"]:
@@ -175,41 +302,97 @@ def build_stack(run):
     stride = run.get("stride", 3)
     bench = Path(__file__).resolve().parent / "owl_node.py"
     nodes["scene_segmenter"]["alternatives"] += [
-        dict(id="owl_bench_owlv2", **host_process(
-            "source ~/RAMMP-box-opening/install/setup.bash && exec python3 %s --model owlv2 --stride %d" % (bench, stride))),
-        dict(id="owl_bench_nanoowl", **host_process(
-            "exec ~/detector-bench/.venv/bin/python %s --model nanoowl-b32 --stride %d" % (bench, stride))),
+        dict(
+            id="owl_bench_owlv2",
+            **host_process(
+                "source ~/RAMMP-box-opening/install/setup.bash && exec python3 %s --model owlv2 --stride %d"
+                % (bench, stride)
+            ),
+        ),
+        dict(
+            id="owl_bench_nanoowl",
+            **host_process(
+                "exec ~/detector-bench/.venv/bin/python %s --model nanoowl-b32 --stride %d"
+                % (bench, stride)
+            ),
+        ),
     ]
-    yoloe = next(a for a in nodes["scene_segmenter"]["alternatives"] if a["id"] == "yoloe_gpu")
-    nodes["scene_segmenter"]["alternatives"].append({
-        "id": "nanoowl", "kind": "docker",
-        "container": dict(yoloe["container"], image="ghcr.io/rammp-org/rammp-perception/nanoowl:dev"),
-        "params": {"model": "owlvit-b32", "image_topic": CAMERA, "frame_stride": stride},
-    })
+    yoloe = next(
+        a for a in nodes["scene_segmenter"]["alternatives"] if a["id"] == "yoloe_gpu"
+    )
+    nodes["scene_segmenter"]["alternatives"].append(
+        {
+            "id": "nanoowl",
+            "kind": "docker",
+            "container": dict(
+                yoloe["container"],
+                image="ghcr.io/rammp-org/rammp-perception/nanoowl:dev",
+            ),
+            "params": {
+                "model": "owlvit-b32",
+                "image_topic": CAMERA,
+                "frame_stride": stride,
+            },
+        }
+    )
     # In the SAM3 image (torch and CUDA), not on the host: snorlax's host has no torch.
     here = Path(__file__).resolve().parent
-    manifest["nodes"].append({
-        "name": "bench_gpu_load", "description": "bench only: synthetic GPU load", "select": "single",
-        "alternatives": [{"id": "load", "kind": "docker", "container": {
-            "image": image_of(manifest, "sam3", "sam3_docker"), "runtime": "nvidia", "network_mode": "host",
-            "user": "1000:1000", "environment": {"HOME": "/tmp"}, "volumes": ["%s:/perf:ro" % here],
-            "entrypoint": ["python3"], "command": ["/perf/gpu_load.py", "--duty", "%.2f" % (run.get("gpu_load", 50) / 100)],
-        }}],
-    })
+    manifest["nodes"].append(
+        {
+            "name": "bench_gpu_load",
+            "description": "bench only: synthetic GPU load",
+            "select": "single",
+            "alternatives": [
+                {
+                    "id": "load",
+                    "kind": "docker",
+                    "container": {
+                        "image": image_of(manifest, "sam3", "sam3_docker"),
+                        "runtime": "nvidia",
+                        "network_mode": "host",
+                        "user": "1000:1000",
+                        "environment": {"HOME": "/tmp"},
+                        "volumes": ["%s:/perf:ro" % here],
+                        "entrypoint": ["python3"],
+                        "command": [
+                            "/perf/gpu_load.py",
+                            "--duty",
+                            "%.2f" % (run.get("gpu_load", 50) / 100),
+                        ],
+                    },
+                }
+            ],
+        }
+    )
     # Nothing in the manifest publishes the camera mount yet; boxer needs it for gravity. abra's
     # calibrated base_link -> scene_camera_link (from the box-opening launch, 2026-10-16).
-    manifest["nodes"].append({
-        "name": "bench_tf", "description": "bench only: base_link -> scene_camera_link", "select": "single",
-        "alternatives": [dict(id="static", **host_process(
-            "exec ros2 run tf2_ros static_transform_publisher --x 0.00399 --y 0.63391 --z 0.34724 --qx 0.031613"
-            " --qy 0.115385 --qz -0.268263 --qw 0.955888 --frame-id base_link --child-frame-id scene_camera_link"))],
-    })
+    manifest["nodes"].append(
+        {
+            "name": "bench_tf",
+            "description": "bench only: base_link -> scene_camera_link",
+            "select": "single",
+            "alternatives": [
+                dict(
+                    id="static",
+                    **host_process(
+                        "exec ros2 run tf2_ros static_transform_publisher --x 0.00399 --y 0.63391 --z 0.34724 --qx 0.031613"
+                        " --qy 0.115385 --qz -0.268263 --qw 0.955888 --frame-id base_link --child-frame-id scene_camera_link"
+                    ),
+                )
+            ],
+        }
+    )
 
     selections, overrides = {}, {}
     if run.get("base"):
-        selections.update(scene_camera=CAMERA_ALT, foxglove="foxglove_bridge_docker", arm="arm_mock",
-                          arm_state_publisher="arm_state_publisher_mock", planner="curobo_planner",
-                          bench_tf="static")
+        selections.update(
+            scene_camera=CAMERA_ALT,
+            foxglove="foxglove_bridge_docker",
+            arm="arm_mock",
+            arm_state_publisher="arm_state_publisher_mock",
+            planner="curobo_planner",
+            bench_tf="static",
+        )
     if run.get("sam3"):
         selections["sam3"] = "sam3_docker"
     if run.get("detector"):
@@ -223,18 +406,24 @@ def build_stack(run):
         selections["bench_gpu_load"] = "load"
 
     (STACK / "profiles").mkdir(parents=True, exist_ok=True)
-    (STACK / "sheppy-manifest.yaml").write_text(yaml.safe_dump(manifest, sort_keys=False, width=200))
+    (STACK / "sheppy-manifest.yaml").write_text(
+        yaml.safe_dump(manifest, sort_keys=False, width=200)
+    )
     profile = {"description": "perf bench", "selections": selections}
     if overrides:
         profile["overrides"] = overrides
-    (STACK / "profiles" / "bench.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))
+    (STACK / "profiles" / "bench.yaml").write_text(
+        yaml.safe_dump(profile, sort_keys=False)
+    )
     return manifest
 
 
 def image_of(manifest, node, alt_id):
     for n in manifest["nodes"]:
         if n["name"] == node:
-            return next(a for a in n["alternatives"] if a["id"] == alt_id)["container"]["image"]
+            return next(a for a in n["alternatives"] if a["id"] == alt_id)["container"][
+                "image"
+            ]
 
 
 # --- system sampling -------------------------------------------------------------------------------------
@@ -265,9 +454,15 @@ def parse_tegrastats(path):
     for k, xs in rows.items():
         if xs:
             xs.sort()
-            out[k] = {"mean": round(statistics.mean(xs), 1), "p95": xs[int(0.95 * (len(xs) - 1))], "max": xs[-1]}
+            out[k] = {
+                "mean": round(statistics.mean(xs), 1),
+                "p95": xs[int(0.95 * (len(xs) - 1))],
+                "max": xs[-1],
+            }
     if cpu:
-        per_core = [round(statistics.mean(c[i] for c in cpu), 1) for i in range(len(cpu[0]))]
+        per_core = [
+            round(statistics.mean(c[i] for c in cpu), 1) for i in range(len(cpu[0]))
+        ]
         out["cpu_core_pct"] = per_core
         out["cpu_total_pct"] = round(statistics.mean(per_core), 1)  # of all 12 cores
     out["samples"] = len(cpu)
@@ -276,14 +471,20 @@ def parse_tegrastats(path):
 
 def containers():
     """{sheppy-ish name: full id} for running containers."""
-    out = subprocess.run(["docker", "ps", "--no-trunc", "--format", "{{.ID}} {{.Names}}"], capture_output=True, text=True).stdout
+    out = subprocess.run(
+        ["docker", "ps", "--no-trunc", "--format", "{{.ID}} {{.Names}}"],
+        capture_output=True,
+        text=True,
+    ).stdout
     return {name: cid for cid, name in (l.split() for l in out.splitlines())}
 
 
 def cgroup_read(cid):
     base = Path("/sys/fs/cgroup/system.slice/docker-%s.scope" % cid)
     try:
-        usage = int(re.search(r"usage_usec (\d+)", (base / "cpu.stat").read_text()).group(1))
+        usage = int(
+            re.search(r"usage_usec (\d+)", (base / "cpu.stat").read_text()).group(1)
+        )
         return usage / 1e6, int((base / "memory.current").read_text())
     except (OSError, AttributeError):
         return None
@@ -299,7 +500,13 @@ def host_procs():
             cmd = (d / "cmdline").read_bytes().replace(b"\0", b" ").decode()
         except OSError:
             continue
-        for key in ("owl_node.py", "gpu_load.py", "replay_camera.py", "static_transform_publisher", "ros2 topic pub"):
+        for key in (
+            "owl_node.py",
+            "gpu_load.py",
+            "replay_camera.py",
+            "static_transform_publisher",
+            "ros2 topic pub",
+        ):
             if key in cmd and "bash -lc" not in cmd:
                 out.setdefault(key, []).append(int(d.name))
     return out
@@ -347,11 +554,15 @@ class Sampler(threading.Thread):
         for name, (t0, c0) in self.first.items():
             t1, c1 = self.last[name]
             if t1 > t0:
-                out[name] = {"cpu_cores": round((c1 - c0) / (t1 - t0), 2), "mem_peak_mb": round(self.peak[name] / 2**20)}
+                out[name] = {
+                    "cpu_cores": round((c1 - c0) / (t1 - t0), 2),
+                    "mem_peak_mb": round(self.peak[name] / 2**20),
+                }
         return dict(sorted(out.items(), key=lambda kv: -kv[1]["cpu_cores"]))
 
 
 # --- one run ---------------------------------------------------------------------------------------------
+
 
 def sheppy(*args, timeout=900):
     r = subprocess.run([SHEPPY, *args], capture_output=True, text=True, timeout=timeout)
@@ -364,7 +575,11 @@ def probe_cmd(manifest, run, duration):
         topics.append(CAMERA + ":image")
         require.append(CAMERA)
     if run.get("detector"):
-        t = BENCH_TOPIC + ":header" if DETECTORS[run["detector"]][1] is None else DETECTIONS + ":dets"
+        t = (
+            BENCH_TOPIC + ":header"
+            if DETECTORS[run["detector"]][1] is None
+            else DETECTIONS + ":dets"
+        )
         topics.append(t)
         require.append(t.split(":")[0])
     if run.get("sam3"):
@@ -380,17 +595,47 @@ def probe_cmd(manifest, run, duration):
     if run.get("sam3") == "track":
         args += ["--sam3-track", SAM3_PROMPTS, "--sam3-detect", DETECT_PROMPTS]
     image = image_of(manifest, "sam3", "sam3_docker")
-    inner = "source /opt/ros/humble/setup.bash && source /module_ws/install/setup.bash && exec python3 -u /perf/ros_probe.py " + " ".join(map(shlex.quote, args))
-    return ["docker", "run", "--rm", "--name", "perf_probe", "--network", "host", "--ipc", "host",
-            "-e", "ROS_DOMAIN_ID=0", "-e", "CYCLONEDDS_URI=file://" + LOOPBACK,
-            "-v", "%s:%s:ro" % (LOOPBACK, LOOPBACK), "-v", "%s:/perf:ro" % Path(__file__).resolve().parent,
-            "--entrypoint", "bash", image, "-c", inner]
+    inner = (
+        "source /opt/ros/humble/setup.bash && source /module_ws/install/setup.bash && exec python3 -u /perf/ros_probe.py "
+        + " ".join(map(shlex.quote, args))
+    )
+    return [
+        "docker",
+        "run",
+        "--rm",
+        "--name",
+        "perf_probe",
+        "--network",
+        "host",
+        "--ipc",
+        "host",
+        "-e",
+        "ROS_DOMAIN_ID=0",
+        "-e",
+        "CYCLONEDDS_URI=file://" + LOOPBACK,
+        "-v",
+        "%s:%s:ro" % (LOOPBACK, LOOPBACK),
+        "-v",
+        "%s:/perf:ro" % Path(__file__).resolve().parent,
+        "--entrypoint",
+        "bash",
+        image,
+        "-c",
+        inner,
+    ]
 
 
 def segmenter_log(run):
     node = "scene_segmenter" if run.get("detector") else None
     out = {}
-    for n in filter(None, [node, "sam3" if run.get("sam3") else None, "object_lifter" if run.get("boxer") else None]):
+    for n in filter(
+        None,
+        [
+            node,
+            "sam3" if run.get("sam3") else None,
+            "object_lifter" if run.get("boxer") else None,
+        ],
+    ):
         _, log = sheppy("logs", n, "-n", "40", timeout=30)
         lines = [l for l in log.splitlines() if re.search(r"Hz|ms|infer|rate", l)]
         out[n] = lines[-4:]
@@ -414,10 +659,17 @@ def execute(name, duration, settle):
     t0 = time.monotonic()
     manifest = build_stack(run)
     if run:
-        code, log = sheppy("up", "bench", "--manifest", str(STACK / "sheppy-manifest.yaml"))
+        code, log = sheppy(
+            "up", "bench", "--manifest", str(STACK / "sheppy-manifest.yaml")
+        )
     else:
         code, log = sheppy("down")
-    result = {"run": name, "config": run, "sheppy_exit": code, "sheppy_tail": log[-1200:]}
+    result = {
+        "run": name,
+        "config": run,
+        "sheppy_exit": code,
+        "sheppy_tail": log[-1200:],
+    }
 
     tegra_log = RESULTS / ("%s.tegrastats" % name)
     tegra_log.unlink(missing_ok=True)
@@ -426,7 +678,9 @@ def execute(name, duration, settle):
     def start_sampling():
         nonlocal sampler, tegra
         sampler = Sampler()
-        tegra = subprocess.Popen(["tegrastats", "--interval", "500", "--logfile", str(tegra_log)])
+        tegra = subprocess.Popen(
+            ["tegrastats", "--interval", "500", "--logfile", str(tegra_log)]
+        )
         sampler.read()
         sampler.start()
 
@@ -438,7 +692,12 @@ def execute(name, duration, settle):
     else:
         # The probe waits for its topics and warms up, then prints MEASURE_START and MEASURE_END around
         # its window; the system samplers cover the same window.
-        probe = subprocess.Popen(probe_cmd(manifest, run, duration), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        probe = subprocess.Popen(
+            probe_cmd(manifest, run, duration),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
         for line in probe.stdout:
             line = line.rstrip()
             if line == "MEASURE_START":
@@ -463,9 +722,21 @@ def execute(name, duration, settle):
     result["wall_s"] = round(time.monotonic() - t0)
     (RESULTS / ("%s.json" % name)).write_text(json.dumps(result, indent=1))
     p = result.get("probe", {})
-    print(json.dumps({"run": name, "topics": {t: (v.get("hz"), (v.get("latency_ms") or {}).get("p50")) for t, v in p.get("topics", {}).items()},
-                      "gpu": result["tegrastats"].get("gpu_pct", {}).get("mean"), "cpu": result["tegrastats"].get("cpu_total_pct"),
-                      "errors": p.get("errors")}), flush=True)
+    print(
+        json.dumps(
+            {
+                "run": name,
+                "topics": {
+                    t: (v.get("hz"), (v.get("latency_ms") or {}).get("p50"))
+                    for t, v in p.get("topics", {}).items()
+                },
+                "gpu": result["tegrastats"].get("gpu_pct", {}).get("mean"),
+                "cpu": result["tegrastats"].get("cpu_total_pct"),
+                "errors": p.get("errors"),
+            }
+        ),
+        flush=True,
+    )
 
 
 def main():
@@ -473,7 +744,9 @@ def main():
     ap.add_argument("runs", nargs="*")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--duration", type=float, default=60)
-    ap.add_argument("--settle", type=float, default=10, help="idle run: seconds before sampling")
+    ap.add_argument(
+        "--settle", type=float, default=10, help="idle run: seconds before sampling"
+    )
     a = ap.parse_args()
     if a.list or not a.runs:
         print("\n".join("%-28s %s" % (k, json.dumps(v)) for k, v in RUNS.items()))

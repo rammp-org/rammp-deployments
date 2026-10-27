@@ -4,19 +4,19 @@ Measures the december_2026 stack on one Jetson (rammp-deployments#106): each alw
 next to SAM3, the camera, the planner and BoxerNet, as sheppy runs them. Results and conclusions are on the
 docs site (Perception compute budget).
 
-| File            | What it does                                                                                       |
-| --------------- | -------------------------------------------------------------------------------------------------- |
-| `bench.py`      | runs the matrix: writes a manifest + profile from `december_2026/`, `sheppy up`, measures, saves JSON |
-| `ros_probe.py`  | topic rate and camera-to-result latency, SAM3 tracking and detect calls; runs in the SAM3 image     |
-| `owl_node.py`   | OWLv2 and NanoOWL as scene segmenters (no image exists for either); bench only                     |
-| `quality/`     | detector quality check against SAM3 (YOLOE, RF-DETR, NanoOWL); see its README                     |
-| `report.py`     | markdown tables from the results                                                                   |
-| `grab_frame.py` | one scene camera frame as a JPEG, to see what the bench looked at                                  |
-| `replay_camera.py` | records the scene camera (color, registered depth, intrinsics, TF) and replays it where none is attached |
-| `gpu_load.py`   | synthetic GPU load at a set duty cycle, standing in for the planner and modules                    |
-| `profile_segmenter.py` | one scene segmenter outside ROS on recorded frames: per-stage time, CPU per thread, cProfile |
-| `patches/`      | node files from open rammp-perception PRs, mounted over the image's by the runs that test them     |
-| `cyclonedds-local.xml` | DDS on loopback for every node (all on one Jetson)                                         |
+| File                   | What it does                                                                                             |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- |
+| `bench.py`             | runs the matrix: writes a manifest + profile from `december_2026/`, `sheppy up`, measures, saves JSON    |
+| `ros_probe.py`         | topic rate and camera-to-result latency, SAM3 tracking and detect calls; runs in the SAM3 image          |
+| `owl_node.py`          | OWLv2 and NanoOWL as scene segmenters (no image exists for either); bench only                           |
+| `quality/`             | detector quality check against SAM3 (YOLOE, RF-DETR, NanoOWL); see its README                            |
+| `report.py`            | markdown tables from the results                                                                         |
+| `grab_frame.py`        | one scene camera frame as a JPEG, to see what the bench looked at                                        |
+| `replay_camera.py`     | records the scene camera (color, registered depth, intrinsics, TF) and replays it where none is attached |
+| `gpu_load.py`          | synthetic GPU load at a set duty cycle, standing in for the planner and modules                          |
+| `profile_segmenter.py` | one scene segmenter outside ROS on recorded frames: per-stage time, CPU per thread, cProfile             |
+| `patches/`             | node files from open rammp-perception PRs, mounted over the image's by the runs that test them           |
+| `cyclonedds-local.xml` | DDS on loopback for every node (all on one Jetson)                                                       |
 
 **flatbot (OAKs, RF-DETR always on):** `reports/2026-10-27-snorlax-oak/` has the stack at the OAK's 15 fps, measured
 next to a live sheppy stack with plain `docker run`. `bench.py` below still assumes the dojo's Gemini 336L at 30 fps,

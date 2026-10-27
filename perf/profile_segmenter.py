@@ -67,7 +67,7 @@ def thread_cpu():
     for tid in os.listdir("/proc/self/task"):
         try:
             stat = open("/proc/self/task/%s/stat" % tid).read()
-            name = stat[stat.index("(") + 1:stat.rindex(")")]
+            name = stat[stat.index("(") + 1 : stat.rindex(")")]
             f = stat.rsplit(")", 1)[1].split()
             out[(tid, name)] = (int(f[11]) + int(f[12])) / tick
         except OSError:
@@ -95,12 +95,35 @@ def main():
     b = backend(kind, FakeNode(params), classes)
     color = np.load(path)["color"]
     h, w = color.shape[1:3]
-    msgs = [Image(height=h, width=w, encoding="rgb8", step=w * 3, data=color[i].tobytes()) for i in range(len(color))]
+    msgs = [
+        Image(height=h, width=w, encoding="rgb8", step=w * 3, data=color[i].tobytes())
+        for i in range(len(color))
+    ]
 
-    stages = {k: [] for k in ("image_to_rgb", "infer", "clean", "label_image", "build_msg", "serialize", "total", "cpu")}
+    stages = {
+        k: []
+        for k in (
+            "image_to_rgb",
+            "infer",
+            "clean",
+            "label_image",
+            "build_msg",
+            "serialize",
+            "total",
+            "cpu",
+        )
+    }
     published = []
     # Stand-in for the publisher: build the message exactly as _publish does, then serialize it as rclpy would.
-    fake = type("N", (), {"pub_detections": type("P", (), {"publish": lambda self, m: published.append(m)})()})()
+    fake = type(
+        "N",
+        (),
+        {
+            "pub_detections": type(
+                "P", (), {"publish": lambda self, m: published.append(m)}
+            )()
+        },
+    )()
 
     def frame(msg):
         c0 = time.process_time()  # CPU time of every thread in the process
@@ -131,9 +154,15 @@ def main():
     before, t0 = thread_cpu(), time.perf_counter()
     counts = [frame(msgs[i % len(msgs)]) for i in range(n)]  # stage times, profiler off
     after, wall = thread_cpu(), time.perf_counter() - t0
-    print("PROFILE %s %s threads=%s period=%.0fms, %d frames %dx%d, %.1f objects/frame" % (kind, params, threads, period * 1e3, n, w, h, np.mean(counts)))
+    print(
+        "PROFILE %s %s threads=%s period=%.0fms, %d frames %dx%d, %.1f objects/frame"
+        % (kind, params, threads, period * 1e3, n, w, h, np.mean(counts))
+    )
     for k, v in stages.items():
-        print("  %-13s median %6.1f ms  p95 %6.1f ms" % (k, np.median(v), np.percentile(v, 95)))
+        print(
+            "  %-13s median %6.1f ms  p95 %6.1f ms"
+            % (k, np.median(v), np.percentile(v, 95))
+        )
     by_name = {}
     for k, v in after.items():
         by_name.setdefault(k[1], []).append(v - before.get(k, 0.0))

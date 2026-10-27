@@ -1,4 +1,5 @@
 """Save one scene camera frame as a JPEG (to check what the bench camera sees)."""
+
 import sys
 
 import cv2
@@ -10,7 +11,9 @@ from sensor_msgs.msg import Image
 rclpy.init()
 node = rclpy.create_node("grab_frame")
 got = []
-node.create_subscription(Image, "/scene_camera/color/image_raw", got.append, qos_profile_sensor_data)
+node.create_subscription(
+    Image, "/scene_camera/color/image_raw", got.append, qos_profile_sensor_data
+)
 while not got:
     rclpy.spin_once(node, timeout_sec=1)
 m = got[0]

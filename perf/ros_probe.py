@@ -47,12 +47,18 @@ class Probe(Node):
         self.seen = {t: 0 for t, _ in topics}
         for topic, kind in topics:
             self.create_subscription(
-                msg_type(kind), topic, lambda raw, t=topic: self.on_msg(t, raw), qos_profile_sensor_data, raw=True
+                msg_type(kind),
+                topic,
+                lambda raw, t=topic: self.on_msg(t, raw),
+                qos_profile_sensor_data,
+                raw=True,
             )
 
     def on_msg(self, topic, raw):
         now = time.time()
-        sec, nsec = struct.unpack_from("<iI", raw, 4)  # after the 4-byte CDR encapsulation header
+        sec, nsec = struct.unpack_from(
+            "<iI", raw, 4
+        )  # after the 4-byte CDR encapsulation header
         with self.lock:
             self.seen[topic] += 1
             if self.recording:
@@ -68,8 +74,16 @@ def summarize(samples, duration):
     return {
         "count": len(samples),
         "hz": round(len(samples) / duration, 2),
-        "latency_ms": {k: round(pct(lat, q), 1) for k, q in (("p50", 0.5), ("p95", 0.95), ("max", 1.0))},
-        "gap_ms": {k: round(pct(gaps, q), 1) for k, q in (("p50", 0.5), ("p95", 0.95), ("max", 1.0))} if gaps else None,
+        "latency_ms": {
+            k: round(pct(lat, q), 1)
+            for k, q in (("p50", 0.5), ("p95", 0.95), ("max", 1.0))
+        },
+        "gap_ms": {
+            k: round(pct(gaps, q), 1)
+            for k, q in (("p50", 0.5), ("p95", 0.95), ("max", 1.0))
+        }
+        if gaps
+        else None,
     }
 
 
@@ -85,13 +99,29 @@ def call(node, client, request, timeout):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--topic", action="append", default=[], help="name:kind, kind one of " + ",".join(TYPES))
-    p.add_argument("--require", action="append", default=[], help="topics that must publish before measuring")
+    p.add_argument(
+        "--topic",
+        action="append",
+        default=[],
+        help="name:kind, kind one of " + ",".join(TYPES),
+    )
+    p.add_argument(
+        "--require",
+        action="append",
+        default=[],
+        help="topics that must publish before measuring",
+    )
     p.add_argument("--wait-timeout", type=float, default=900)
     p.add_argument("--warmup", type=float, default=15)
     p.add_argument("--duration", type=float, default=60)
-    p.add_argument("--sam3-track", default="", help="comma-separated prompts for a tracking session")
-    p.add_argument("--sam3-detect", default="", help="comma-separated prompts for detect calls")
+    p.add_argument(
+        "--sam3-track",
+        default="",
+        help="comma-separated prompts for a tracking session",
+    )
+    p.add_argument(
+        "--sam3-detect", default="", help="comma-separated prompts for detect calls"
+    )
     p.add_argument("--sam3-detect-n", type=int, default=5)
     a = p.parse_args()
 
@@ -106,7 +136,10 @@ def main():
     t0 = time.monotonic()
     while any(node.seen[t] == 0 for t in a.require):
         if time.monotonic() - t0 > a.wait_timeout:
-            out["errors"].append("no messages on %s after %.0f s" % ([t for t in a.require if not node.seen[t]], a.wait_timeout))
+            out["errors"].append(
+                "no messages on %s after %.0f s"
+                % ([t for t in a.require if not node.seen[t]], a.wait_timeout)
+            )
             break
         time.sleep(1)
     out["ready_after_s"] = round(time.monotonic() - t0, 1)
@@ -122,10 +155,15 @@ def main():
             req = StartTracking.Request(prompts=a.sam3_track.split(","))
             res, ms = call(node, client, req, 60)
             if res is None or not res.accepted:
-                out["errors"].append("start_tracking failed: %s" % (res.message if res else "timeout"))
+                out["errors"].append(
+                    "start_tracking failed: %s" % (res.message if res else "timeout")
+                )
             else:
                 session = res.session_id
-                out["sam3_start_tracking"] = {"ms": round(ms), "objects": len(res.detections.objects)}
+                out["sam3_start_tracking"] = {
+                    "ms": round(ms),
+                    "objects": len(res.detections.objects),
+                }
 
     time.sleep(a.warmup)
     with node.lock:
@@ -142,9 +180,13 @@ def main():
             spacing = a.duration / (a.sam3_detect_n + 1)
             for i in range(a.sam3_detect_n):
                 time.sleep(max(0.0, start + spacing * (i + 1) - time.monotonic()))
-                res, ms = call(node, client, Detect.Request(prompts=a.sam3_detect.split(",")), 30)
+                res, ms = call(
+                    node, client, Detect.Request(prompts=a.sam3_detect.split(",")), 30
+                )
                 if res is None or not res.success:
-                    out["errors"].append("detect failed: %s" % (res.message if res else "timeout"))
+                    out["errors"].append(
+                        "detect failed: %s" % (res.message if res else "timeout")
+                    )
                 else:
                     detect_ms.append(ms)
                     detect_objects.append(len(res.detections.objects))

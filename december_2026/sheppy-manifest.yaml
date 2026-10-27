@@ -107,6 +107,10 @@ nodes:
           # half the color frames had depth within 20 ms, which consumers
           # pairing by stamp (boxer) had to cover with a wider slop.
           sync.sync_threshold: 33
+          # The driver's FAST_ACCURACY default streaks along rows on this
+          # camera; ROBOTICS (median, spatial and speckle filters) does not
+          # (2026-10-26, snorlax).
+          depth.i_depth_preset: ROBOTICS
         publishes:
           - /scene_camera/color/image_raw
           - /scene_camera/depth/image_rect_raw
@@ -153,7 +157,7 @@ nodes:
       # Same topics as the D405, so consumers cannot tell which is selected —
       # except at range: the D405 sees from ~7 cm, this from ~15-30 cm (75 mm
       # baseline, even with the near-field tuning in params below: ROBOTICS
-      # preset, extended disparity, dot projector on).
+      # preset, stereo at 320x200, dot projector on).
       - id: oak_d_pro_docker
         kind: docker
         container:
@@ -181,8 +185,6 @@ nodes:
           color.i_height: 400
           color.i_fps: 15.0
           color.i_synced: true
-          depth.i_width: 640
-          depth.i_height: 400
           depth.i_fps: 15.0
           depth.i_synced: true
           # The device-side Sync node pairs color and depth only when their
@@ -191,10 +193,16 @@ nodes:
           # pairing to 2.5 Hz; use half the frame period (33 ms at 15 fps,
           # 16 at 30). The driver stamps both messages with color's stamp.
           sync.sync_threshold: 33
-          # Near-field tuning: extended disparity doubles the search range,
-          # which halves the minimum depth; 400P halves it again versus 800P.
+          # Near-field tuning: stereo at 320x200 halves the focal length, so
+          # the 96-pixel search reaches ~16 cm without extended disparity.
+          # Extended disparity reaches the same, but pushes the disparity range
+          # past the median filter's limit: the device drops ROBOTICS' 7x7
+          # median and depth streaks along rows. Plain 640x400 stops at ~31 cm
+          # and reports closer surfaces as false depth near that limit
+          # (2026-10-26, snorlax). Depth is still aligned to 640x400 color.
           depth.i_depth_preset: ROBOTICS
-          depth.i_extended_disp: true
+          depth.i_width: 320
+          depth.i_height: 200
         publishes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/depth/image_rect_raw

@@ -16,6 +16,10 @@ HOOK=/etc/NetworkManager/dispatcher.d/60-rammp-host-tuning
 BIN=/usr/local/sbin/rammp-host-tuning
 SYSCTL=/etc/sysctl.d/60-ros-dds-buffers.conf
 MODULES=/etc/modules-load.d/rammp-host-tuning.conf
+# The arm NIC's NAPI threads: on the arm driver's RT core, one priority below Kortex's UDP receive thread (which the
+# driver creates at --rt-priority 80 minus 1). Change these with the driver's --cpu / --rt-priority.
+NAPI_CPU=11
+NAPI_PRIO=78
 
 arm_driver_up() { pgrep -f "kinova_gen3_node --ip" >/dev/null; }
 is_up() { [ -n "$(ip link show dev "$1" up 2>/dev/null)" ]; }
@@ -29,12 +33,24 @@ irqs_spread() {
   done < <(cam_irqs)
   return $found
 }
+napi_threads() { pgrep "^napi/$ARM_IF-"; }
+napi_pinned() {
+  local t cls prio found=1
+  [ "$(cat "/sys/class/net/$ARM_IF/threaded" 2>/dev/null)" = 1 ] || return 1
+  for t in $(napi_threads); do
+    found=0
+    read -r cls prio < <(ps -o cls=,rtprio= -p "$t")
+    [ "$cls $prio" = "FF $NAPI_PRIO" ] && [ "$(awk '/^Cpus_allowed_list/ {print $2}' "/proc/$t/status")" = $NAPI_CPU ] ||
+      return 1
+  done
+  return $found
+}
 
-# Each step runs regardless of the others; one that fails says so, and apply exits 1. Steps 2 and 3 only stick
-# once the NIC is open (lan743x attaches its PHY there, nvethernet requests its queue IRQs there), and both are reset
-# on every open, so on a NIC that isn't up yet they wait for the NetworkManager hook.
+# Each step runs regardless of the others; one that fails says so, and apply exits 1. Steps 2-4 only stick once the
+# NIC is open (lan743x attaches its PHY and creates its NAPI threads there, nvethernet requests its queue IRQs there),
+# and all are reset on every open, so on a NIC that isn't up yet they wait for the NetworkManager hook.
 apply() {
-  local rc=0 irq name found=
+  local rc=0 irq name t found=
   fail() { echo "FAIL  $*" >&2; rc=1; }
   # 1. No multicast out of the arm NIC: DDS discovery and data stay off the arm link. Doesn't need the link up.
   tc qdisc del dev "$ARM_IF" clsact 2>/dev/null
@@ -55,6 +71,19 @@ apply() {
     done < <(cam_irqs)
     [ -n "$found" ] || fail "no $CAM_IF.vm0-4 IRQs in /proc/interrupts"
   fi
+  # 4. Threaded NAPI on the arm NIC, its threads on NAPI_CPU at FIFO NAPI_PRIO. Its interrupts are fixed on CPU0, so
+  # its receive processing otherwise runs there, behind everything else on CPU0. Not switched on under a running
+  # driver (untested live); re-pinning threads that already exist is always safe.
+  if ! is_up "$ARM_IF"; then echo "NAPI: $ARM_IF not up yet, left to the NetworkManager hook"
+  else
+    if [ "$(cat "/sys/class/net/$ARM_IF/threaded")" != 1 ]; then
+      if arm_driver_up; then fail "threaded NAPI on $ARM_IF: arm driver running, not switching it live; stop it and re-run"
+      else echo 1 >"/sys/class/net/$ARM_IF/threaded" || fail "threaded NAPI on $ARM_IF"; fi
+    fi
+    for t in $(napi_threads); do
+      { taskset -p -c $NAPI_CPU "$t" >/dev/null && chrt -f -p $NAPI_PRIO "$t"; } || fail "pinning NAPI thread $t"
+    done
+  fi
   return $rc
 }
 
@@ -65,6 +94,7 @@ check() {
     "sudo $0 apply"
   ok "EEE off on $ARM_IF" "ethtool --show-eee $ARM_IF | grep -q 'EEE status: disabled'" "sudo $0 apply (arm driver stopped)"
   ok "$CAM_IF queue IRQs on CPUs 4-8" irqs_spread "sudo $0 apply"
+  ok "threaded NAPI on $ARM_IF, on CPU $NAPI_CPU at FIFO $NAPI_PRIO" napi_pinned "sudo $0 apply (arm driver stopped)"
   ok "rmem_max >= 32 MiB (DDS)" "[ \$(sysctl -n net.core.rmem_max) -ge 33554432 ]" "sudo $0 install"
   ok "CPU 11 isolated" "grep -qw isolcpus=11 /proc/cmdline && grep -qw rcu_nocbs=11 /proc/cmdline" \
     "add 'isolcpus=11 rcu_nocbs=11' to the default APPEND line of /boot/extlinux/extlinux.conf, reboot"
@@ -121,6 +151,8 @@ undo() {
   systemctl daemon-reload
   tc qdisc del dev "$ARM_IF" clsact 2>/dev/null
   cam_irqs | while read -r irq _; do echo 0 >"/proc/irq/$irq/smp_affinity_list"; done
+  # The idle napi/ threads stay until the NIC's next open; receive processing is back in softirq right away.
+  echo 0 >"/sys/class/net/$ARM_IF/threaded"
   # A live link can't take EEE back (lan743x: "EEE initialization failed"); a reboot restores it.
   echo "EEE left off on $ARM_IF until the next reboot"
   echo "left in place: $SYSCTL (DDS buffers)"

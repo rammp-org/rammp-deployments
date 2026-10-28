@@ -1,7 +1,7 @@
 # flatbot's cuRobo planner config: the Gen3 on the MEBot wheelchair, on the
 # chair's LEFT with the joystick on the right, tilted 30 degrees forward on its
-# mount (../mount.yaml), with the chair's drive base and its occupant in every
-# collision world.
+# mount (../mount.yaml), with the chair's drive base in every collision world
+# (its occupant is left out for now: see `layers` below).
 #
 # The planner reads this directory as /config/robot/curobo (the manifest's
 # planner_nightly bind-mounts config/robots/current at /config/robot), selected
@@ -23,14 +23,18 @@
 # on it the RAMMS model's, mirrored to the left: neither is measured on this
 # chair yet.
 #
-# The platform and the person are composed into EVERY world, set_world pushes
-# included; a push replaces world.yaml's floor, so a pushed scene brings its
-# own floor. The bench retract (cuRobo's IK seed) is inside the padded person,
-# so it is no valid start here: plan from the arm's measured state.
+# The platform (and, once restored, the person) is composed into EVERY world,
+# set_world pushes included; a push replaces world.yaml's floor, so a pushed
+# scene brings its own floor. Plan from the arm's measured state.
 #
 # world_padding stays the 0.02 default: the layers are certified for it, and
 # the planner refuses less.
 
 robot: robot_gen3_2f85.yaml
 world: world.yaml
-layers: [layer_mebot_platform.yaml, layer_mebot_person.yaml]
+# NO PERSON LAYER for now (2026-10-27): the generated occupant is far larger
+# than a person (0.87 m3, about 11-20x the ANSUR stand-ins) and reaches past
+# the arm's base, so the arm's own rest pose starts inside it and nothing
+# plans. flatbot carries no occupant; restore layer_mebot_person.yaml here once
+# the person model and the arm's offset from the chair centreline are fixed.
+layers: [layer_mebot_platform.yaml]

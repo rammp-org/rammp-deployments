@@ -101,14 +101,15 @@ file per script, applied on the robot:
 | `oak_d.yaml`   | `scripts/oak_d_config.py`   | each OAK-D PoE camera's addressing                                                     |
 | `mount.yaml`   | `scripts/set_robot.py`      | the arm's mount rotation; makes this the host's active robot (`config/robots/current`) |
 | `transforms/`  | the `static_tf` node        | fixed and calibrated transforms (camera mounts), on `/tf_static` (rammp-tools image)   |
+| `curobo/`      | the `planner` node          | the robot's own planner config and obstacles (`planner.yaml`, `world.yaml`, layers)    |
 
 ```bash
 uv run scripts/network_config.py december_2026/config/robots/flatbot
 ```
 
-`mount.yaml` and `transforms/` are also read by nodes: `set_robot.py` points
-`config/robots/current` at the robot, and `arm_state_publisher` and `static_tf`
-bind-mount it read-only at `/config/robot`. Only per-robot data that a node needs as
+`mount.yaml`, `transforms/` and `curobo/` are also read by nodes: `set_robot.py` points
+`config/robots/current` at the robot, and `arm_state_publisher`, `static_tf` and the
+nightly `planner` bind-mount it read-only at `/config/robot`. Only per-robot data that a node needs as
 a file goes there. Everything else a node is configured with is a parameter (below).
 The robot name joins the two: `config/robots/flatbot/` and `profiles/flatbot.yaml`.
 

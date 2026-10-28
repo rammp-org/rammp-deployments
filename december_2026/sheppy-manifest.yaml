@@ -599,12 +599,18 @@ nodes:
           ipc: host
           environment:
             ROS_DOMAIN_ID: "0"
+          # The active robot's config, as arm_state_publisher_nightly mounts
+          # it: a robot whose planner sees per-robot obstacles (the chair) keeps
+          # them in its curobo/ and its profile names them there. Its run needs
+          # set_robot.py, as the nightly arm_state_publisher's does.
           volumes:
             - curobo_kernel_cache:/root/.cache
+            - ./config/robots/current:/config/robot:ro
           command:
             - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
         params:
-          # Both name files that ship in the image.
+          # Both name files that ship in the image; a profile may name a
+          # robot's own under /config/robot/curobo instead.
           config: gen3_real.yaml
           world: world_real_bench.yaml
         # Otherwise reached over the plan_to_pose / plan_to_joints ACTIONS (see

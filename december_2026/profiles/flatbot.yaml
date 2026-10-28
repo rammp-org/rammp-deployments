@@ -21,9 +21,12 @@ selections:
   object_lifter: boxer
 overrides:
   planner:
-    # dojo's bench (the default) is wrong under a tilted arm_mount. Empty until
-    # flatbot has its own world, authored in arm_mount.
-    world: world_empty.yaml
+    # flatbot's own planner config: the MEBot chair and its occupant in every
+    # world, generated for the arm on the chair's left, tilted 30 degrees as
+    # mount.yaml says (config/robots/flatbot/curobo/). `world` must be "": a
+    # non-empty one replaces the start-up world the config names.
+    config: /config/robot/curobo/planner.yaml
+    world: ""
   object_lifter:
     # The OAK's depth topic. The scene OAK pairs depth with color on the device and stamps both
     # with color's stamp, so a tight slop only rejects frames that weren't paired: if sync is

@@ -561,7 +561,7 @@ nodes:
       - id: curobo_planner
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-curobo:1.1.0
+          image: ghcr.io/rammp-org/rammp-curobo:1.1.0  # an image >= the robot-data release run with no params runs the example robot; set config: /config/robot/curobo/planner.yaml and world: "" when bumping it
           runtime: nvidia              # JetPack exposes the GPU this way, NOT --gpus
           network_mode: host
           ipc: host

@@ -582,9 +582,8 @@ nodes:
       # arrives within 30 s, and sheppy does not restart it: after fixing
       # arm_state_publisher, `sheppy restart planner`.
       #
-      # The world is a param so a profile can override it per robot: dojo's
-      # bench is the default; profiles/flatbot.yaml sets world_empty.yaml,
-      # because the bench's boxes are wrong under a tilted arm_mount. sheppy
+      # The robot's planner config, world and robot file come from its own
+      # config/robots/<robot>/curobo (dojo's is the bench). sheppy
       # appends --ros-args --params-file only AFTER a command -- with params
       # and no command it replaces the image CMD and the container exits 2 --
       # hence the explicit command.
@@ -609,10 +608,12 @@ nodes:
           command:
             - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
         params:
-          # Both name files that ship in the image; a profile may name a
-          # robot's own under /config/robot/curobo instead.
-          config: gen3_real.yaml
-          world: world_real_bench.yaml
+          # Every robot that runs the nightly planner carries curobo/ (its
+          # planner.yaml, robot.yaml, world.yaml); nothing is read from the
+          # image. `world` must stay "": a non-empty one replaces the world the
+          # config names.
+          config: /config/robot/curobo/planner.yaml
+          world: ""
         # Otherwise reached over the plan_to_pose / plan_to_joints ACTIONS (see
         # above). The one topic is the arm's model, read once at startup.
         publishes: []

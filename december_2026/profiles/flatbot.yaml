@@ -23,8 +23,10 @@ overrides:
   planner:
     # flatbot's own planner config: the MEBot chair, seat and occupant in every
     # world, generated for the arm on the chair's left, tilted 30 degrees as
-    # mount.yaml says (config/robots/flatbot/curobo/). `world` must be "": a
-    # non-empty one replaces the start-up world the config names.
+    # mount.yaml says (config/robots/flatbot/curobo/). These now equal the
+    # manifest's default; kept so the profile says what it plans against.
+    # `world` must be "": a non-empty one replaces the start-up world the
+    # config names.
     config: /config/robot/curobo/planner.yaml
     world: ""
   object_lifter:

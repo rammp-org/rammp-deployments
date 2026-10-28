@@ -21,7 +21,7 @@ selections:
   object_lifter: boxer
 overrides:
   planner:
-    # flatbot's own planner config: the MEBot chair (no occupant for now) in every
+    # flatbot's own planner config: the MEBot chair, seat and occupant in every
     # world, generated for the arm on the chair's left, tilted 30 degrees as
     # mount.yaml says (config/robots/flatbot/curobo/). `world` must be "": a
     # non-empty one replaces the start-up world the config names.

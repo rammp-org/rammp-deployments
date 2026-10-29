@@ -572,6 +572,10 @@ nodes:
           # them across restarts, so only the very first run pays.
           volumes:
             - curobo_kernel_cache:/root/.cache
+            # The feeding module's state directory, read-only: while it plans, the module hands the planner its
+            # measured world (planner_world.yaml) through set_world, which takes a file path, and puts the planner's
+            # own world back when its command ends. Nothing else about the planner changes.
+            - /srv/rammp_feeding/config:/config:ro
         # No topics: this node is reached over the /rammp_curobo/plan_to_pose
         # and /rammp_curobo/plan_to_joints ACTIONS, which the schema has no way
         # to declare. Nothing here is starved; there is just nothing to list.
@@ -931,3 +935,59 @@ nodes:
           mock: true
         publishes:
           - /perception/object_detections_3d
+
+  - name: feeding
+    description: Robot-assisted feeding -- bite after bite until the bowl is empty or the user declines
+    select: single
+    alternatives:
+      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.2.3). It moves the arm only through the arm node
+      # (execute_joint_trajectory: its own IK paths and the planner's paths), so `arm`, `arm_state_publisher` and
+      # `planner` must be selected alongside -- the RELEASE generation of all three (a level mount; the module does
+      # not read the nightly's arm_-prefixed joints or arm_mount frame yet) -- with `wrist_camera`, `scene_camera`
+      # and `sam3`. Stopping the node cancels the move in flight: the arm halts where it is. It never
+      # commands the gripper. It uses the shared planner as configured for everyone: its own world goes in only while
+      # it plans, and the planner's comes back after (the planner mounts the module's state directory for that).
+      #
+      # Selecting it runs `rammp feed` at once: attended only, and only on a robot set up per rammp-feeding's
+      # deployment checklist (docs/porting.md): its measurements, captured poses and calibrations in the host's
+      # /srv/rammp_feeding/config (owned by uid 1000). One step at a time: leave it unselected and run the module's
+      # image by hand (the checklist's `rammp` command).
+      #
+      # Diverges from the fragment: the image is on Docker Hub (the module's repo is not under rammp-org, so there is
+      # no ghcr.io/rammp-org image to pin).
+      - id: rammp_feeding_docker
+        kind: docker
+        container:
+          image: docker.io/debajyotidasgupta/rammp-feeding:0.2.3
+          network_mode: host
+          ipc: host
+          user: "1000:1000"
+          # State across runs: local.yaml, the captured poses, the wrist camera's measured mount, the scene camera's
+          # measured pose and the session's reading, the world it hands the planner. The run record beside it.
+          volumes:
+            - /srv/rammp_feeding/config:/config
+            - /srv/rammp_feeding/runs:/runs
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          command: ros2 launch rammp_feeding feed.launch.py
+        subscribes:
+          - /robot_description
+          - /joint_states
+          - /control_status
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /wrist_camera/depth/camera_info
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_raw
+          - /scene_camera/depth/camera_info
+        publishes:
+          - /tf_static
+      # Wiring only, like every mock here: the module is reached through its command, not a topic.
+      - id: feeding_mock
+        kind: process
+        command: "bash -lc 'sleep infinity'"

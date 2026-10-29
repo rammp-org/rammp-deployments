@@ -1,0 +1,30 @@
+# Box-opening demo on flatbot (snorlax): the full stack — cameras, arm,
+# planner, TF and the box-opening launch — in one profile.
+#
+#   uv run scripts/set_robot.py december_2026/config/robots/flatbot   # once per host
+#   sheppy up box-opening --manifest december_2026/sheppy-manifest.yaml
+#
+# Then in a second shell (attended, e-stop in hand):
+#
+#   export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+#   ros2 run rammp_box_opening press_demo          # preflight only
+#   ros2 run rammp_box_opening press_demo --execute  # arms motion
+#
+# Attended only (CONTRIBUTING.md). --execute alone arms the arm; Ctrl+C
+# cancels via the stub-proven cancel path.
+description: flatbot box-opening demo — OAK-D cameras, foxglove, arm + planner (nightly), box_opening launch
+selections:
+  scene_camera: oak_d_pro_w_docker
+  wrist_camera: oak_d_pro_docker
+  foxglove: foxglove_bridge_docker
+  # One generation for all three; see the manifest's `arm` node.
+  arm: kinova_gen3_driver_nightly
+  arm_state_publisher: kinova_gen3_description_nightly
+  planner: curobo_planner_nightly
+  static_tf: static_tf_docker
+  box_opening: box_opening_launch
+overrides:
+  planner:
+    # dojo's bench (the default) is wrong under a tilted arm_mount. Empty until
+    # flatbot has its own world, authored in arm_mount.
+    world: world_empty.yaml

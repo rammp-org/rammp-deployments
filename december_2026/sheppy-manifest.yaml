@@ -604,9 +604,13 @@ nodes:
           command:
             - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
         params:
-          # Both name files that ship in the image.
+          # Both name files that ship in the image. The default world is the
+          # empty one (just the arm), the same world every profile already
+          # chooses. A planner started without a profile used to get the dojo
+          # bench's boxes instead. The planner only accepts an empty world at
+          # startup, not over SetWorld, so this is the place to set it.
           config: gen3_real.yaml
-          world: world_real_bench.yaml
+          world: world_empty.yaml
         # Otherwise reached over the plan_to_pose / plan_to_joints ACTIONS (see
         # above). The one topic is the arm's model, read once at startup.
         publishes: []
@@ -931,3 +935,106 @@ nodes:
           mock: true
         publishes:
           - /perception/object_detections_3d
+
+  - name: box_opening
+    description: Box-opening mission — OWL wrist + scene detectors, press_demo.launch.py host process
+    select: single
+    alternatives:
+      # Host process: runs on the Jetson directly against the colcon install
+      # tree, which carries the JP6 torch wheel + cuSPARSELt needed for OWL.
+      # press_demo.launch.py sets LD_LIBRARY_PATH itself (torch/lib,
+      # cuda-12.6/lib64) and sets RMW_IMPLEMENTATION=rmw_cyclonedds_cpp, so
+      # neither is repeated here.
+      #
+      # tf:=false — the nightly arm_state_publisher in the `arm` node group
+      # already publishes the arm's TF; a second robot_state_publisher on the
+      # same /tf would publish duplicate (and possibly conflicting) transforms.
+      #
+      # camera:=false (default) — sheppy's `wrist_camera` node owns the D405 /
+      # OAK-D; this launch only adds the OWL detectors on top of those streams.
+      #
+      # After `sheppy up box-opening`, run the CLI in its own shell:
+      #   export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      #   ros2 run rammp_box_opening press_demo        # preflight only
+      #   ros2 run rammp_box_opening press_demo --execute  # attended run, e-stop in hand
+      - id: box_opening_launch
+        kind: process
+        command: >-
+          bash -lc 'source /opt/ros/humble/setup.bash &&
+          source ~/RAMMP-box-opening/install/setup.bash &&
+          ros2 launch rammp_box_opening press_demo.launch.py
+          bench_world:=world_flatbot.yaml tf:=false'
+        publishes:
+          - /rammp_box_opening/owl_bbox
+          - /rammp_box_opening/owl_bbox_scene
+          - /rammp_box_opening/owl_container
+        subscribes:
+          - /joint_states
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /scene_camera/color/image_raw
+          - /arm/robot_description
+
+  # rammp_box_opening's CLI tasks, one-shot process nodes. The *_execute ones
+  # MOVE THE ARM: deliberately in no profile, so they run only when an operator
+  # selects one in the TUI (or `sheppy restart <node>`), attended, e-stop in
+  # hand. Never add them to a profile — a profile converges on `sheppy up` and
+  # after a reboot, which would fly with nobody watching. sheppy never restarts
+  # them; a finished run shows as crashed with exit=0. Stopping the node in the
+  # TUI SIGINTs its process group: the same cancel path as Ctrl+C.
+  # scripts/sheppy_task.sh adds the host env and the flatbot world.
+  - name: preflight
+    description: Every-session checks before a mission (never moves anything)
+    select: single
+    alternatives:
+      - id: preflight_check
+        kind: process
+        command: /home/snorlax/RAMMP-box-opening/scripts/sheppy_task.sh preflight
+        subscribes:
+          - /joint_states
+          - /tf
+
+  - name: home_arm
+    description: Return the arm to the flatbot HOME (one-shot, attended; in no profile)
+    select: single
+    alternatives:
+      # Plans + prints the move, sends nothing.
+      - id: home_arm_preview
+        kind: process
+        command: /home/snorlax/RAMMP-box-opening/scripts/sheppy_task.sh home_arm
+        subscribes:
+          - /joint_states
+          - /tf
+      - id: home_arm_execute
+        kind: process
+        command: /home/snorlax/RAMMP-box-opening/scripts/sheppy_task.sh home_arm --execute
+        subscribes:
+          - /joint_states
+          - /tf
+
+  # Needs the box_opening node (OWL detectors) up; ankou_pink by default.
+  - name: press_demo
+    description: Box opening on flatbot (one-shot, attended; in no profile) — the full run, or the press alone
+    select: single
+    alternatives:
+      # The full box opening: the reach-out press from the look pose, the knob
+      # looked at, pressed once more where it is not up, the lid gripped, lifted,
+      # carried and set down where the cameras see room, and home.
+      - id: box_open_full
+        kind: process
+        command: /home/snorlax/RAMMP-box-opening/scripts/sheppy_task.sh press_demo --execute
+        subscribes:
+          - /joint_states
+          - /tf
+          - /rammp_box_opening/owl_bbox
+          - /rammp_box_opening/owl_bbox_scene
+      # The same press, then back up and home: the lid stays on.
+      - id: box_open_press_only
+        kind: process
+        command: /home/snorlax/RAMMP-box-opening/scripts/sheppy_task.sh press_demo --press-only --execute
+        subscribes:
+          - /joint_states
+          - /tf
+          - /rammp_box_opening/owl_bbox
+          - /rammp_box_opening/owl_bbox_scene

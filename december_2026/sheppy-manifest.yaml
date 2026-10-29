@@ -940,7 +940,7 @@ nodes:
     description: Robot-assisted feeding -- bite after bite until the bowl is empty or the user declines
     select: single
     alternatives:
-      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.2.2). It moves the arm only through the arm node
+      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.2.3). It moves the arm only through the arm node
       # (execute_joint_trajectory: its own IK paths and the planner's paths), so `arm`, `arm_state_publisher` and
       # `planner` must be selected alongside -- the RELEASE generation of all three (a level mount; the module does
       # not read the nightly's arm_-prefixed joints or arm_mount frame yet) -- with `wrist_camera`, `scene_camera`
@@ -958,7 +958,7 @@ nodes:
       - id: rammp_feeding_docker
         kind: docker
         container:
-          image: docker.io/debajyotidasgupta/rammp-feeding:0.2.2
+          image: docker.io/debajyotidasgupta/rammp-feeding:0.2.3
           network_mode: host
           ipc: host
           user: "1000:1000"

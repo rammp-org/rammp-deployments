@@ -72,7 +72,9 @@ nodes:
       - id: oak_d_pro_w_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.1
+          # NOT A RELEASE pin: rammp-suite-software main at #13's merge, the driver built from
+          # our depthai-ros fork (i_rotation, synced + encoded color). Tag at the next oak release.
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-6285a703abeacb1fcad505a9c6174e8e3a74f7bd
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
@@ -86,15 +88,35 @@ nodes:
           driver.i_device_id: "19443010219A974800"
           driver.i_tf_base_frame: scene_camera
           driver.i_tf_parent_frame: scene_camera_link
-          # Full sensor resolution on both the stereo pair and the color
-          # sensor; the driver undistorts color by default, which is what
-          # makes the wide lens usable as-is.
-          color.i_width: 1280
-          color.i_height: 800
-          color.i_fps: 30.0
-          depth.i_width: 1280
-          depth.i_height: 800
-          depth.i_fps: 30.0
+          # The same resolution on the stereo pair and the color sensor; the
+          # driver undistorts color by default, which is what makes the wide
+          # lens usable as-is.
+          # 640x400 @ 15 fps (2026-10-22): 1280x800 @ 30 raw put 677 Mbit/s on
+          # eno1 and the camera delivered only ~15 Hz at 550 ms (depth 1 s)
+          # age; 640x400 @ 15 delivers 15 Hz at 24-31 ms.
+          color.i_width: 640
+          color.i_height: 400
+          color.i_fps: 15.0
+          color.i_synced: true
+          depth.i_width: 640
+          depth.i_height: 400
+          depth.i_fps: 15.0
+          depth.i_synced: true
+          # Synced on the device, as on the wrist (see its sync_threshold), so
+          # each color frame's depth carries the same stamp. Unsynced, only
+          # half the color frames had depth within 20 ms, which consumers
+          # pairing by stamp (boxer) had to cover with a wider slop.
+          sync.sync_threshold: 33
+          # The driver's FAST_ACCURACY default streaks along rows on this
+          # camera; ROBOTICS (median, spatial and speckle filters) does not
+          # (2026-10-26, snorlax).
+          depth.i_depth_preset: ROBOTICS
+          # The camera is mounted upside down: rotate color and depth 180° on
+          # the device, so consumers get upright images. Both, so depth stays
+          # registered to color. The frame names do not change: the mount in
+          # the robot's transforms/cameras.yaml is the rotated (upright) one.
+          color.i_rotation: 180
+          depth.i_rotation: 180
         publishes:
           - /scene_camera/color/image_raw
           - /scene_camera/depth/image_rect_raw
@@ -141,19 +163,24 @@ nodes:
       # Same topics as the D405, so consumers cannot tell which is selected —
       # except at range: the D405 sees from ~7 cm, this from ~15-30 cm (75 mm
       # baseline, even with the near-field tuning in params below: ROBOTICS
-      # preset, extended disparity, dot projector on).
+      # preset, stereo at 320x200, dot projector on).
       - id: oak_d_pro_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.3.1
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-6285a703abeacb1fcad505a9c6174e8e3a74f7bd  # as the scene OAK
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
           # From 0.3.1 the container exits 1 if no camera matching the device
           # ID is ready within RAMMP_OAK_READY_TIMEOUT seconds (default 60),
           # so a wrong ID or an unplugged camera shows as crashed. Both OAKs.
+          # H.264 color (#85): the camera encodes color on the device, and the
+          # image decodes it back onto color/image_raw with the same stamps, so
+          # consumers see raw images as before. Needs the color.i_low_bandwidth
+          # params below.
           environment:
             ROS_DOMAIN_ID: "0"
+            RAMMP_OAK_COLOR_CODEC: h264
           # The image's entrypoint runs the node with the driver's defaults;
           # only the rename is appended, and the wrist tuning lives in params.
           command: [--ros-args, -r, __node:=wrist_camera]
@@ -167,16 +194,37 @@ nodes:
           pipeline_gen.i_enable_imu: false
           color.i_width: 640
           color.i_height: 400
-          color.i_fps: 30.0
+          color.i_fps: 15.0
           color.i_synced: true
-          depth.i_width: 640
-          depth.i_height: 400
-          depth.i_fps: 30.0
+          # The wrist link is 100 Mbit/s (#85). Raw color put 129 Mbit/s on it;
+          # H.264 (profile 2) brings the camera to 83 Mbit/s, most of it the
+          # aligned depth (2026-10-27, snorlax).
+          color.i_low_bandwidth: true
+          color.i_low_bandwidth_profile: 2
+          color.i_publish_compressed: true
+          depth.i_fps: 15.0
           depth.i_synced: true
-          # Near-field tuning: extended disparity doubles the search range,
-          # which halves the minimum depth; 400P halves it again versus 800P.
+          # The device-side Sync node pairs color and depth only when their
+          # stamps are within this many ms (driver 3.3.0 default 10). The
+          # sensors are not phase-locked, so at 15 fps the default starved the
+          # pairing to 2.5 Hz; use half the frame period (33 ms at 15 fps,
+          # 16 at 30). The driver stamps both messages with color's stamp.
+          sync.sync_threshold: 33
+          # Near-field tuning: stereo at 320x200 halves the focal length, so
+          # the 96-pixel search reaches ~16 cm without extended disparity.
+          # Extended disparity reaches the same, but pushes the disparity range
+          # past the median filter's limit: the device drops ROBOTICS' 7x7
+          # median and depth streaks along rows. Plain 640x400 stops at ~31 cm
+          # and reports closer surfaces as false depth near that limit
+          # (2026-10-26, snorlax). Depth is still aligned to 640x400 color.
           depth.i_depth_preset: ROBOTICS
-          depth.i_extended_disp: true
+          depth.i_width: 320
+          depth.i_height: 200
+          # Mounted upside down, as the scene OAK: rotate color and depth 180°
+          # on the device. The frame names do not change: the mount in the
+          # robot's transforms/cameras.yaml is the rotated (upright) one.
+          color.i_rotation: 180
+          depth.i_rotation: 180
         publishes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/depth/image_rect_raw
@@ -682,13 +730,14 @@ nodes:
       # rammp-interfaces-ros2#16 (DetectedObject.size) the message's wire format changed, and a node
       # built against the old definition silently misreads messages from one built against the new.
       #
-      # YOLOE-26m on the GPU: the best YOLOE masks, ~46 ms per frame with tracking and ~12% GPU at 10 Hz
-      # on abra. The first start builds a TensorRT engine into the volume (about 9 minutes); later
-      # starts reuse it.
+      # YOLOE-26m on the GPU: the best YOLOE masks (and the best open-vocabulary quality score, #106):
+      # 10 Hz, ~100 ms camera to result, ~10% GPU on abra next to SAM3 and the planner. Not the always-on
+      # segmenter; RF-DETR is (below). The first start builds a TensorRT engine into the volume (about 9
+      # minutes); later starts reuse it.
       - id: yoloe_gpu
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -708,13 +757,13 @@ nodes:
           - /perception/scene_segmenter/overlay/compressed
         subscribes:
           - /scene_camera/color/image_raw
-      # YOLOE-26s on DLA core 0: frees the GPU for cuRobo and SAM3 (~2% GPU on abra) at ~9.5 Hz,
-      # ~103 ms per frame. The detection head still falls back to the GPU. First start builds its
-      # engine (about 2 minutes).
+      # YOLOE-26s on DLA core 0: frees most of the GPU, but 94 ms per frame on the DLA does not hold
+      # 10 Hz in the stack (9.3 Hz; 7.7 Hz with BoxerNet; 7.2 Hz next to a busy GPU, since the
+      # detection head falls back to the GPU). First start builds its engine (about 2 minutes).
       - id: yoloe_dla
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -737,12 +786,16 @@ nodes:
           - /perception/scene_segmenter/overlay/compressed
         subscribes:
           - /scene_camera/color/image_raw
-      # RF-DETR-Seg S, COCO weights, on the GPU: 10 Hz at ~52 ms per frame and ~13% GPU on abra. Cleanest
-      # masks, but COCO classes only: "food container" is found only when it looks like a bowl.
+      # RF-DETR-Seg S, COCO weights, on the GPU: the always-on segmenter (#106). Cleanest masks, but COCO
+      # classes only: "food container" is found only when it looks like a bowl, and #106's quality check
+      # scores it below YOLOE-26m (mAP 0.68 vs 0.86 on Gemini and handheld images), the accepted tradeoff.
+      # frame_stride 3 is 5 Hz from flatbot's 15 fps OAKs (10 Hz from the dojo's 30 fps Gemini). On snorlax
+      # at 5 Hz: ~75 ms camera to result (~40 ms of it in the node), ~7% GPU, 0.2 CPU core; at 15 Hz
+      # (stride 1), ~20% GPU, 0.5 core. On abra at 10 Hz: ~100 ms, ~18% GPU.
       - id: rfdetr
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/rfdetr:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/rfdetr:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -763,7 +816,7 @@ nodes:
       - id: scene_segmenter_mock
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           network_mode: host
           ipc: host
           user: "1000:1000"
@@ -791,7 +844,7 @@ nodes:
       - id: sam3_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/sam3:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/sam3:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -802,6 +855,11 @@ nodes:
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
+        params:
+          # Tracking at 5 Hz takes ~22% of the GPU instead of ~60% uncapped (~13 Hz on snorlax, ~48% at
+          # ~12 Hz on abra), leaving it to the rest of the chair (#106). A capped step tracks the
+          # first frame after it is due (rammp-perception#8, #17): ~110 ms camera to result, not ~270 ms.
+          max_tracking_rate_hz: 5.0
         publishes:
           - /perception/sam3/object_detections
           - /perception/sam3/status
@@ -814,8 +872,8 @@ nodes:
     description: 3D boxes (pose + size) for the scene segmenter's objects -> /perception/object_detections_3d
     select: single
     alternatives:
-      # Transcribed from rammp-org/rammp-perception's rammp-alternative.boxer.yaml; same NOT A RELEASE pin
-      # as scene_segmenter above. BoxerNet lifts every object of /perception/object_detections to a
+      # Transcribed from rammp-org/rammp-perception's rammp-alternative.boxer.yaml. NOT A RELEASE pin, the
+      # same build as scene_segmenter above. BoxerNet lifts every object of /perception/object_detections to a
       # gravity-aligned 3D box and republishes the message on /perception/object_detections_3d with
       # pose (in the camera's optical frame) and size filled in. ~90 ms per frame on abra, keeping up with
       # the segmenter. First start builds its TensorRT engines into the volume (about 2.5 minutes).
@@ -824,13 +882,13 @@ nodes:
       # the camera. static_tf attaches the camera from the active robot's transforms/ (on flatbot,
       # arm_mount -> scene_camera, so gravity_frame must be arm_mount there: nothing publishes
       # base_link); without it, every object comes out with has_pose false and the node logs the
-      # missing transform. On the OAK scene camera alternative set
-      # depth_topic to /scene_camera/depth/image_rect_raw (not yet tested).
+      # missing transform. The OAK scene camera's depth is /scene_camera/depth/image_rect_raw, synced
+      # to color on the device, so depth_slop_s can be tight there (profiles/flatbot.yaml sets all three).
       # BoxerNet's weights are CC-BY-NC 4.0 (non-commercial) and baked into the image.
       - id: boxer
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           runtime: nvidia
           network_mode: host
           ipc: host
@@ -847,6 +905,8 @@ nodes:
           camera_info_topic: /scene_camera/color/camera_info
           gravity_frame: base_link     # any frame with +z up; only its rotation is used
           min_prob: 0.5
+          depth_slop_s: 0.02           # how far in time a depth frame may be from its color frame
+          frame_stride: 1              # lift every Nth detections message; stacks on the detector's own stride
         publishes:
           - /perception/object_detections_3d
         subscribes:
@@ -861,7 +921,7 @@ nodes:
       - id: object_lifter_mock
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-8091bbee8f9a147f2811290b8ea780542ee13df7
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
           network_mode: host
           ipc: host
           user: "1000:1000"

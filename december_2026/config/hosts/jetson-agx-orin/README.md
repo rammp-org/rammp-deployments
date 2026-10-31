@@ -67,8 +67,16 @@ december_2026/config/hosts/jetson-agx-orin/time_server.sh check           # any 
 - `/etc/chrony/conf.d/rammp-mib.conf` allows the MIB's network and sets `local stratum 10`: when no upstream server is
   reachable, which on the robot is most of the time, chrony serves from this host's own clock. ROS stamps need the
   MIB to agree with this host, not with UTC.
-- `check` also checks the two things that make `snorlax.local` resolve: avahi-daemon running and the hostname
-  `snorlax`. Another robot's Jetson needs `NTP_NAME=` here and `ntp_server` changed in the firmware's `MIBconfig.hpp`.
+- The same file caps chrony's slew rate at 500 ppm (`maxslewrate`; chrony's default is 83333). Linux applies a slew to
+  `CLOCK_MONOTONIC`'s rate too, so at the default a large correction, e.g. after a reconnect, would run the arm
+  driver's 1 kHz loop up to 8% off. 500 ppm is the kernel PLL's cap under timesyncd.
+- chrony still steps the clock (`makestep 1 3`) when it is off by more than 1 s in its first three updates after it
+  starts: the first upstream sync after an offline boot. A step moves `CLOCK_REALTIME` only, so ROS stamps and TF jump;
+  the MIB follows within 15 s. `install` restarts chrony only when the drop-in changes, so a re-run doesn't open that
+  window again.
+- `check` also checks what makes `snorlax.local` resolve: avahi-daemon running, and the name it announces. That is the
+  hostname unless avahi lost a name conflict and renamed itself (`snorlax-2.local`). Another robot's Jetson needs
+  `NTP_NAME=` here and `ntp_server` changed in the firmware's `MIBconfig.hpp`.
 
 To see the MIB syncing: `sudo chronyc clients` lists 192.168.4.1, and its NTP count grows every 15 s. The MIB logs
 `System clock synced to snorlax.local` once, at its first sync.

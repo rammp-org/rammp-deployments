@@ -74,6 +74,7 @@ nodes:
         container:
           # NOT A RELEASE pin: rammp-suite-software main at #13's merge, the driver built from
           # our depthai-ros fork (i_rotation, synced + encoded color). Tag at the next oak release.
+          # The depth params below need an image with SwapnilPande/depthai-ros#7: bump before merging.
           image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-6285a703abeacb1fcad505a9c6174e8e3a74f7bd
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
@@ -88,9 +89,8 @@ nodes:
           driver.i_device_id: "19443010219A974800"
           driver.i_tf_base_frame: scene_camera
           driver.i_tf_parent_frame: scene_camera_link
-          # The same resolution on the stereo pair and the color sensor; the
-          # driver undistorts color by default, which is what makes the wide
-          # lens usable as-is.
+          # The driver undistorts color by default, which is what makes the
+          # wide lens usable as-is.
           # 640x400 @ 15 fps (2026-10-22): 1280x800 @ 30 raw put 677 Mbit/s on
           # eno1 and the camera delivered only ~15 Hz at 550 ms (depth 1 s)
           # age; 640x400 @ 15 delivers 15 Hz at 24-31 ms.
@@ -98,25 +98,62 @@ nodes:
           color.i_height: 400
           color.i_fps: 15.0
           color.i_synced: true
-          depth.i_width: 640
-          depth.i_height: 400
+          # Stereo at 1280x800, depth still aligned to (and published at) the
+          # 640x400 color, so the link load does not change. Against an 800P
+          # multi-frame reference on the microwave (2026-10-31, snorlax): edge
+          # pixels right 0.39 -> 0.90, side face 0.41-0.55 -> 0.92, front/side
+          # face angle 86.8 -> 88.3 deg (90 is right), at 46 ms message age
+          # (49-53 ms before). Costs: minimum depth 22 -> 45 cm (closer
+          # surfaces can come back as false depth); ~10% of the door's glass
+          # still returns the oven's inside (1-2% before).
+          depth.i_width: 1280
+          depth.i_height: 800
           depth.i_fps: 15.0
           depth.i_synced: true
-          # Synced on the device, as on the wrist (see its sync_threshold), so
-          # each color frame's depth carries the same stamp. Unsynced, only
-          # half the color frames had depth within 20 ms, which consumers
-          # pairing by stamp (boxer) had to cover with a wider slop.
+          # Synced, as on the wrist (see its sync_threshold), so each color
+          # frame's depth carries the same stamp. Unsynced, only half the color
+          # frames had depth within 20 ms, which consumers pairing by stamp
+          # (boxer) had to cover with a wider slop. On the host: the depth is
+          # filtered there (below), and a device Sync would ship it back
+          # (~0.7 s of lag).
           sync.sync_threshold: 33
-          # The driver's FAST_ACCURACY default streaks along rows on this
-          # camera; ROBOTICS (median, spatial and speckle filters) does not
-          # (2026-10-26, snorlax).
-          depth.i_depth_preset: ROBOTICS
+          sync.i_run_on_host: true
+          # No preset filters on the device: at 1280x800 ROBOTICS' speckle and
+          # spatial filters cost ~85 ms per frame on the SHAVEs (173 ms age),
+          # and its decimation halves the resolution again. FAST_ACCURACY plus
+          # the stereo block's own median (free; FAST_ACCURACY alone streaks
+          # along rows, 2026-10-26), then speckle and spatial on the host
+          # (~1-2 and ~5 ms on the Orin).
+          depth.i_depth_preset: FAST_ACCURACY
+          depth.i_median_filter: KERNEL_5x5
+          # Accept lower-confidence matches (the driver's default is 15).
+          depth.i_stereo_conf_threshold: 5
+          # Drops isolated blobs, e.g. the oven's inside matched through the
+          # door glass (28% of door pixels without it). Depth step in mm.
+          depth.i_host_speckle_filter: true
+          depth.i_host_speckle_filter_speckle_range: 200
+          depth.i_host_speckle_filter_difference_threshold: 200
+          depth.i_host_spatial_filter: true
+          depth.i_host_spatial_filter_alpha: 0.7
+          depth.i_host_spatial_filter_delta: 30
+          depth.i_host_spatial_filter_hole_filling_radius: 5
+          depth.i_host_spatial_filter_iterations: 1
+          # Full-power dots and no flood (driver defaults 0.6 / 0.6): the flood
+          # LED only lifts the background under the dot pattern stereo matches
+          # on. Turning the projector off cut fill on the microwave's
+          # textureless side face from 0.83 to 0.51.
+          driver.r_laser_dot_intensity: 1.0
+          driver.r_floodlight_intensity: 0.0
           # The camera is mounted upside down: rotate color and depth 180° on
           # the device, so consumers get upright images. Both, so depth stays
           # registered to color. The frame names do not change: the mount in
           # the robot's transforms/cameras.yaml is the rotated (upright) one.
           color.i_rotation: 180
           depth.i_rotation: 180
+          # Rotate on the host, not the device: ~20 ms less message age. Both
+          # outputs leave the camera unencoded, so the flip is ~1 ms here.
+          color.i_rotate_on_host: true
+          depth.i_rotate_on_host: true
         publishes:
           - /scene_camera/color/image_raw
           - /scene_camera/depth/image_rect_raw

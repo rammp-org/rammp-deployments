@@ -88,9 +88,8 @@ nodes:
           driver.i_device_id: "19443010219A974800"
           driver.i_tf_base_frame: scene_camera
           driver.i_tf_parent_frame: scene_camera_link
-          # The same resolution on the stereo pair and the color sensor; the
-          # driver undistorts color by default, which is what makes the wide
-          # lens usable as-is.
+          # The driver undistorts color by default, which is what makes the
+          # wide lens usable as-is.
           # 640x400 @ 15 fps (2026-10-22): 1280x800 @ 30 raw put 677 Mbit/s on
           # eno1 and the camera delivered only ~15 Hz at 550 ms (depth 1 s)
           # age; 640x400 @ 15 delivers 15 Hz at 24-31 ms.
@@ -98,8 +97,16 @@ nodes:
           color.i_height: 400
           color.i_fps: 15.0
           color.i_synced: true
-          depth.i_width: 640
-          depth.i_height: 400
+          # Stereo at 1280x800, depth still aligned to (and published at) the
+          # 640x400 color, so the link load does not change. Against an 800P
+          # multi-frame reference on the microwave: median error 3 -> 1 mm,
+          # edge pixels right 0.43 -> 0.80, fill 0.91 -> 0.93 with the
+          # filters below; boxer's microwave pose jitter 5.2 -> 3.8 mm
+          # (2026-10-31, snorlax). Costs: minimum depth 22 -> 45 cm (closer
+          # surfaces can come back as false depth), and 171 ms message age
+          # (was 42 ms) even with the extra post-processing resources.
+          depth.i_width: 1280
+          depth.i_height: 800
           depth.i_fps: 15.0
           depth.i_synced: true
           # Synced on the device, as on the wrist (see its sync_threshold), so
@@ -111,6 +118,25 @@ nodes:
           # camera; ROBOTICS (median, spatial and speckle filters) does not
           # (2026-10-26, snorlax).
           depth.i_depth_preset: ROBOTICS
+          # ROBOTICS' filters fall behind on 1280x800 at 15 fps with the
+          # preset's SHAVE share: 14 Hz at 730 ms age. 5 SHAVEs and 5 memory
+          # slices (6 is the device maximum) bring it to 15 Hz at 171 ms.
+          depth.i_set_post_processing_hardware_resources: true
+          depth.i_post_processing_shaves: 5
+          depth.i_post_processing_memory_slices: 5
+          # Denser at the same accuracy: accept lower-confidence matches (the
+          # driver's default is 15) and fill small holes with one wider
+          # spatial-filter pass; two passes drop to 12 Hz.
+          depth.i_stereo_conf_threshold: 5
+          depth.i_enable_spatial_filter: true
+          depth.i_spatial_filter_hole_filling_radius: 5
+          depth.i_spatial_filter_iterations: 1
+          # Full-power dots and no flood (driver defaults 0.6 / 0.6): the flood
+          # LED only lifts the background under the dot pattern stereo matches
+          # on. Turning the projector off cut fill on the microwave's
+          # textureless side face from 0.83 to 0.51.
+          driver.r_laser_dot_intensity: 1.0
+          driver.r_floodlight_intensity: 0.0
           # The camera is mounted upside down: rotate color and depth 180° on
           # the device, so consumers get upright images. Both, so depth stays
           # registered to color. The frame names do not change: the mount in

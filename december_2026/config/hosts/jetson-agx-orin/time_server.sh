@@ -1,12 +1,12 @@
 #!/bin/bash
-# NTP server for the MIB: chrony on this host serves time to the MIB's network, so the MIB's SNTP client stamps its
-# odometry in this host's clock. Why, and how to see the MIB syncing, is in README.md next to this file.
+# NTP server for the MIB: chrony on this host serves the MIB's network, so the MIB stamps its odometry in this host's
+# clock. README.md next to this file has why, and how to see the MIB syncing.
 #
-#   sudo ./time_server.sh install   install chrony (it replaces systemd-timesyncd), serve MIB_NET, restart chrony
+#   sudo ./time_server.sh install   install chrony (it replaces systemd-timesyncd) and serve MIB_NET
 #        ./time_server.sh check     report each piece; exit 1 if any is off
 #   sudo ./time_server.sh undo      stop serving MIB_NET (chrony stays, as this host's NTP client)
 #
-# The MIB is the DHCP server at 192.168.4.1/24 and asks for <NTP_NAME>.local over mDNS: both are RAMMP-mib-fw
+# The MIB is the DHCP server at 192.168.4.1/24 and asks for <NTP_NAME>.local over mDNS, both set in RAMMP-mib-fw's
 # MIBconfig.hpp (ethernet_ip, ntp_server). Override with MIB_NET= / NTP_NAME= if the firmware changes.
 set -uo pipefail
 MIB_NET=${MIB_NET:-192.168.4.0/24}

@@ -161,9 +161,9 @@ nodes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/depth/image_rect_raw
       # Same topics as the D405, so consumers cannot tell which is selected —
-      # except at range: the D405 sees from ~7 cm, this from ~15-30 cm (75 mm
+      # except at range: the D405 sees from ~7 cm, this from ~12 cm (75 mm
       # baseline, even with the near-field tuning in params below: ROBOTICS
-      # preset, stereo at 320x200, dot projector on).
+      # preset, stereo at 320x200, extended disparity, dot projector on).
       - id: oak_d_pro_docker
         kind: docker
         container:
@@ -212,14 +212,33 @@ nodes:
           sync.sync_threshold: 33
           # Near-field tuning: stereo at 320x200 halves the focal length, so
           # the 96-pixel search reaches ~16 cm without extended disparity.
-          # Extended disparity reaches the same, but pushes the disparity range
-          # past the median filter's limit: the device drops ROBOTICS' 7x7
-          # median and depth streaks along rows. Plain 640x400 stops at ~31 cm
-          # and reports closer surfaces as false depth near that limit
-          # (2026-10-26, snorlax). Depth is still aligned to 640x400 color.
+          # Plain 640x400 stops at ~31 cm and reports closer surfaces as false
+          # depth near that limit (2026-10-26, snorlax). Depth is still aligned
+          # to 640x400 color, so the stereo size does not change the link load.
           depth.i_depth_preset: ROBOTICS
           depth.i_width: 320
           depth.i_height: 200
+          # Extended disparity over a 64-pixel search (126 px) reaches 11.9 cm.
+          # Over the default 96 (190 px) it would reach 7.9 cm, but that range
+          # is past the median filter's limit: the device drops ROBOTICS' 7x7
+          # median and depth streaks along rows. 126 px stays under it, and
+          # at 0.5-1.4 m it measures as the plain 320x200 setup does
+          # (2026-10-31, snorlax).
+          depth.i_extended_disp: true
+          depth.i_disparity_width: DISPARITY_64
+          # Denser depth for the same accuracy: accept lower-confidence
+          # matches (the driver's default is 15) and fill small holes with
+          # one wider spatial-filter pass. Overall fill 0.80 -> 0.87, latency
+          # unchanged (31 ms) (2026-10-31, snorlax).
+          depth.i_stereo_conf_threshold: 5
+          depth.i_enable_spatial_filter: true
+          depth.i_spatial_filter_hole_filling_radius: 5
+          depth.i_spatial_filter_iterations: 1
+          # Full-power dots and no flood (driver defaults 0.6 / 0.6): the flood
+          # LED only lifts the background under the dot pattern stereo matches
+          # on, and the white microwave front has little texture of its own.
+          driver.r_laser_dot_intensity: 1.0
+          driver.r_floodlight_intensity: 0.0
           # Mounted upside down, as the scene OAK: rotate color and depth 180°
           # on the device. The frame names do not change: the mount in the
           # robot's transforms/cameras.yaml is the rotated (upright) one.

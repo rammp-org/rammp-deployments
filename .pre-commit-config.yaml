@@ -37,6 +37,8 @@ repos:
       - id: mdformat
         additional_dependencies:
           - mdformat-gfm
+          # Keeps skills/*/SKILL.md frontmatter intact.
+          - mdformat-frontmatter
 
   # The workflows are the gate on everything else, so they get a linter too.
   # v1.7.12, not v1.6.27: the older release predates GitHub's arm64 hosted

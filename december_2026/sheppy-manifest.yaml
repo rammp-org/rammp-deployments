@@ -931,3 +931,101 @@ nodes:
           mock: true
         publishes:
           - /perception/object_detections_3d
+
+  - name: box_opening
+    description: Open the food container -- press its button, take its lid off, set the lid down beside it, go home
+    select: single
+    alternatives:
+      # Transcribed from rammp-org/rammp-kitchen-capability-engines' capabilities/box_opening/
+      # rammp-alternative{,.mock}.yaml (PR #23). NOT PINNED, AND NOT PUBLISHED YET: that repo
+      # publishes :dev (and a sha tag) when the capability lands on its dev branch, and it has cut
+      # no release. Pin to the first release tag then; until it lands there is no image to pull.
+      #
+      # A CapabilityEngine (/box_opening/execute_action) with four actions: open (the full run),
+      # press (the press alone; the lid stays on), home, and check (the preflight; moves nothing).
+      # It moves the arm through the arm node (execute_joint_trajectory, /setpoint/gripper) and
+      # plans with the planner, so `arm`, `arm_state_publisher` and `planner` must be selected
+      # alongside -- the NIGHTLY generation, which plans in arm_mount (the tilted mount) -- with
+      # `wrist_camera`, `scene_camera` and `static_tf`, and the planner started on
+      # world_empty.yaml (profiles/flatbot.yaml). Its two OWL detectors run in this container,
+      # on the GPU; their weights come from the host's Hugging Face cache.
+      #
+      # Attended only. allow_execute is false by default: every goal is then a dry run (it finds
+      # the box, plans and checks every motion, and sends none). Set it with `p` in the sheppy
+      # TUI for an attended run, someone on the e-stop. A cancel, or stopping the node, stops the
+      # motion in flight; the arm holds where it stopped, and `home` brings it back.
+      #
+      # Diverges from the fragment: runtime: nvidia in place of gpus: all, as every GPU node here
+      # (JetPack exposes the GPU this way); pull_policy: always and ROS_DOMAIN_ID, as the nodes on
+      # a moving tag here.
+      - id: box_opening_real
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/box_opening:dev
+          pull_policy: always  # :dev moves with every merge to the capability repo's dev
+          runtime: nvidia
+          network_mode: host
+          ipc: host
+          # The node's executable itself. sheppy appends --ros-args --params-file to the command,
+          # so it cannot be `ros2 launch`; and `ros2 run`, as the container's PID 1, passes no
+          # signal on to the node, so a stop would kill a run without its own stop.
+          command: [/module_ws/install/box_opening/lib/box_opening/box_opening_node]
+          volumes:
+            # OWLv2's weights, from flatbot's (snorlax's) Hugging Face cache; not in the image
+            - /home/snorlax/.cache/huggingface:/models/hf:ro
+            # where runs keep their logs, captures and videos (state_dir)
+            - /home/snorlax/.ros/box_opening:/state
+          environment:
+            ROS_DOMAIN_ID: "0"
+        params:
+          # false: every goal is a dry run, whatever it asks. true only for attended runs.
+          allow_execute: false
+          container: ankou_pink.yaml      # the container's config, in the image's config/containers
+          world: world_flatbot.yaml       # the robot's frame, cameras and fixed body, in the image's config
+          state_dir: /state
+          owl: true                       # the wrist's and the scene camera's OWL detectors, in this container
+          video: true                     # both cameras from the grip to the set-down, written after each run
+          viz: false                      # what the perception sees and decides, drawn for Foxglove
+          speed_scale: 1.0                # every motion slowed to this fraction of its speed (0 < x <= 1)
+        publishes: [/box_opening/status]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /joint_states
+          - /gripper_state
+          - /arm/robot_description
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /scene_camera/depth/camera_info
+          - /perception/object_detections
+      # The module's own mock: the same interface, no hardware. Each action reports the real
+      # run's phases and moves nothing. No params: it runs a launch file.
+      - id: box_opening_mock
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/box_opening:dev
+          pull_policy: always  # as box_opening_real
+          network_mode: host
+          ipc: host
+          environment:
+            ROS_DOMAIN_ID: "0"
+          command: [ros2, launch, box_opening, box_opening.launch.py, "mock:=true"]
+        publishes: [/box_opening/status]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /joint_states
+          - /gripper_state
+          - /arm/robot_description
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /scene_camera/depth/camera_info
+          - /perception/object_detections

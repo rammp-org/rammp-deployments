@@ -1,0 +1,35 @@
+# Box opening on flatbot (snorlax): flatbot's cameras, arm and planner, the scene
+# segmenter, and the box_opening capability.
+#
+#   uv run scripts/set_robot.py december_2026/config/robots/flatbot   # once per host
+#   sheppy up box-opening --manifest december_2026/sheppy-manifest.yaml
+#
+# Attended only (CONTRIBUTING.md). box_opening starts with allow_execute false, so
+# every goal is a dry run; set it with `p` in the sheppy TUI for an attended run,
+# someone on the e-stop. Its actions are open, press, home and check, as goals on
+# /box_opening/execute_action (the orchestrator sends them, or by hand):
+#
+#   ros2 action send_goal --feedback /box_opening/execute_action \
+#     rammp_orchestrator_interfaces/action/ExecuteAction \
+#     '{engine_id: box_opening, action_id: open, params_json: "{\"execute\": true}"}'
+#
+# object_lifter is left out: box opening reads no 3D boxes, and the GPU is shared
+# with box_opening's two OWL detectors.
+description: flatbot box opening — OAK-D cameras, foxglove, arm + planner (nightly), RF-DETR, box_opening
+selections:
+  scene_camera: oak_d_pro_w_docker
+  wrist_camera: oak_d_pro_docker
+  foxglove: foxglove_bridge_docker
+  # One generation for all three; see the manifest's `arm` node.
+  arm: kinova_gen3_driver_nightly
+  arm_state_publisher: kinova_gen3_description_nightly
+  planner: curobo_planner_nightly
+  static_tf: static_tf_docker
+  scene_segmenter: rfdetr
+  box_opening: box_opening_real
+overrides:
+  planner:
+    # dojo's bench (the default) is wrong under a tilted arm_mount. Empty until
+    # flatbot has its own world, authored in arm_mount. Box opening needs it too:
+    # it sends the planner no world of its own.
+    world: world_empty.yaml

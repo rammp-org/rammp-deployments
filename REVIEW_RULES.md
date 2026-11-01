@@ -127,9 +127,9 @@ taken from every other node, including the arm driver.
 - **R5** (should-fix) Bound memory and logs. No image or point cloud history
   that grows without limit. No log line per frame; use
   `throttle_duration_sec`, or log on change.
-- **R6** (should-fix) No disk writes in a loop: images, `np.save`, file logs,
+- **R6** (must-fix) No disk writes in a loop: images, `np.save`, file logs,
   recordings. Allowed only behind an explicit debug parameter that defaults to
-  off.
+  off. Always-on writes fill the Jetson's disk and stall I/O for every node.
 
 ## Arbitration
 

@@ -64,9 +64,10 @@ december_2026/config/hosts/jetson-agx-orin/time_server.sh check           # any 
 ```
 
 - chrony replaces systemd-timesyncd, which can sync this host's clock but can't serve time.
-- `/etc/chrony/conf.d/rammp-mib.conf` allows the MIB's network and sets `local stratum 10`: when no upstream server is
-  reachable, which on the robot is most of the time, chrony serves from this host's own clock. ROS stamps need the
-  MIB to agree with this host, not with UTC.
+- `/etc/chrony/conf.d/rammp-mib.conf` allows the MIB's network and sets `local stratum 10`, so chrony serves the MIB
+  with or without internet. ROS stamps need the MIB to agree with this host, not with UTC. If internet drops after
+  a sync, chrony keeps serving that sync's time. If this host booted offline and has never synced, it serves its
+  own clock at stratum 10. The PMIC RTC sets that clock at boot.
 - The same file caps chrony's slew rate at 500 ppm (`maxslewrate`; chrony's default is 83333). Linux applies a slew to
   `CLOCK_MONOTONIC`'s rate too, so at the default a large correction, e.g. after a reconnect, would run the arm
   driver's 1 kHz loop up to 8% off. 500 ppm is the kernel PLL's cap under timesyncd.

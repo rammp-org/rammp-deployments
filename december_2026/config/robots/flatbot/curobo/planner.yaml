@@ -34,6 +34,7 @@
 robot: robot.yaml
 world: world.yaml
 # Known consequence of those best guesses: flatbot's rest pose sits 25 mm inside
-# person/torso, so a plan that starts from rest is refused until
-# the person or the mount is measured and the layers regenerated.
+# person/torso and 5 mm inside the seat's backrest (the seat layer cannot be
+# excluded), so a plan that starts from rest is refused until the mount and the
+# seat are measured and the layers regenerated.
 layers: [layer_mebot_platform.yaml, layer_mebot_seat.yaml, layer_mebot_person.yaml]

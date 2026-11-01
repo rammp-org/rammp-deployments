@@ -25,11 +25,14 @@ uv run scripts/network_config.py december_2026/config/robots/flatbot
 uv run scripts/oak_d_config.py   december_2026/config/robots/flatbot
 uv run scripts/set_robot.py      december_2026/config/robots/flatbot
 sudo december_2026/config/hosts/jetson-agx-orin/tuning.sh install
+sudo december_2026/config/hosts/jetson-agx-orin/time_server.sh install
 ```
 
-Each of the first three takes `--dry-run` to show what it would change. All four are safe to
-re-run. The last tunes the Jetson for the arm link ([why](../../hosts/jetson-agx-orin/README.md));
-`tuning.sh check` reports whether it is in effect.
+Each of the first three takes `--dry-run` to show what it would change. All five are safe to
+re-run. `tuning.sh` tunes the Jetson for the arm link ([why](../../hosts/jetson-agx-orin/README.md));
+`time_server.sh` serves time to the MIB, which stamps odometry with it
+([why](../../hosts/jetson-agx-orin/README.md#time-server-for-the-mib)). Each one's `check`
+reports whether it is in effect.
 
 `set_robot` makes flatbot this host's active robot: `config/robots/current` points at
 it, and the arm's nodes read its `mount.yaml` through that link. Run it before starting

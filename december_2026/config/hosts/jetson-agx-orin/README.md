@@ -50,3 +50,34 @@ Not set here, on purpose:
   would land on CPU 11 too: re-measure before keeping this setting.
 - **Arm traffic priority on the Jetson:** this kernel has no `prio`/`htb` qdiscs and no DSCP marking. The only lever
   is `SO_PRIORITY` on the Kortex socket, in the driver.
+
+## Time server for the MIB
+
+The MIB (RAMMP-mib-fw) stamps `/odom` and `/tf` from its own clock, which counts from boot until something sets it.
+Its SNTP client syncs that clock to this host every 15 s, finding it by name (`snorlax.local`, over mDNS): the MIB is
+the DHCP server on the sensor network (`eno1`, 192.168.4.0/24), so this host's address there can change.
+`time_server.sh` makes this host answer:
+
+```bash
+sudo december_2026/config/hosts/jetson-agx-orin/time_server.sh install   # once per flash
+december_2026/config/hosts/jetson-agx-orin/time_server.sh check           # any time: ok/FAIL per piece, with the fix
+```
+
+- chrony replaces systemd-timesyncd, which can sync this host's clock but can't serve time.
+- `/etc/chrony/conf.d/rammp-mib.conf` allows the MIB's network and sets `local stratum 10`, so chrony serves the MIB
+  with or without internet. ROS stamps need the MIB to agree with this host, not with UTC. If internet drops after
+  a sync, chrony keeps serving that sync's time. If this host booted offline and has never synced, it serves its
+  own clock at stratum 10. The PMIC RTC sets that clock at boot.
+- The same file caps chrony's slew rate at 500 ppm (`maxslewrate`; chrony's default is 83333). Linux applies a slew to
+  `CLOCK_MONOTONIC`'s rate too, so at the default a large correction, e.g. after a reconnect, would run the arm
+  driver's 1 kHz loop up to 8% off. 500 ppm is the kernel PLL's cap under timesyncd.
+- chrony still steps the clock if it's off by more than 1 s in its first three updates after starting
+  (`makestep 1 3`): in practice, the first upstream sync after an offline boot. A step moves `CLOCK_REALTIME` only, so
+  ROS stamps and TF jump, and the MIB follows within 15 s. `install` restarts chrony only when the drop-in changes, so
+  a re-run doesn't reopen that window.
+- `check` also covers what `snorlax.local` needs: avahi-daemon running, and the name it announces. That's the hostname
+  unless avahi lost a name conflict and renamed itself (`snorlax-2.local`). Another robot's Jetson needs `NTP_NAME=`
+  here and `ntp_server` changed in the firmware's `MIBconfig.hpp`.
+
+To see the MIB syncing: `sudo chronyc clients` lists 192.168.4.1, with an NTP count that grows every 15 s, and the
+MIB logs `System clock synced to snorlax.local` once, at its first sync.

@@ -1,0 +1,40 @@
+# flatbot's cuRobo planner config: the Gen3 on the MEBot wheelchair, on the
+# chair's LEFT with the joystick on the right, tilted 30 degrees forward on its
+# mount (../mount.yaml), with the chair's drive base, seat and occupant in every
+# collision world.
+#
+# The planner reads this directory as /config/robot/curobo (the manifest's
+# planner_nightly bind-mounts config/robots/current at /config/robot), selected
+# by profiles/flatbot.yaml:
+#
+#   config:=/config/robot/curobo/planner.yaml   world:=""
+#
+# `world` must be "": a non-empty world parameter replaces the one named here.
+#
+# robot.yaml and arm_kinematics.json are flatbot's own copies of the RAMMP-CuRobo
+# example robot file (from its bake_robot_config.py). mebot_layers.yaml holds
+# flatbot's chair measurements; the four layer_mebot_*.yaml are GENERATED from it
+# by RAMMP-CuRobo's scripts/generate_layers.py (never hand-edit them). To change
+# the chair, edit mebot_layers.yaml and, from a RAMMP-CuRobo checkout, run
+#
+#   make layers DATA=<this directory>/mebot_layers.yaml OUTDIR=<this directory>
+#
+# The arm's tilt in those inputs (mount.arm_base_joint.rpy_deg) must equal
+# ../mount.yaml's rpy_deg. The measurements are BEST GUESSES (RAMMP-CuRobo #46),
+# none measured on this chair yet: the Gen1.2 chair geometry, a seat and a
+# fitted person, the arm at y 0.36 on the chair's left (just outside the seat).
+#
+# The platform, seat and person are composed into EVERY world,
+# set_world pushes included; a push replaces world.yaml's floor, so a pushed
+# scene brings its own floor. Plan from the arm's measured state.
+#
+# world_padding stays the 0.02 default: the layers are certified for it, and
+# the planner refuses less.
+
+robot: robot.yaml
+world: world.yaml
+# Known consequence of those best guesses: flatbot's rest pose sits 25 mm inside
+# person/torso and 5 mm inside the seat's backrest (the seat layer cannot be
+# excluded), so a plan that starts from rest is refused until the mount and the
+# seat are measured and the layers regenerated.
+layers: [layer_mebot_platform.yaml, layer_mebot_seat.yaml, layer_mebot_person.yaml]

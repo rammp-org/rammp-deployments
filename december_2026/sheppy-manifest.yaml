@@ -561,7 +561,7 @@ nodes:
       - id: curobo_planner
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-curobo:1.1.0
+          image: ghcr.io/rammp-org/rammp-curobo:1.1.0  # past the robot-data release (2.0.0) the image plans /config/robot/curobo/planner.yaml and exits without it: copy curobo_planner_nightly's /config/robot volume, command and params when bumping
           runtime: nvidia              # JetPack exposes the GPU this way, NOT --gpus
           network_mode: host
           ipc: host
@@ -582,9 +582,8 @@ nodes:
       # arrives within 30 s, and sheppy does not restart it: after fixing
       # arm_state_publisher, `sheppy restart planner`.
       #
-      # The world is a param so a profile can override it per robot: dojo's
-      # bench is the default; profiles/flatbot.yaml sets world_empty.yaml,
-      # because the bench's boxes are wrong under a tilted arm_mount. sheppy
+      # The robot's planner config, world and robot file come from its own
+      # config/robots/<robot>/curobo (dojo's is the bench). sheppy
       # appends --ros-args --params-file only AFTER a command -- with params
       # and no command it replaces the image CMD and the container exits 2 --
       # hence the explicit command.
@@ -599,14 +598,22 @@ nodes:
           ipc: host
           environment:
             ROS_DOMAIN_ID: "0"
+          # The active robot's config, as arm_state_publisher_nightly mounts
+          # it: a robot whose planner sees per-robot obstacles (the chair) keeps
+          # them in its curobo/ and its profile names them there. Its run needs
+          # set_robot.py, as the nightly arm_state_publisher's does.
           volumes:
             - curobo_kernel_cache:/root/.cache
+            - ./config/robots/current:/config/robot:ro
           command:
             - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
         params:
-          # Both name files that ship in the image.
-          config: gen3_real.yaml
-          world: world_real_bench.yaml
+          # Every robot that runs the nightly planner carries curobo/ (its
+          # planner.yaml, robot.yaml, world.yaml); nothing is read from the
+          # image. `world` must stay "": a non-empty one replaces the world the
+          # config names.
+          config: /config/robot/curobo/planner.yaml
+          world: ""
         # Otherwise reached over the plan_to_pose / plan_to_joints ACTIONS (see
         # above). The one topic is the arm's model, read once at startup.
         publishes: []

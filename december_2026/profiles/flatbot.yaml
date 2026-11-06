@@ -25,6 +25,8 @@ overrides:
     # world, generated for the arm on the chair's left, tilted 30 degrees as
     # mount.yaml says (config/robots/flatbot/curobo/). These now equal the
     # manifest's default; kept so the profile says what it plans against.
+    # profiles/flatbot_empty_world.yaml is this profile with the planner on
+    # planner_empty_world.yaml instead: no collision volumes at all.
     # `world` must be "": a non-empty one replaces the start-up world the
     # config names.
     config: /config/robot/curobo/planner.yaml

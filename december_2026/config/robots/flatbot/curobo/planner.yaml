@@ -9,6 +9,9 @@
 #
 #   config:=/config/robot/curobo/planner.yaml   world:=""
 #
+# planner_empty_world.yaml, beside this file, is the same arm with no collision
+# volumes at all, selected by profiles/flatbot_empty_world.yaml.
+#
 # `world` must be "": a non-empty world parameter replaces the one named here.
 #
 # robot.yaml and arm_kinematics.json are flatbot's own copies of the RAMMP-CuRobo

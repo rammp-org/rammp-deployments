@@ -1,0 +1,19 @@
+# flatbot's planner with NO collision volumes: the arm and nothing else. Not the
+# chair, not the seat, not the occupant, not the floor.
+#
+# The other choice is planner.yaml, beside this file: the same arm with the
+# chair, seat and occupant in every world. Each profile picks one:
+#
+#   profiles/flatbot.yaml              config:=/config/robot/curobo/planner.yaml
+#   profiles/flatbot_empty_world.yaml  config:=/config/robot/curobo/planner_empty_world.yaml
+#
+# For attended work where the layers get in the way, such as a rest pose they
+# refuse. Plans from here can run straight through the chair and the person
+# sitting in it, so someone stays on the e-stop and watches every motion.
+#
+# robot.yaml (the arm's spheres and kinematics check) is the same file
+# planner.yaml uses. A set_world push still adds whatever scene it carries, and
+# /reset returns to this empty world.
+
+robot: robot.yaml
+world: world_empty.yaml

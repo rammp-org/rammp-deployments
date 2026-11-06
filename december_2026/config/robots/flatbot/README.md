@@ -84,6 +84,22 @@ seat's backrest. The planner exits if it does not get the arm's model within
 30 s, and sheppy does not restart it, so after an `arm_state_publisher` problem run
 `sheppy restart planner`. Attended only: someone on the e-stop.
 
+The planner has two configs in `curobo/`, one per profile:
+
+| Profile               | Planner config             | Plans against                                    |
+| --------------------- | -------------------------- | ------------------------------------------------ |
+| `flatbot`             | `planner.yaml`             | the chair, seat and occupant, in every world     |
+| `flatbot_empty_world` | `planner_empty_world.yaml` | nothing: the arm alone, until a `set_world` push |
+
+To switch, `sheppy up` the other profile:
+
+```bash
+sheppy up flatbot_empty_world --manifest december_2026/sheppy-manifest.yaml
+```
+
+The empty world plans straight through the chair and the person in it. Use it only when
+the layers get in the way (a start they refuse), and watch every motion.
+
 ## Cameras
 
 | Node           | Device ID            | Bootloader |

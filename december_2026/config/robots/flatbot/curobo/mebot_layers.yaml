@@ -41,18 +41,21 @@ source:
     - 59d5aef (authoring commit; only on origin/feature/106-drive-base-publisher)
     - 0a94cce (origin/main, Release 1.0)
 
-# Where the arm sits on the chair (owner decision, 2026-09-30): the RAMMS model
-# pose, UNVERIFIED on the real chair. A measurement is one edit here. A
-# non-zero rpy_deg is refused: the boxes are axis-aligned in arm_mount.
-# The arm is on the chair's LEFT, and the joystick on its right (owner,
-# 2026-10-27): the RAMMS model has them the other way round, so y is the
-# RAMMS chain's mirrored. Neither layer models the joystick.
-# y is a BEST GUESS (owner decision, 2026-10-27, unmeasured): 0.36, the arm's
-# base just outside the seat base (hull1, +-0.296) by about its own radius.
-# The RAMMS chain's 0.265 puts the base inside the seat's footprint and
-# beside a large occupant's thigh, where the arm cannot face forward.
+# Where the arm sits on the drive base, MEASURED on flatbot (2026-11-05, seat
+# at its lowest; the arm rises with the seat, so the floor and base only drop
+# away from it). A non-zero rpy_deg is refused: the boxes are axis-aligned in
+# arm_mount. The arm is on the chair's LEFT, the joystick on its right.
+#   x: the arm-side drive wheel's hub is 6.5 in ahead of the arm's base.
+#   y: the base is centred on the seat: the seat's centreline is 13.81 in to
+#      the arm's right (the occupant band below); drive hubs 23.5 in apart,
+#      the URDF's 23.95.
+#   z: the ground is 20.5 in below the arm's base (19 in to the plate's
+#      bottom, plus the plate's 1.75 in from new_adapter_plate_v3), so the
+#      URDF's lowest point is put there.
+# The person and seat below are measured from the arm's base (boxes_in), so
+# a change here moves only the drive base and the floor.
 mount:
-  arm_base_in_mebot: {position: [0.505, 0.36, 0.376], rpy_deg: [0, 0, 0]}
+  arm_base_in_mebot: {position: [0.3207, 0.3508, 0.4374], rpy_deg: [0, 0, 0]}
   # The arm's tilt on arm_mount: arm_base_link's rotation in it, as
   # rammp-deployments config/robots/flatbot/mount.yaml states it (the
   # new_adapter_plate_v3, 30 degrees forward). It places the arm's fixed
@@ -109,82 +112,23 @@ platform:
   max_boxes: 16       # of the planner's 60-box cache
   max_over_pct: 15.0  # volume merging adds, against the primitives' bounding boxes
 
-# The occupant: any seated adult from the 5th-percentile woman to the
-# 95th-percentile man, plus a margin on every face, as three segments (torso
-# and head, lap, lower legs and feet).
+# The occupant, MEASURED (2026-11-05) as a cardboard side profile, clearance
+# included, so no margin is added. Inches in arm_mount (x forward, y left,
+# z up) from the arm's base. Its front, top to bottom: A (0, 43) head top,
+# K (0, 12.5) chest/head front to the thigh top, J (13, 12.5) thigh top,
+# I (25, 3) knee cut, H (25, -20.5) shins to the ground. 19 in wide in y, its
+# near side 2.5 in from the side of the arm's base (radius 1.81 in). Its back
+# is the backrest's face (unmeasured: the arm does not plan behind it). The
+# knee cut J-I is three steps that enclose it. flatbot's own body is inside
+# this volume.
 person:
-  # ANSUR II 2012 (Gordon et al. 2014), via The Ergonomics Center (NCSU),
-  # "Anthropometric Data for U.S. Adults", 11/2024: inches as tabulated
-  # (0.0254 m/in), with the table row, the sex and the percentile. The layer
-  # holds every occupant from the smaller sex's 5th percentile to the larger
-  # sex's 95th, so each size is the end of that range that puts the faces it
-  # sets furthest out: the 5th percentile for the back of the knees, the 95th
-  # for every other face.
-  ansur_in:
-    # torso: its front (the deeper of chest and abdomen) and its top, the chin
-    # (a head length below the top); head: its top, length and breadth
-    sitting_height: {row: 8, sex: men, percentile: 95, inches: 38.46}
-    # the small ends of three sizes, for the faces they put furthest out:
-    # the highest chin (the tallest sitter with the shortest head) tops the
-    # torso, the lowest (the shortest sitter with the longest head) bottoms
-    # the head, and forearms rest lowest on the thinnest thighs
-    sitting_height_low: {row: 8, sex: women, percentile: 5, inches: 31.61}
-    head_length_low: {row: 26, sex: women, percentile: 5, inches: 7.01}
-    thigh_clearance_low: {row: 12, sex: women, percentile: 5, inches: 5.71}
-    # the lowest elbow: below it the hips' width, above it the shoulders'
-    sitting_elbow_height_low: {row: 11, sex: women, percentile: 5, inches: 7.44}
-    chest_depth: {row: 20, sex: men, percentile: 95, inches: 11.73}
-    abdominal_depth: {row: 21, sex: men, percentile: 95, inches: 12.60}
-    head_length: {row: 26, sex: men, percentile: 95, inches: 8.31}
-    head_breadth: {row: 27, sex: men, percentile: 95, inches: 6.42}
-    # torso and forearms: their width (across the upper arms)
-    shoulder_breadth_bideltoid: {row: 17, sex: men, percentile: 95, inches: 22.32}
-    # thighs: their front (the knees) and top; forearms: from the elbow, at
-    # elbow height, resting on the thighs or the armrests, a hand breadth
-    # thick, reaching forward an elbow-to-fingertip length
-    buttock_knee_length: {row: 13, sex: men, percentile: 95, inches: 26.34}
-    thigh_clearance: {row: 12, sex: men, percentile: 95, inches: 8.15}
-    sitting_elbow_height: {row: 11, sex: men, percentile: 95, inches: 11.46}
-    hand_breadth: {row: 29, sex: men, percentile: 95, inches: 3.78}
-    elbow_fingertip_length: {row: 23, sex: men, percentile: 95, inches: 20.47}
-    # thighs and legs: their width (men 15.24); legs: the back of the knees
-    # (the shortest thigh, whose shins hang nearest the seat; men 18.07), the
-    # soles, and the feet in front of the knees
-    buttock_popliteal_length: {row: 14, sex: women, percentile: 5, inches: 17.36}
-    popliteal_height: {row: 16, sex: men, percentile: 95, inches: 18.54}
-    hip_breadth: {row: 19, sex: women, percentile: 95, inches: 15.75}
-    foot_length: {row: 30, sex: men, percentile: 95, inches: 11.54}
-  # On every face, over the sizes above (owner decision, 2026-10-27, down
-  # from 0.05). The planner pads another 0.02, so about 4 cm is effective.
-  margin_m: 0.02
-  # The side of the centreline the arm is on, in y (+1: left, as the mount).
-  # There is no armrest there, so that forearm rests on the thigh, and the
-  # forearms reach hip width on that side, shoulder width on the other.
-  arm_side: 1
-  # Where the occupant sits, in the mebot frame: the RAMMS rammp_seat
-  # simple-collision hulls (ramms-assets). Transcribed, because the asset's
-  # mesh is Oodle-compressed and only its bounds, sockets and hulls decode.
-  seat:
-    pan_top_z: 0.4705         # hull1 max z
-    # Where the occupant's back is. hull1 min x (0.1587) .. hull0 max x
-    # (0.2733) bound it; BEST GUESS (2026-10-27, unmeasured): the backrest
-    # hull's front, 0.2733. A [min, max] range is still taken, and the person
-    # then spans it.
-    backrest_face_x: [0.2733, 0.2733]
-    backrest_rear_x: -0.1502  # hull3 min x
-    centreline_y: 0           # seat_base socket y
+  boxes_in:
+    torso: [[-9.12, -23.31, 12.5], [0, -4.31, 43]]
+    lap: [[-9.12, -23.31, 9.34], [17, -4.31, 12.5]]
+    knees: [[-9.12, -23.31, 6.17], [21, -4.31, 9.34]]
+    legs: [[-9.12, -23.31, -20.5], [25, -4.31, 6.17]]
 
-# The chair's seat: the parts of it the drive base's URDF does not have, in
-# the mebot frame, metres, as [lo, hi] corners. From the RAMMS rammp_seat
-# asset's simple-collision hulls (ramms-assets, Content/Robots/RAMMP/Seat/
-# rammp_seat.uasset): each hull's own bounding box (ElemBox), read from the
-# asset, placed by the seat_base socket (0.345, 0, 0.256381) and MIRRORED in y
-# with the mount, since the RAMMS seat carries the arm on its right and the
-# armrest on its left (owner, 2026-10-27: the arm is on the left, the
-# joystick on the right). They reproduce every value transcribed above
-# (pan_top_z, backrest_face_x, backrest_rear_x). BEST GUESSES, unmeasured;
-# carved around the arm's fixed spheres as the person is: the RAMMS arm
-# clamps to the seat base's side rail, inside hull1's box.
+# The chair's seat, in inches in arm_mount, as the person.
 seat:
   # The seat is carved further from the arm's fixed spheres than the person
   # (keep_out_margin_m): it surrounds the arm's base, and closer than the
@@ -193,17 +137,39 @@ seat:
   # optimisation finds only paths slower than its largest dt (DT_EXCEPTION),
   # on nearly every plan.
   keep_out_margin_m: 0.035
-  boxes:
-    # hull1: the seat base and pan, side rails included
-    base: [[0.1587, -0.2962, 0.2177], [0.7011, 0.2950, 0.4705]]
-    # the backrest: hull0/hull3's rear (backrest_rear_x) to the face, the
-    # base's width, from the pan to hull3's top. hull0 and hull3 themselves
-    # are not used: their boxes wrap the backrest together with side
-    # brackets and reach into the occupant.
-    backrest: [[-0.1502, -0.2962, 0.4705], [0.2733, 0.2950, 0.8497]]
-    # hull2: the armrest on the joystick's side (the joystick itself is not
-    # modelled)
-    armrest: [[0.2192, -0.3679, 0.5925], [0.7334, -0.2237, 0.7953]]
+  # Carved by a cube around each fixed sphere, not one box around them all:
+  # with the arm tilted 30 degrees that box covers the armrest's whole height
+  # over the arm, and would drop its front 15 cm.
+  carve: spheres
+  boxes_in:
+    # MEASURED: 15.5 x 4 x 2 in, its front 2 in ahead of the arm's base, its
+    # bottom 33.5 in off the ground, straight above the arm. The generator
+    # trims its front underside where it comes within 35 mm of the shoulder.
+    armrest_arm: [[-13.5, -2.5, 13], [2, 1.5, 15]]
+    # MEASURED: the arm-side armrest mirrored about the seat's centreline.
+    armrest_far: [[-13.5, -29.12, 13], [2, -25.12, 15]]
+    # The joystick: "Joystick Assembly v1.4" (a STEP from the
+    # mechanical team, 2026-11-05), its RJ45 cable left out. Its CAD +x is the
+    # chair's forward and +y up; on the far armrest's centreline, its back 2 in
+    # ahead of the armrest's front and its flat bottom level with the
+    # armrest's (owner, 2026-11-05). Six boxes along its length, each the
+    # bounds of its surface there plus 0.1 in for the 2 mm tessellation:
+    # the bar, the body, the knob, and the screen tilted back toward the
+    # user, which reaches outboard of the armrest.
+    joystick_bar: [[3.9, -29.08, 13.0], [8.55, -25.16, 14.08]]
+    joystick_body: [[8.34, -29.19, 13.0], [14.46, -24.78, 15.71]]
+    joystick_knob: [[9.73, -28.01, 15.6], [11.5, -26.25, 18.48]]
+    joystick_screen_low: [[14.25, -29.16, 13.11], [15.64, -25.08, 17.51]]
+    joystick_screen_mid: [[15.43, -31.54, 14.48], [16.82, -25.08, 19.32]]
+    joystick_screen_top: [[16.61, -31.54, 16.91], [19.23, -25.08, 20.2]]
+    # UNMEASURED, kept where the RAMMS seat hulls put them relative to the arm
+    # (inside the occupant, or behind it), at the occupant's width: they stay
+    # when the person layer is excluded. The base's near side is 1 in further
+    # from the arm than the occupant's, outside the seat's 35 mm keep-out, so
+    # it is not carved into slivers; the occupant covers that inch.
+    base: [[-13.63, -23.31, -6.23], [7.72, -5.32, 3.72]]
+    backrest: [[-25.8, -23.31, 3.72], [-9.12, -4.31, 18.65]]
+
 
 # The chair's cell stand-in: a slab whose top is the URDF's lowest point.
 floor:

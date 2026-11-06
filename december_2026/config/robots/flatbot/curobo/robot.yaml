@@ -18,7 +18,9 @@
 # urdf_path is the sentinel from_robot_description, replaced at load by the
 # file the caller wrote it to. base_link is arm_mount; ee_link is
 # arm_tool_frame, 0.120 m beyond the wrist flange, roughly the FINGERTIP
-# midpoint. The 2F-85 is locked open by its actuated knuckle
+# midpoint. flatbot has Kinova's sensor puck (mount.yaml wrist: sensor_puck), so
+# its gripper and arm_tool_frame sit 12.7 mm further out (0.1327 m), the gripper's
+# spheres with them; arm_kinematics.json is that model's. The 2F-85 is locked open by its actuated knuckle
 # (arm_robotiq_85_left_knuckle_joint); cuRobo holds the five mimics with it.
 robot_cfg:
   kinematics:
@@ -124,6 +126,24 @@ robot_cfg:
         radius: 0.018
       - center: [0.045, -3.6e-05, 0.145]
         radius: 0.018
+      # The wrist camera (OAK-D-Pro-W-PoE, 111 x 40 x 31.3 mm) bolted flat to the sensor
+      # puck's tab, above the gripper (+y), its back on the puck's face (z = 0 here), and
+      # the tab behind it (CAD KR44400). Hand-placed 2026-11-05, not baked: they cover
+      # x +/-0.0555, y 0.045..0.091, z -0.019..0.0313 and overshoot by up to 15 mm.
+      - center: [-0.0416, 0.071, 0.01565]
+        radius: 0.029
+      - center: [-0.0139, 0.071, 0.01565]
+        radius: 0.029
+      - center: [0.0139, 0.071, 0.01565]
+        radius: 0.029
+      - center: [0.0416, 0.071, 0.01565]
+        radius: 0.029
+      - center: [-0.029, 0.0615, -0.0095]
+        radius: 0.024
+      - center: [0.0, 0.0615, -0.0095]
+        radius: 0.024
+      - center: [0.029, 0.0615, -0.0095]
+        radius: 0.024
       arm_robotiq_85_left_finger_link:
       - center: [-0.010026, -4.3e-05, 0.019663]
         radius: 0.03

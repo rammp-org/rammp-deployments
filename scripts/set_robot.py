@@ -48,6 +48,7 @@ class ConfigError(Exception):
 class Mount:
     robot: str
     rpy_deg: tuple[float, float, float]
+    wrist: str | None = None
 
 
 def _keys(
@@ -70,11 +71,15 @@ def _string(where: str, value: object) -> str:
     return value
 
 
+# What sits between the arm's flange and the gripper (kinova-gen3-ros2's
+# kinova_gen3_render.py reads the same key); absent = nothing.
+WRISTS = ["sensor_puck"]
+
 _RPY_MSG = "{where}.rpy_deg: expected three finite numbers in degrees, got {rpy!r}"
 
 
 def parse(data: object, where: str, dir_name: str) -> Mount:
-    mount = _keys(where, data, ["robot", "rpy_deg"])
+    mount = _keys(where, data, ["robot", "rpy_deg"], ["wrist"])
     robot = _string(f"{where}.robot", mount["robot"])
     if robot != dir_name:
         raise ConfigError(
@@ -94,7 +99,10 @@ def parse(data: object, where: str, dir_name: str) -> Mount:
         raise ConfigError(_RPY_MSG.format(where=where, rpy=rpy)) from None
     if not all(math.isfinite(v) for v in values):
         raise ConfigError(_RPY_MSG.format(where=where, rpy=rpy))
-    return Mount(robot, values)
+    wrist = mount.get("wrist")
+    if wrist is not None and wrist not in WRISTS:
+        raise ConfigError(f"{where}.wrist: expected one of {WRISTS}, got {wrist!r}")
+    return Mount(robot, values, wrist)
 
 
 def load(robot_dir: Path) -> Mount:
@@ -110,7 +118,8 @@ def load(robot_dir: Path) -> Mount:
 
 
 def describe(mount: Mount) -> str:
-    return f"{mount.robot} (mount rpy_deg {list(mount.rpy_deg)})"
+    wrist = f", wrist {mount.wrist}" if mount.wrist else ""
+    return f"{mount.robot} (mount rpy_deg {list(mount.rpy_deg)}{wrist})"
 
 
 def active(robots_dir: Path) -> str | None:

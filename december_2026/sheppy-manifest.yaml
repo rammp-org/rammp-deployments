@@ -72,10 +72,9 @@ nodes:
       - id: oak_d_pro_w_docker
         kind: docker
         container:
-          # NOT A RELEASE pin: rammp-suite-software main at #13's merge, the driver built from
-          # our depthai-ros fork (i_rotation, synced + encoded color). Tag at the next oak release.
-          # The depth params below need an image with SwapnilPande/depthai-ros#7: bump before merging.
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-6285a703abeacb1fcad505a9c6174e8e3a74f7bd
+          # 0.4.0: the driver from our depthai-ros fork (i_rotation, synced + encoded color, and #7: the
+          # host-side filters, rotation and Sync below).
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.4.0
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host

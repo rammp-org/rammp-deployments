@@ -166,8 +166,8 @@ nodes:
       - id: oak_d_pro_docker
         kind: docker
         container:
-          # The depth params below need an image with SwapnilPande/depthai-ros#7: bump before merging.
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-6285a703abeacb1fcad505a9c6174e8e3a74f7bd  # as the scene OAK
+          # 0.4.0: the driver from our depthai-ros fork with #7 (the host-side filters and Sync below).
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.4.0
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host

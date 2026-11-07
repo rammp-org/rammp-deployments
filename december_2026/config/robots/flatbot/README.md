@@ -75,7 +75,9 @@ sheppy up flatbot --manifest december_2026/sheppy-manifest.yaml
 
 `profiles/flatbot.yaml` selects both OAKs, foxglove, and the arm, `arm_state_publisher`
 and planner on the **nightly** channel (`:nightly`, pulled on every start). The release
-arm images (1.1.0) predate the tilted-mount support and are right only on a level mount.
+arm images (kinova-gen3-ros2 2.0.0, RAMMP-CuRobo 2.0.1) support the tilted mount as well;
+flatbot stays on the nightly, which runs ahead of them (for example the sensor-puck model,
+kinova-gen3-ros2#81).
 The planner reads flatbot's own files from `config/robots/flatbot/curobo/` through
 `current` (run `scripts/set_robot.py` first): the arm's collision model and the chair,
 seat and occupant around it. Plans that start from the arm's rest pose are refused until

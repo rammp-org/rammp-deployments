@@ -368,17 +368,15 @@ nodes:
       # fragment uses `compose:` against the module's own deploy/compose.yaml,
       # which builds images locally; inline here, per this file's convention.
       #
-      # TWO GENERATIONS, NOT INTERCHANGEABLE. Select the same generation for
-      # arm, arm_state_publisher and planner -- all three `_nightly`, or none:
-      #   * the release (1.1.0, no suffix) loads the LEVEL model from a file in
-      #     the image. It is right only on a level mount (dojo); on flatbot or
-      #     gen_1_5 its gravity model is 30° off.
-      #   * `_nightly` (kinova-arm nightly channel, rammp-org/rammp-nightly)
-      #     reads the arm's model from /arm/robot_description, rendered from the
-      #     active robot's mount.yaml, and takes Cartesian goals in arm_mount.
-      #     Required on a tilted mount. Its planner must be the nightly one too:
-      #     it refuses pose plans not stamped arm_mount, which the release
-      #     planner does not stamp.
+      # TWO CHANNELS OF ONE GENERATION. The release (kinova-gen3-ros2 2.0.0 with
+      # RAMMP-CuRobo 2.0.1, no suffix) and `_nightly` (kinova-arm nightly
+      # channel, rammp-org/rammp-nightly) both read the arm's model from
+      # /arm/robot_description, rendered from the active robot's mount.yaml,
+      # and take Cartesian goals in arm_mount, so a tilted mount (flatbot,
+      # gen_1_5) moves and plans correctly. The nightly runs ahead of the
+      # release, so still select one channel for arm, arm_state_publisher and
+      # planner -- all three `_nightly`, or none. (Releases before 2.0.0 loaded
+      # a level model from the image and cannot pair with either.)
       #
       # SELECT arm, arm_state_publisher AND planner TOGETHER. Three of the
       # driver's four action servers (go_to_ee_pose, go_to_joint_config,
@@ -393,7 +391,7 @@ nodes:
         # launch, so a params file at startup is the only way it can be set.
         ros_node_name: kinova_gen3_node
         container:
-          image: ghcr.io/rammp-org/kinova-gen3-ros2:1.1.0
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:2.0.0
           network_mode: host
           ipc: host
           # SYS_NICE permits sched_setscheduler; the ulimits are what let it
@@ -416,14 +414,15 @@ nodes:
           # deploy/compose.yaml still says: rammp-base owns /ros2_ws (the
           # interface contract) and this node builds into /module_ws on top.
           #
-          # --ip, --urdf and --cpu are command-line flags, not ROS parameters:
-          # no profile can override them (rammp-org/kinova-gen3-ros2#57).
+          # --ip and --cpu are command-line flags, not ROS parameters: no
+          # profile can override them (rammp-org/kinova-gen3-ros2#57). There is
+          # no --urdf (the node refuses it): the model comes from
+          # /arm/robot_description, and the node exits naming
+          # arm_state_publisher if none arrives within 30 s.
           command:
             - /module_ws/install/kinova_gen3_ros2/lib/kinova_gen3_ros2/kinova_gen3_node
             - --ip
             - 192.168.1.10
-            - --urdf
-            - /module_ws/src/kinova-gen3-driver/models/gen3_7dof_2f85.urdf
             # Pins ONLY the 1 kHz RT loop to abra's isolated core, not the
             # whole container — --cpuset-cpus would drag the ROS threads onto
             # it too. Without --cpu the node sets no affinity at all.
@@ -441,6 +440,7 @@ nodes:
           - /gripper_state
           - /diagnostics
         subscribes:
+          - /arm/robot_description
           - /estop
           - /setpoint/joint_position
           - /setpoint/joint_velocity
@@ -448,9 +448,7 @@ nodes:
           - /setpoint/pose
           - /setpoint/twist
           - /setpoint/gripper
-      # The nightly: as above, except the image, the pull, and no --urdf (the
-      # node refuses it: the model comes from /arm/robot_description, and the
-      # node exits naming arm_state_publisher if none arrives).
+      # The nightly: as above, except the image and the pull.
       - id: kinova_gen3_driver_nightly
         kind: docker
         ros_node_name: kinova_gen3_node
@@ -515,15 +513,18 @@ nodes:
       # as PID 1 on the isolated core), so TF runs here, separate, and bouncing
       # it never touches the 1 kHz loop. Same generation as `arm` (see there).
       #
-      # The release: the articulated 13-DOF LEVEL model. The driver publishes
-      # robotiq_85_left_knuckle_joint and robot_state_publisher derives the
-      # five mimic joints. Scoped to the arm on purpose — a mobile base brings
-      # its own state publisher, and a static mount transform stitches the
-      # trees.
+      # The model is rendered at launch, rooted at arm_mount and rotated by the
+      # active robot's mount.yaml (config/robots/current, set by
+      # scripts/set_robot.py), and published latched on /arm/robot_description;
+      # the driver and planner read it from there. Its joints carry the arm_
+      # prefix. The driver publishes arm_robotiq_85_left_knuckle_joint and
+      # robot_state_publisher derives the five mimic joints. Scoped to the arm
+      # on purpose — a mobile base brings its own state publisher, and a static
+      # mount transform stitches the trees.
       - id: kinova_gen3_description
         kind: docker
         container:
-          image: ghcr.io/rammp-org/kinova-gen3-ros2:1.1.0
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:2.0.0
           network_mode: host
           ipc: host
           # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base,
@@ -536,18 +537,22 @@ nodes:
           # like the cameras. The entrypoint sources /ros2_ws then /module_ws,
           # so `ros2 launch` resolves the description package.
           user: "1000:1000"
-          command: ros2 launch kinova_gen3_description description.launch.py
+          # The active robot's config, relative to this manifest. A missing
+          # `current` link makes Docker create an empty root-owned directory
+          # here and the launch fails on the missing mount.yaml; run
+          # scripts/set_robot.py, which tells you how to remove it.
+          # The relative path resolves against this manifest only in sheppy at or
+          # after #149 (df89566); older sheppy hands it to docker unchanged.
+          volumes:
+            - ./config/robots/current:/config/robot:ro
+          command: ros2 launch kinova_gen3_description description.launch.py mount_file:=/config/robot/mount.yaml
         publishes:
-          - /robot_description
+          - /arm/robot_description
           - /tf
           - /tf_static
         subscribes:
           - /joint_states
-      # The nightly renders the model at launch, rooted at arm_mount and
-      # rotated by the active robot's mount.yaml (config/robots/current, set by
-      # scripts/set_robot.py), and publishes it latched on
-      # /arm/robot_description; the nightly driver and planner read it from
-      # there. Its joints carry the arm_ prefix.
+      # The nightly: as above, except the image and the pull.
       - id: kinova_gen3_description_nightly
         kind: docker
         container:
@@ -559,12 +564,6 @@ nodes:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           user: "1000:1000"
-          # The active robot's config, relative to this manifest. A missing
-          # `current` link makes Docker create an empty root-owned directory
-          # here and the launch fails on the missing mount.yaml; run
-          # scripts/set_robot.py, which tells you how to remove it.
-          # The relative path resolves against this manifest only in sheppy at or
-          # after #149 (df89566); older sheppy hands it to docker unchanged.
           volumes:
             - ./config/robots/current:/config/robot:ro
           command: ros2 launch kinova_gen3_description description.launch.py mount_file:=/config/robot/mount.yaml
@@ -626,32 +625,8 @@ nodes:
       # in kinova-gen3-ros2 says the same thing against a local build. Same
       # generation as `arm` (see there).
       #
-      # The release plans on NVIDIA's bundled level Gen3 against dojo's bench.
-      - id: curobo_planner
-        kind: docker
-        container:
-          image: ghcr.io/rammp-org/rammp-curobo:1.1.0  # past the robot-data release (2.0.0) the image plans /config/robot/curobo/planner.yaml and exits without it: copy curobo_planner_nightly's /config/robot volume, command and params when bumping
-          runtime: nvidia              # JetPack exposes the GPU this way, NOT --gpus
-          network_mode: host
-          ipc: host
-          environment:
-            ROS_DOMAIN_ID: "0"
-          # The first plan after a cold start compiles CUDA kernels — minutes,
-          # during which go_to_* goals just sit there. The named volume keeps
-          # them across restarts, so only the very first run pays.
-          volumes:
-            - curobo_kernel_cache:/root/.cache
-            # The feeding module's state directory, read-only: while it plans, the module hands the planner its
-            # measured world (planner_world.yaml) through set_world, which takes a file path, and puts the planner's
-            # own world back when its command ends. Nothing else about the planner changes.
-            - /srv/rammp_feeding/config:/config:ro
-        # No topics: this node is reached over the /rammp_curobo/plan_to_pose
-        # and /rammp_curobo/plan_to_joints ACTIONS, which the schema has no way
-        # to declare. Nothing here is starved; there is just nothing to list.
-        publishes: []
-        subscribes: []
-      # The nightly plans on the arm's own model from /arm/robot_description,
-      # in arm_mount, and stamps every plan arm_mount. It exits 1 if no model
+      # Plans on the arm's own model from /arm/robot_description, in
+      # arm_mount, and stamps every plan arm_mount. It exits 1 if no model
       # arrives within 30 s, and sheppy does not restart it: after fixing
       # arm_state_publisher, `sheppy restart planner`.
       #
@@ -660,6 +635,43 @@ nodes:
       # appends --ros-args --params-file only AFTER a command -- with params
       # and no command it replaces the image CMD and the container exits 2 --
       # hence the explicit command.
+      - id: curobo_planner
+        kind: docker
+        ros_node_name: rammp_curobo
+        container:
+          # 2.0.1: 2.0.0 plus the fleet's Cyclone DDS config in the image.
+          image: ghcr.io/rammp-org/rammp-curobo:2.0.1
+          runtime: nvidia              # JetPack exposes the GPU this way, NOT --gpus
+          network_mode: host
+          ipc: host
+          environment:
+            ROS_DOMAIN_ID: "0"
+          # The first plan after a cold start compiles CUDA kernels — minutes,
+          # during which go_to_* goals just sit there. The named volume keeps
+          # them across restarts, so only the very first run pays.
+          #
+          # The active robot's config, as arm_state_publisher mounts it: a
+          # robot whose planner sees per-robot obstacles (the chair) keeps them
+          # in its curobo/ and its profile names them there. Its run needs
+          # set_robot.py, as arm_state_publisher's does.
+          volumes:
+            - curobo_kernel_cache:/root/.cache
+            - ./config/robots/current:/config/robot:ro
+          command:
+            - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
+        params:
+          # Every robot carries curobo/ (its planner.yaml, robot.yaml,
+          # world.yaml); nothing is read from the image. `world` must stay "":
+          # a non-empty one replaces the world the config names.
+          config: /config/robot/curobo/planner.yaml
+          world: ""
+        # Otherwise reached over the /rammp_curobo/plan_to_pose and
+        # /rammp_curobo/plan_to_joints ACTIONS, which the schema has no way to
+        # declare. The one topic is the arm's model, read once at startup.
+        publishes: []
+        subscribes:
+          - /arm/robot_description
+      # The nightly: as above, except the image and the pull.
       - id: curobo_planner_nightly
         kind: docker
         ros_node_name: rammp_curobo
@@ -671,24 +683,14 @@ nodes:
           ipc: host
           environment:
             ROS_DOMAIN_ID: "0"
-          # The active robot's config, as arm_state_publisher_nightly mounts
-          # it: a robot whose planner sees per-robot obstacles (the chair) keeps
-          # them in its curobo/ and its profile names them there. Its run needs
-          # set_robot.py, as the nightly arm_state_publisher's does.
           volumes:
             - curobo_kernel_cache:/root/.cache
             - ./config/robots/current:/config/robot:ro
           command:
             - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
         params:
-          # Every robot that runs the nightly planner carries curobo/ (its
-          # planner.yaml, robot.yaml, world.yaml); nothing is read from the
-          # image. `world` must stay "": a non-empty one replaces the world the
-          # config names.
           config: /config/robot/curobo/planner.yaml
           world: ""
-        # Otherwise reached over the plan_to_pose / plan_to_joints ACTIONS (see
-        # above). The one topic is the arm's model, read once at startup.
         publishes: []
         subscribes:
           - /arm/robot_description
@@ -1018,11 +1020,14 @@ nodes:
     alternatives:
       # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.2.3). It moves the arm only through the arm node
       # (execute_joint_trajectory: its own IK paths and the planner's paths), so `arm`, `arm_state_publisher` and
-      # `planner` must be selected alongside -- the RELEASE generation of all three (a level mount; the module does
-      # not read the nightly's arm_-prefixed joints or arm_mount frame yet) -- with `wrist_camera`, `scene_camera`
-      # and `sam3`. Stopping the node cancels the move in flight: the arm halts where it is. It never
-      # commands the gripper. It uses the shared planner as configured for everyone: its own world goes in only while
-      # it plans, and the planner's comes back after (the planner mounts the module's state directory for that).
+      # `planner` must be selected alongside, with `wrist_camera`, `scene_camera` and `sam3`. Stopping the node
+      # cancels the move in flight: the arm halts where it is. It never commands the gripper.
+      #
+      # NOT RUNNABLE ON THIS MANIFEST'S ARM ALTERNATIVES. 0.2.3 was written against the 1.1.0 arm (a level mount, the
+      # model on /robot_description, unprefixed joints) and hands the planner its world as a file under /config,
+      # which the 1.1.0 planner mounted from /srv/rammp_feeding/config. Every arm alternative here is now the 2.0
+      # generation (arm_-prefixed joints, arm_mount frame, /arm/robot_description) and the planner mounts no
+      # module state, so the node waits for a rammp-feeding release that reads 2.0.
       #
       # Selecting it runs `rammp feed` at once: attended only, and only on a robot set up per rammp-feeding's
       # deployment checklist (docs/porting.md): its measurements, captured poses and calibrations in the host's

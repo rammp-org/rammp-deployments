@@ -45,7 +45,8 @@ source:
 # at its lowest; the arm rises with the seat, so the floor and base only drop
 # away from it). A non-zero rpy_deg is refused: the boxes are axis-aligned in
 # arm_mount. The arm is on the chair's LEFT, the joystick on its right.
-#   x: the arm-side drive wheel's hub is 6.5 in ahead of the arm's base.
+#   x: the arm-side drive wheel's hub is 1.5 in behind the arm's base (it
+#      was 6.5 in ahead; the arm moved 8 in forward on 2026-11-07).
 #   y: the base is centred on the seat: the seat's centreline is 13.81 in to
 #      the arm's right (the occupant band below); drive hubs 23.5 in apart,
 #      the URDF's 23.95.
@@ -55,7 +56,7 @@ source:
 # The person and seat below are measured from the arm's base (frame: arm_mount), so
 # a change here moves only the drive base and the floor.
 mount:
-  arm_base_in_mebot: {position: [0.3207, 0.3508, 0.4374], rpy_deg: [0, 0, 0]}
+  arm_base_in_mebot: {position: [0.5239, 0.3508, 0.4374], rpy_deg: [0, 0, 0]}
   # The arm's tilt on arm_mount: arm_base_link's rotation in it, as
   # rammp-deployments config/robots/flatbot/mount.yaml states it (the
   # new_adapter_plate_v3, 30 degrees forward). It places the arm's fixed
@@ -114,9 +115,11 @@ platform:
 
 # The occupant, MEASURED (2026-11-05) as a cardboard side profile, clearance
 # included, so no margin is added. Metres in arm_mount (x forward, y left,
-# z up) from the arm's base; the inches measured are beside each box. Its front, top to bottom: A (0, 43) head top,
-# K (0, 12.5) chest/head front to the thigh top, J (13, 12.5) thigh top,
-# I (25, 3) knee cut, H (25, -20.5) shins to the ground. 19 in wide in y, its
+# z up) from the arm's base; the inches are beside each box. The arm moved 8 in
+# forward on 2026-11-07, so this box and the seat's are the measurements less
+# 8 in in x. Its front, top to bottom: A (-8, 43) head top,
+# K (-8, 12.5) chest/head front to the thigh top, J (5, 12.5) thigh top,
+# I (17, 3) knee cut, H (17, -20.5) shins to the ground. 19 in wide in y, its
 # near side 2.5 in from the side of the arm's base (radius 1.81 in). Its back
 # is the backrest's face (unmeasured: the arm does not plan behind it). The
 # knee cut J-I is three steps that enclose it. flatbot's own body is inside
@@ -124,10 +127,10 @@ platform:
 person:
   frame: arm_mount
   boxes:
-    torso: [[-0.231648, -0.592074, 0.3175], [0, -0.109474, 1.0922]]  # in: [[-9.12, -23.31, 12.5], [0, -4.31, 43]]
-    lap: [[-0.231648, -0.592074, 0.237236], [0.4318, -0.109474, 0.3175]]  # in: [[-9.12, -23.31, 9.34], [17, -4.31, 12.5]]
-    knees: [[-0.231648, -0.592074, 0.156718], [0.5334, -0.109474, 0.237236]]  # in: [[-9.12, -23.31, 6.17], [21, -4.31, 9.34]]
-    legs: [[-0.231648, -0.592074, -0.5207], [0.635, -0.109474, 0.156718]]  # in: [[-9.12, -23.31, -20.5], [25, -4.31, 6.17]]
+    torso: [[-0.434848, -0.592074, 0.3175], [-0.2032, -0.109474, 1.0922]]  # in: [[-17.12, -23.31, 12.5], [-8, -4.31, 43]]
+    lap: [[-0.434848, -0.592074, 0.237236], [0.2286, -0.109474, 0.3175]]  # in: [[-17.12, -23.31, 9.34], [9, -4.31, 12.5]]
+    knees: [[-0.434848, -0.592074, 0.156718], [0.3302, -0.109474, 0.237236]]  # in: [[-17.12, -23.31, 6.17], [13, -4.31, 9.34]]
+    legs: [[-0.434848, -0.592074, -0.5207], [0.4318, -0.109474, 0.156718]]  # in: [[-17.12, -23.31, -20.5], [17, -4.31, 6.17]]
 
 # The chair's seat, in metres in arm_mount, as the person.
 seat:
@@ -144,12 +147,12 @@ seat:
   carve: spheres
   frame: arm_mount
   boxes:
-    # MEASURED: 15.5 x 4 x 2 in, its front 2 in ahead of the arm's base, its
-    # bottom 33.5 in off the ground, straight above the arm. The generator
-    # trims its front underside where it comes within 35 mm of the shoulder.
-    armrest_arm: [[-0.3429, -0.0635, 0.3302], [0.0508, 0.0381, 0.381]]  # in: [[-13.5, -2.5, 13], [2, 1.5, 15]]
+    # MEASURED: 15.5 x 4 x 2 in, its front 6 in behind the arm's base (2 in
+    # ahead before the arm moved), its bottom 33.5 in off the ground. Now clear
+    # of the shoulder's 35 mm keep-out, so the generator no longer trims it.
+    armrest_arm: [[-0.5461, -0.0635, 0.3302], [-0.1524, 0.0381, 0.381]]  # in: [[-21.5, -2.5, 13], [-6, 1.5, 15]]
     # MEASURED: the arm-side armrest mirrored about the seat's centreline.
-    armrest_far: [[-0.3429, -0.739648, 0.3302], [0.0508, -0.638048, 0.381]]  # in: [[-13.5, -29.12, 13], [2, -25.12, 15]]
+    armrest_far: [[-0.5461, -0.739648, 0.3302], [-0.1524, -0.638048, 0.381]]  # in: [[-21.5, -29.12, 13], [-6, -25.12, 15]]
     # The joystick: "Joystick Assembly v1.4" (a STEP from the
     # mechanical team, 2026-11-05), its RJ45 cable left out. Its CAD +x is the
     # chair's forward and +y up; on the far armrest's centreline, its back 2 in
@@ -158,19 +161,19 @@ seat:
     # bounds of its surface there plus 0.1 in for the 2 mm tessellation:
     # the bar, the body, the knob, and the screen tilted back toward the
     # user, which reaches outboard of the armrest.
-    joystick_bar: [[0.09906, -0.738632, 0.3302], [0.21717, -0.639064, 0.357632]]  # in: [[3.9, -29.08, 13.0], [8.55, -25.16, 14.08]]
-    joystick_body: [[0.211836, -0.741426, 0.3302], [0.367284, -0.629412, 0.399034]]  # in: [[8.34, -29.19, 13.0], [14.46, -24.78, 15.71]]
-    joystick_knob: [[0.247142, -0.711454, 0.39624], [0.2921, -0.66675, 0.469392]]  # in: [[9.73, -28.01, 15.6], [11.5, -26.25, 18.48]]
-    joystick_screen_low: [[0.36195, -0.740664, 0.332994], [0.397256, -0.637032, 0.444754]]  # in: [[14.25, -29.16, 13.11], [15.64, -25.08, 17.51]]
-    joystick_screen_mid: [[0.391922, -0.801116, 0.367792], [0.427228, -0.637032, 0.490728]]  # in: [[15.43, -31.54, 14.48], [16.82, -25.08, 19.32]]
-    joystick_screen_top: [[0.421894, -0.801116, 0.429514], [0.488442, -0.637032, 0.51308]]  # in: [[16.61, -31.54, 16.91], [19.23, -25.08, 20.2]]
+    joystick_bar: [[-0.10414, -0.738632, 0.3302], [0.01397, -0.639064, 0.357632]]  # in: [[-4.1, -29.08, 13.0], [0.55, -25.16, 14.08]]
+    joystick_body: [[0.008636, -0.741426, 0.3302], [0.164084, -0.629412, 0.399034]]  # in: [[0.34, -29.19, 13.0], [6.46, -24.78, 15.71]]
+    joystick_knob: [[0.043942, -0.711454, 0.39624], [0.0889, -0.66675, 0.469392]]  # in: [[1.73, -28.01, 15.6], [3.5, -26.25, 18.48]]
+    joystick_screen_low: [[0.15875, -0.740664, 0.332994], [0.194056, -0.637032, 0.444754]]  # in: [[6.25, -29.16, 13.11], [7.64, -25.08, 17.51]]
+    joystick_screen_mid: [[0.188722, -0.801116, 0.367792], [0.224028, -0.637032, 0.490728]]  # in: [[7.43, -31.54, 14.48], [8.82, -25.08, 19.32]]
+    joystick_screen_top: [[0.218694, -0.801116, 0.429514], [0.285242, -0.637032, 0.51308]]  # in: [[8.61, -31.54, 16.91], [11.23, -25.08, 20.2]]
     # UNMEASURED, kept where the RAMMS seat hulls put them relative to the arm
     # (inside the occupant, or behind it), at the occupant's width: they stay
     # when the person layer is excluded. The base's near side is 1 in further
     # from the arm than the occupant's, outside the seat's 35 mm keep-out, so
     # it is not carved into slivers; the occupant covers that inch.
-    base: [[-0.346202, -0.592074, -0.158242], [0.196088, -0.135128, 0.094488]]  # in: [[-13.63, -23.31, -6.23], [7.72, -5.32, 3.72]]
-    backrest: [[-0.65532, -0.592074, 0.094488], [-0.231648, -0.109474, 0.47371]]  # in: [[-25.8, -23.31, 3.72], [-9.12, -4.31, 18.65]]
+    base: [[-0.549402, -0.592074, -0.158242], [-0.007112, -0.135128, 0.094488]]  # in: [[-21.63, -23.31, -6.23], [-0.28, -5.32, 3.72]]
+    backrest: [[-0.85852, -0.592074, 0.094488], [-0.434848, -0.109474, 0.47371]]  # in: [[-33.8, -23.31, 3.72], [-17.12, -4.31, 18.65]]
 
 
 # The chair's cell stand-in: a slab whose top is the URDF's lowest point.

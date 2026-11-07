@@ -13,9 +13,10 @@
 #   sheppy up flatbot_empty_world --manifest december_2026/sheppy-manifest.yaml
 #
 # Attended only: this starts a driver that can move the arm (CONTRIBUTING.md).
-# Perception is RF-DETR on the scene camera with BoxerNet 3D boxes. Teleop is left
+# Perception is RF-DETR on the scene camera with BoxerNet 3D boxes, and SAM3
+# sessions on demand (the microwave app finds the handle with them). Teleop is left
 # unselected; add one line under `selections` to bring one up.
-description: flatbot, EMPTY planner world — OAK-D cameras, foxglove, arm + planner on the nightly channel, RF-DETR + BoxerNet
+description: flatbot, EMPTY planner world — OAK-D cameras, foxglove, arm + planner on the nightly channel, RF-DETR + BoxerNet + SAM3
 selections:
   scene_camera: oak_d_pro_w_docker
   wrist_camera: oak_d_pro_docker
@@ -27,6 +28,8 @@ selections:
   static_tf: static_tf_docker
   scene_segmenter: rfdetr
   object_lifter: boxer
+  # Detects and tracks only for clients that ask, through /perception/sam3 services.
+  sam3: sam3_docker
 overrides:
   planner:
     # flatbot's planner config with no collision volumes: the arm alone

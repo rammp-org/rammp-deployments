@@ -161,12 +161,12 @@ nodes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/depth/image_rect_raw
       # Same topics as the D405, so consumers cannot tell which is selected —
-      # except at range: the D405 sees from ~7 cm, this from ~15-30 cm (75 mm
-      # baseline, even with the near-field tuning in params below: ROBOTICS
-      # preset, stereo at 320x200, dot projector on).
+      # except at range: the D405 sees from ~7 cm, this from ~24 cm (75 mm
+      # baseline; the stereo below trades near range for detail, see params).
       - id: oak_d_pro_docker
         kind: docker
         container:
+          # The depth params below need an image with SwapnilPande/depthai-ros#7: bump before merging.
           image: ghcr.io/rammp-org/rammp-suite-software/oak:sha-6285a703abeacb1fcad505a9c6174e8e3a74f7bd  # as the scene OAK
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
@@ -209,20 +209,53 @@ nodes:
           # sensors are not phase-locked, so at 15 fps the default starved the
           # pairing to 2.5 Hz; use half the frame period (33 ms at 15 fps,
           # 16 at 30). The driver stamps both messages with color's stamp.
+          # On the host: the depth is filtered there (below), and a device Sync
+          # would ship it back to the camera (~0.7 s of lag).
           sync.sync_threshold: 33
-          # Near-field tuning: stereo at 320x200 halves the focal length, so
-          # the 96-pixel search reaches ~16 cm without extended disparity.
-          # Extended disparity reaches the same, but pushes the disparity range
-          # past the median filter's limit: the device drops ROBOTICS' 7x7
-          # median and depth streaks along rows. Plain 640x400 stops at ~31 cm
-          # and reports closer surfaces as false depth near that limit
-          # (2026-10-26, snorlax). Depth is still aligned to 640x400 color.
-          depth.i_depth_preset: ROBOTICS
-          depth.i_width: 320
-          depth.i_height: 200
+          sync.i_run_on_host: true
+          # Stereo at 640x400, the color size, so depth keeps the detail of
+          # task features: the microwave handle (~30 mm proud of the door) at
+          # ~0.5 m shows in 61% of its rows, against none at 320x200 with
+          # ROBOTICS, whose 7x7 median and spatial filter smear it into the door
+          # (2026-10-31, snorlax, against a FoundationStereo reference). Depth
+          # is aligned to 640x400 color either way, so the link load does not
+          # change: 63 Mbit/s measured (2026-11-01).
+          depth.i_width: 640
+          depth.i_height: 400
+          # Extended disparity over a 64-pixel search (126 px) reaches 23.8 cm;
+          # plain 640x400 stops at 31.6 cm and reports closer surfaces as false
+          # depth near that limit. The default 96-pixel search (190 px) would
+          # reach 15.8 cm, but that range is past the median filter's limit:
+          # the device drops the median and depth streaks along rows.
+          depth.i_extended_disp: true
+          depth.i_disparity_width: DISPARITY_64
+          # No preset filters on the camera: FAST_ACCURACY plus the stereo
+          # block's own median (free; FAST_ACCURACY alone streaks along rows),
+          # then speckle and spatial filters in the driver on the host. Fill
+          # around the handle 0.98 (0.85 with the median alone, same handle
+          # rows within a pose's noise).
+          depth.i_depth_preset: FAST_ACCURACY
+          depth.i_median_filter: KERNEL_5x5
+          # Accept lower-confidence matches (the driver's default is 15).
+          depth.i_stereo_conf_threshold: 5
+          # Drops isolated blobs. Depth step in mm.
+          depth.i_host_speckle_filter: true
+          depth.i_host_speckle_filter_speckle_range: 200
+          depth.i_host_speckle_filter_difference_threshold: 200
+          depth.i_host_spatial_filter: true
+          depth.i_host_spatial_filter_alpha: 0.7
+          depth.i_host_spatial_filter_delta: 30
+          depth.i_host_spatial_filter_hole_filling_radius: 5
+          depth.i_host_spatial_filter_iterations: 1
+          # Full-power dots and no flood (driver defaults 0.6 / 0.6): the flood
+          # LED only lifts the background under the dot pattern stereo matches
+          # on, and the white microwave front has little texture of its own.
+          driver.r_laser_dot_intensity: 1.0
+          driver.r_floodlight_intensity: 0.0
           # Mounted upside down, as the scene OAK: rotate color and depth 180°
-          # on the device. The frame names do not change: the mount in the
-          # robot's transforms/cameras.yaml is the rotated (upright) one.
+          # on the device (not the host, as the scene OAK does: color leaves
+          # this camera H.264-encoded). The frame names do not change: the mount
+          # in the robot's transforms/cameras.yaml is the rotated (upright) one.
           color.i_rotation: 180
           depth.i_rotation: 180
         publishes:

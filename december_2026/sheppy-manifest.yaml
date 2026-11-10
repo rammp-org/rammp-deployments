@@ -657,6 +657,9 @@ nodes:
           volumes:
             - curobo_kernel_cache:/root/.cache
             - ./config/robots/current:/config/robot:ro
+            # rammp-feeding's state folder: the collision world it hands the planner by path (set_world) while it
+            # plans. Read-only, and outside /config/robot.
+            - /srv/rammp_feeding/config:/feeding:ro
           command:
             - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
         params:
@@ -686,6 +689,9 @@ nodes:
           volumes:
             - curobo_kernel_cache:/root/.cache
             - ./config/robots/current:/config/robot:ro
+            # rammp-feeding's state folder: the collision world it hands the planner by path (set_world) while it
+            # plans. Read-only, and outside /config/robot.
+            - /srv/rammp_feeding/config:/feeding:ro
           command:
             - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
         params:
@@ -1018,28 +1024,25 @@ nodes:
     description: Robot-assisted feeding -- bite after bite until the bowl is empty or the user declines
     select: single
     alternatives:
-      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.2.3). It moves the arm only through the arm node
-      # (execute_joint_trajectory: its own IK paths and the planner's paths), so `arm`, `arm_state_publisher` and
-      # `planner` must be selected alongside, with `wrist_camera`, `scene_camera` and `sam3`. Stopping the node
-      # cancels the move in flight: the arm halts where it is. It never commands the gripper.
-      #
-      # NOT RUNNABLE ON THIS MANIFEST'S ARM ALTERNATIVES. 0.2.3 was written against the 1.1.0 arm (a level mount, the
-      # model on /robot_description, unprefixed joints) and hands the planner its world as a file under /config,
-      # which the 1.1.0 planner mounted from /srv/rammp_feeding/config. Every arm alternative here is now the 2.0
-      # generation (arm_-prefixed joints, arm_mount frame, /arm/robot_description) and the planner mounts no
-      # module state, so the node waits for a rammp-feeding release that reads 2.0.
+      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.3.0, for this manifest's 2.0 arm alternatives).
+      # It moves the arm only through the arm node (execute_joint_trajectory: its own IK paths and the planner's
+      # paths), so `arm`, `arm_state_publisher` and `planner` must be selected alongside, with `wrist_camera`,
+      # `scene_camera` and `sam3`. Stopping the node cancels the move in flight: the arm halts where it is. It never
+      # commands the gripper. It hands the planner its world by path while it plans (the `/feeding` mount on both
+      # curobo_planner alternatives) and puts the planner's own back with /reset.
       #
       # Selecting it runs `rammp feed` at once: attended only, and only on a robot set up per rammp-feeding's
       # deployment checklist (docs/porting.md): its measurements, captured poses and calibrations in the host's
       # /srv/rammp_feeding/config (owned by uid 1000). One step at a time: leave it unselected and run the module's
-      # image by hand (the checklist's `rammp` command).
+      # image by hand (the checklist's `rammp` command). The arm driver's own contact stop (contact_detection, enforce
+      # by default) may stop the plunge into firm food (untested); a feeding robot's profile can set it to observe.
       #
       # Diverges from the fragment: the image is on Docker Hub (the module's repo is not under rammp-org, so there is
       # no ghcr.io/rammp-org image to pin).
       - id: rammp_feeding_docker
         kind: docker
         container:
-          image: docker.io/debajyotidasgupta/rammp-feeding:0.2.3
+          image: docker.io/debajyotidasgupta/rammp-feeding:0.3.0
           network_mode: host
           ipc: host
           user: "1000:1000"
@@ -1053,7 +1056,7 @@ nodes:
             HOME: /tmp
           command: ros2 launch rammp_feeding feed.launch.py
         subscribes:
-          - /robot_description
+          - /arm/robot_description
           - /joint_states
           - /control_status
           - /tf
@@ -1068,6 +1071,7 @@ nodes:
           - /scene_camera/depth/camera_info
         publishes:
           - /tf_static
+          - /reset
       # Wiring only, like every mock here: the module is reached through its command, not a topic.
       - id: feeding_mock
         kind: process

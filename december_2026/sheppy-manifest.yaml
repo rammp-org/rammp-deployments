@@ -432,6 +432,7 @@ nodes:
           arbitration_mode: disabled
           estop_clear_max_age_s: 1.0
           expect_gripper: true
+          contact_detection: enforce        # the driver's default, declared so a profile can override it
         publishes:
           - /joint_states
           - /ee_state
@@ -476,6 +477,7 @@ nodes:
           arbitration_mode: disabled
           estop_clear_max_age_s: 1.0
           expect_gripper: true
+          contact_detection: enforce        # the driver's default, declared so a profile can override it
         publishes:
           - /joint_states
           - /ee_state
@@ -1035,7 +1037,8 @@ nodes:
       # deployment checklist (docs/porting.md): its measurements, captured poses and calibrations in the host's
       # /srv/rammp_feeding/config (owned by uid 1000). One step at a time: leave it unselected and run the module's
       # image by hand (the checklist's `rammp` command). The arm driver's own contact stop (contact_detection, enforce
-      # by default) may stop the plunge into firm food (untested); a feeding robot's profile can set it to observe.
+      # by default) may stop the plunge into firm food (untested); a feeding robot's profile can override it
+      # (`arm: {contact_detection: observe}`).
       #
       # Diverges from the fragment: the image is on Docker Hub (the module's repo is not under rammp-org, so there is
       # no ghcr.io/rammp-org image to pin).

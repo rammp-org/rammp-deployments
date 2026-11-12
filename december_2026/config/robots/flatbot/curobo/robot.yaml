@@ -19,8 +19,9 @@
 # file the caller wrote it to. base_link is arm_mount; ee_link is
 # arm_tool_frame, 0.120 m beyond the wrist flange, roughly the FINGERTIP
 # midpoint. flatbot has Kinova's sensor puck (mount.yaml wrist: sensor_puck), so
-# its gripper and arm_tool_frame sit 12.7 mm further out (0.1327 m), the gripper's
-# spheres with them; arm_kinematics.json is that model's. The 2F-85 is locked open by its actuated knuckle
+# its gripper and arm_tool_frame sit 14 mm further out (0.134 m), the gripper's
+# spheres with them; arm_kinematics.json is that model's. The 2F-85 is locked
+# open by its actuated knuckle
 # (arm_robotiq_85_left_knuckle_joint); cuRobo holds the five mimics with it.
 robot_cfg:
   kinematics:

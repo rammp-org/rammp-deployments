@@ -1,12 +1,13 @@
-# flatbot with robot-assisted feeding: profiles/flatbot.yaml's cameras, foxglove, arm and planner, with the `feeding`
-# node and what it needs (sam3, static_tf). Perception for other skills (RF-DETR, BoxerNet) is left unselected.
+# flatbot with robot-assisted feeding and drinking: profiles/flatbot.yaml's cameras, foxglove, arm and planner, with
+# the `feeding` and `drinking` nodes and what they need (sam3, static_tf). Perception for other skills (RF-DETR,
+# BoxerNet) is left unselected. One gripper serves both: the fork is taken out by hand for drinking and put back after.
 #
 #   uv run scripts/set_robot.py december_2026/config/robots/flatbot   # once per host
 #   sheppy up flatbot_feeding --manifest december_2026/sheppy-manifest.yaml
 #
-# Attended only: this starts a driver that can move the arm (CONTRIBUTING.md). The feeding node's state is the host's
-# /srv/rammp_feeding (its docs/porting.md).
-description: flatbot + feeding — OAK-D cameras, foxglove, arm + planner on the nightly channel, SAM3, the feeding node
+# Attended only: this starts a driver that can move the arm (CONTRIBUTING.md). The feeding and drinking nodes share
+# the host's /srv/rammp_feeding (their docs/porting.md).
+description: flatbot + feeding + drinking — OAK-D cameras, foxglove, arm + planner on the nightly channel, SAM3, the feeding and drinking nodes
 selections:
   scene_camera: oak_d_pro_w_docker
   wrist_camera: oak_d_pro_docker
@@ -18,6 +19,7 @@ selections:
   static_tf: static_tf_docker
   sam3: sam3_docker
   feeding: rammp_feeding_docker
+  drinking: rammp_drinking_docker
 overrides:
   arm:
     # The driver's contact stop never stops the arm: the fork's plunge, scoop and bite are contact by design. observe

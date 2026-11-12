@@ -1026,7 +1026,7 @@ nodes:
     description: Robot-assisted feeding -- a capability engine the orchestrator drives, one bite per action
     select: single
     alternatives:
-      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.4.0, for this manifest's 2.0 arm alternatives). A
+      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.4.1, for this manifest's 2.0 arm alternatives). A
       # capability engine (rammp-kitchen-capability-engines' CapabilityEngine, engine id `feeding`): it registers with
       # the orchestrator and moves the arm only in an action the orchestrator starts -- start_meal, feed (one bite) and
       # finish_meal (its docs/interface.md); nothing moves when it starts. It moves the arm only through the arm node
@@ -1049,7 +1049,7 @@ nodes:
       - id: rammp_feeding_docker
         kind: docker
         container:
-          image: docker.io/debajyotidasgupta/rammp-feeding:0.4.0
+          image: docker.io/debajyotidasgupta/rammp-feeding:0.4.1
           network_mode: host
           ipc: host
           user: "1000:1000"

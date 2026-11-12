@@ -1040,8 +1040,8 @@ nodes:
       # poses and calibrations in the host's /srv/rammp_feeding/config (owned by uid 1000). The params' defaults are
       # the December demo robot's cameras (OAK-D Pro on the wrist, OAK-D Pro W on the scene, which the robot's own
       # static_tf places); another robot's profile selects its own (camera_profile, scene_camera_profile). The arm
-      # driver's own contact stop (contact_detection, enforce by default) may stop the plunge into firm food
-      # (untested); a feeding robot's profile can override it (`arm: {contact_detection: observe}`).
+      # driver's own contact stop (contact_detection, enforce by default) would stop the plunge into firm food, so
+      # profiles/flatbot_feeding.yaml sets it to observe (never stops; still counts the would-be stops).
       #
       # Diverges from the fragment: the image is on Docker Hub (the module's repo is not under rammp-org, so there is
       # no ghcr.io/rammp-org image to pin); no `tier` key, as nowhere here; and the mock is wiring only, as every mock

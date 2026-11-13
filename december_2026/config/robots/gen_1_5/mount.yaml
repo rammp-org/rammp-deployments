@@ -4,3 +4,4 @@ robot: gen_1_5 # must equal the directory name
 # Orientation of arm_base_link in arm_mount. arm_mount is gravity-aligned (on level
 # ground) and shares arm_base_link's origin, so there is no translation.
 rpy_deg: [0.0, 30.0, 0.0] # new_adapter_plate_v3: 30° forward lean
+wrist: sensor_puck # Kinova sensor puck (KR44492) between the flange and the gripper, OAK-D on its tab

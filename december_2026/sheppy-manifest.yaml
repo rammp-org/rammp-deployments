@@ -1049,7 +1049,7 @@ nodes:
       - id: rammp_feeding_docker
         kind: docker
         container:
-          image: docker.io/debajyotidasgupta/rammp-feeding:0.5.0
+          image: docker.io/debajyotidasgupta/rammp-feeding:0.5.1
           network_mode: host
           ipc: host
           user: "1000:1000"

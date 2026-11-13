@@ -31,6 +31,11 @@ selections:
   # Detects and tracks only for clients that ask, through /perception/sam3 services.
   sam3: sam3_docker
 overrides:
+  arm:
+    # flatbot's home, where go_to_preset `home` takes the arm; see flatbot.yaml.
+    # The pose is the same one. Only the path to it differs: this profile's
+    # planner knows no chair, seat or occupant to go around.
+    presets.home: [0.4425, -1.5718, -2.9033, -2.1048, -0.7412, -0.9194, 2.1631]
   planner:
     # flatbot's planner config with no collision volumes: the arm alone
     # (config/robots/flatbot/curobo/planner_empty_world.yaml). The only line

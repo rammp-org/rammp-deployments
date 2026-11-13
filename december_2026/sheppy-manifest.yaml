@@ -432,6 +432,17 @@ nodes:
           arbitration_mode: disabled
           estop_clear_max_age_s: 1.0
           expect_gripper: true
+          # go_to_preset's `home`: 7 joint angles in rad, arm_joint_1..7. This
+          # is the driver's own default, Kinova's factory Home, which assumes a
+          # level mount and an empty workspace; the driver warns at start while
+          # it is in use. Declared so a robot's profile can give the robot's own
+          # home (profiles/flatbot.yaml), and then any node reaches it with
+          #   ros2 action send_goal /go_to_preset \
+          #     rammp_arm_interfaces/action/GoToPreset "{preset_name: home}"
+          # which the driver plans collision-free, as go_to_joint_config.
+          # Write every angle with its decimal point (0.0, not 0): ROS refuses
+          # a list that mixes integers and reals, and the driver does not start.
+          presets.home: [0.0, 0.262, 3.142, -2.269, 0.0, 0.96, 1.571]
         publishes:
           - /joint_states
           - /ee_state
@@ -476,6 +487,8 @@ nodes:
           arbitration_mode: disabled
           estop_clear_max_age_s: 1.0
           expect_gripper: true
+          # go_to_preset's `home`; see kinova_gen3_driver.
+          presets.home: [0.0, 0.262, 3.142, -2.269, 0.0, 0.96, 1.571]
         publishes:
           - /joint_states
           - /ee_state

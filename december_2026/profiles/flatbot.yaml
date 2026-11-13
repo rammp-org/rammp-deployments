@@ -23,6 +23,16 @@ selections:
   # Detects and tracks only for clients that ask, through /perception/sam3 services.
   sam3: sam3_docker
 overrides:
+  arm:
+    # flatbot's home, where go_to_preset `home` takes the arm: folded over its
+    # base with the hand ahead and up (0.34 m forward of the base, 0.56 m above
+    # it, in arm_mount) and the elbow swung out past the chair's armrest. It is
+    # the pose box opening starts from and returns to, in use since 2026-11-09,
+    # and it is clear of this profile's chair, seat and occupant. The
+    # manifest's default is the factory Home, which is for a level mount: on
+    # this 30 degree one it stretches the arm 0.73 m forward, 8 cm above its
+    # base. If the arm or the chair's layers move, check this pose again.
+    presets.home: [0.4425, -1.5718, -2.9033, -2.1048, -0.7412, -0.9194, 2.1631]
   planner:
     # flatbot's own planner config: the MEBot chair, seat and occupant in every
     # world, generated for the arm on the chair's left, tilted 30 degrees as

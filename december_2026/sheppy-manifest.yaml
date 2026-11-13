@@ -432,6 +432,7 @@ nodes:
           arbitration_mode: disabled
           estop_clear_max_age_s: 1.0
           expect_gripper: true
+          contact_detection: enforce        # the driver's default, declared so a profile can override it
         publishes:
           - /joint_states
           - /ee_state
@@ -476,6 +477,7 @@ nodes:
           arbitration_mode: disabled
           estop_clear_max_age_s: 1.0
           expect_gripper: true
+          contact_detection: enforce        # the driver's default, declared so a profile can override it
         publishes:
           - /joint_states
           - /ee_state
@@ -657,6 +659,9 @@ nodes:
           volumes:
             - curobo_kernel_cache:/root/.cache
             - ./config/robots/current:/config/robot:ro
+            # rammp-feeding's state folder: the collision world it hands the planner by path (set_world) while it
+            # plans. Read-only, and outside /config/robot.
+            - /srv/rammp_feeding/config:/feeding:ro
           command:
             - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
         params:
@@ -686,6 +691,9 @@ nodes:
           volumes:
             - curobo_kernel_cache:/root/.cache
             - ./config/robots/current:/config/robot:ro
+            # rammp-feeding's state folder: the collision world it hands the planner by path (set_world) while it
+            # plans. Read-only, and outside /config/robot.
+            - /srv/rammp_feeding/config:/feeding:ro
           command:
             - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
         params:
@@ -1015,45 +1023,56 @@ nodes:
           - /perception/object_detections_3d
 
   - name: feeding
-    description: Robot-assisted feeding -- bite after bite until the bowl is empty or the user declines
+    description: Robot-assisted feeding -- a capability engine the orchestrator drives, one bite per action
     select: single
     alternatives:
-      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.2.3). It moves the arm only through the arm node
+      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.5.0, for this manifest's 2.0 arm alternatives). A
+      # capability engine (rammp-kitchen-capability-engines' CapabilityEngine, engine id `feeding`): it registers with
+      # the orchestrator and moves the arm only in an action the orchestrator starts -- start_meal, feed (one bite) and
+      # finish_meal (its docs/interface.md); nothing moves when it starts. It moves the arm only through the arm node
       # (execute_joint_trajectory: its own IK paths and the planner's paths), so `arm`, `arm_state_publisher` and
-      # `planner` must be selected alongside, with `wrist_camera`, `scene_camera` and `sam3`. Stopping the node
-      # cancels the move in flight: the arm halts where it is. It never commands the gripper.
+      # `planner` must be selected alongside, with `wrist_camera`, `scene_camera` and `sam3`. Stopping it cancels the
+      # action in flight: the move stops and the arm settles. It never commands the gripper. It hands the planner its
+      # world by path while an action plans (the `/feeding` mount on both curobo_planner alternatives) and puts the
+      # planner's own back with /reset as the action ends.
       #
-      # NOT RUNNABLE ON THIS MANIFEST'S ARM ALTERNATIVES. 0.2.3 was written against the 1.1.0 arm (a level mount, the
-      # model on /robot_description, unprefixed joints) and hands the planner its world as a file under /config,
-      # which the 1.1.0 planner mounted from /srv/rammp_feeding/config. Every arm alternative here is now the 2.0
-      # generation (arm_-prefixed joints, arm_mount frame, /arm/robot_description) and the planner mounts no
-      # module state, so the node waits for a rammp-feeding release that reads 2.0.
-      #
-      # Selecting it runs `rammp feed` at once: attended only, and only on a robot set up per rammp-feeding's
-      # deployment checklist (docs/porting.md): its measurements, captured poses and calibrations in the host's
-      # /srv/rammp_feeding/config (owned by uid 1000). One step at a time: leave it unselected and run the module's
-      # image by hand (the checklist's `rammp` command).
+      # Only on a robot set up per rammp-feeding's deployment checklist (docs/porting.md): its measurements, captured
+      # poses and calibrations in the host's /srv/rammp_feeding/config (owned by uid 1000). The params' defaults are
+      # the December demo robot's cameras (OAK-D Pro on the wrist, OAK-D Pro W on the scene, which the robot's own
+      # static_tf places); another robot's profile selects its own (camera_profile, scene_camera_profile). The arm
+      # driver's own contact stop (contact_detection, enforce by default) would stop the plunge into firm food, so
+      # profiles/flatbot_feeding.yaml sets it to observe (never stops; still counts the would-be stops).
       #
       # Diverges from the fragment: the image is on Docker Hub (the module's repo is not under rammp-org, so there is
-      # no ghcr.io/rammp-org image to pin).
+      # no ghcr.io/rammp-org image to pin); no `tier` key, as nowhere here; and the mock is wiring only, as every mock
+      # here (the image is arm64-only; the fragment's mock is the image with mock:=true).
       - id: rammp_feeding_docker
         kind: docker
         container:
-          image: docker.io/debajyotidasgupta/rammp-feeding:0.2.3
+          image: docker.io/debajyotidasgupta/rammp-feeding:0.5.1
           network_mode: host
           ipc: host
           user: "1000:1000"
-          # State across runs: local.yaml, the captured poses, the wrist camera's measured mount, the scene camera's
-          # measured pose and the session's reading, the world it hands the planner. The run record beside it.
+          # State across runs: local.yaml, the captured poses, the wrist camera's measured mount, the meal's bowl
+          # reading, the world it hands the planner. The run record beside it (only with `record` on).
           volumes:
             - /srv/rammp_feeding/config:/config
             - /srv/rammp_feeding/runs:/runs
           environment:
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
-          command: ros2 launch rammp_feeding feed.launch.py
+          # The node's executable (sheppy appends --ros-args --params-file with the params below)
+          command: ["/module_ws/install/rammp_feeding/lib/rammp_feeding/feeding_node"]
+        params:
+          use_orchestrator: true
+          state_dir: /config
+          runs_dir: /runs
+          record: false                       # the run record: a debug setting, off
+          camera_profile: oak_d_pro
+          scene_camera_profile: oak_d_pro_w
+          config: ""                          # any other setting, "a.b=1,c=[1, 2]"
         subscribes:
-          - /robot_description
+          - /arm/robot_description
           - /joint_states
           - /control_status
           - /tf
@@ -1061,14 +1080,86 @@ nodes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/color/camera_info
           - /wrist_camera/depth/image_rect_raw
-          - /wrist_camera/depth/camera_info
           - /scene_camera/color/image_raw
           - /scene_camera/color/camera_info
-          - /scene_camera/depth/image_raw
-          - /scene_camera/depth/camera_info
+          - /scene_camera/depth/image_rect_raw
         publishes:
+          - /feeding/status
           - /tf_static
-      # Wiring only, like every mock here: the module is reached through its command, not a topic.
+          - /reset
+      # Wiring only, like every mock here: its status topic, empty.
       - id: feeding_mock
         kind: process
-        command: "bash -lc 'sleep infinity'"
+        command: "bash -lc 'source /opt/ros/humble/setup.bash && ros2 topic pub -r 1 /feeding/status std_msgs/msg/String \"{}\"'"
+        publishes:
+          - /feeding/status
+
+  - name: drinking
+    description: Robot-assisted drinking -- a capability engine the orchestrator drives, one sip per action
+    select: single
+    alternatives:
+      # Transcribed from rammp-drinking's rammp-alternative.yaml (v0.1.0, on rammp-feeding 0.5.0, for this manifest's 2.0
+      # arm alternatives). A capability engine (rammp-kitchen-capability-engines' CapabilityEngine, engine id
+      # `drinking`): it registers with the orchestrator and moves the arm only in an action the orchestrator starts --
+      # pick_up_drink, give_sip (one sip) and put_down_drink (its docs/interface.md); nothing moves when it starts. It
+      # moves the arm only through the arm node (execute_joint_trajectory: its own IK paths and the planner's, HOLD_LEVEL
+      # while it carries the cup) and commands the gripper (/setpoint/gripper: it holds the cup's handle from inside),
+      # so `arm`, `arm_state_publisher` and `planner` must be selected alongside, with `wrist_camera` and `sam3`. The
+      # gripper must be empty for drinking: the fork is taken out by hand. Stopping it cancels the action in flight:
+      # the move stops and the arm settles. It hands the planner its world by path while an action plans and puts the
+      # planner's own back with /reset as the action ends.
+      #
+      # It shares rammp-feeding's state folder (/srv/rammp_feeding/config, owned by uid 1000): one site file (the table,
+      # workspace.table_height_m; the cup, drinking.mug.*), one wrist camera mount, one home pose; its own poses and
+      # session beside feeding's. Its planner world goes there too (drink_world.yaml), which both curobo_planner
+      # alternatives already mount at /feeding: nothing changes on the planner. Only on a robot set up per
+      # rammp-drinking's deployment checklist (docs/porting.md). The camera default is the December demo robot's wrist
+      # camera (OAK-D Pro).
+      #
+      # Diverges from the fragment: the image is on Docker Hub (the module's repo is not under rammp-org); no `tier`
+      # key, as nowhere here; and the mock is wiring only, as every mock here.
+      - id: rammp_drinking_docker
+        kind: docker
+        container:
+          image: docker.io/debajyotidasgupta/rammp-drinking:0.1.0
+          network_mode: host
+          ipc: host
+          user: "1000:1000"
+          # State across runs, shared with rammp-feeding: the site file, the wrist camera's mount, the arm poses, the
+          # cup in the gripper (drink_state.json), the world it hands the planner. The run record beside it (only with
+          # `record` on).
+          volumes:
+            - /srv/rammp_feeding/config:/config
+            - /srv/rammp_feeding/runs:/runs
+          environment:
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          # The node's executable (sheppy appends --ros-args --params-file with the params below)
+          command: ["/module_ws/install/rammp_drinking/lib/rammp_drinking/drinking_node"]
+        params:
+          use_orchestrator: true
+          state_dir: /config
+          runs_dir: /runs
+          record: false                       # the run record: a debug setting, off
+          camera_profile: oak_d_pro
+          config: ""                          # any other setting, "a.b=1,c=[1, 2]"
+        subscribes:
+          - /arm/robot_description
+          - /joint_states
+          - /control_status
+          - /gripper_state
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+        publishes:
+          - /drinking/status
+          - /setpoint/gripper
+          - /reset
+      # Wiring only, like every mock here: its status topic, empty.
+      - id: drinking_mock
+        kind: process
+        command: "bash -lc 'source /opt/ros/humble/setup.bash && ros2 topic pub -r 1 /drinking/status std_msgs/msg/String \"{}\"'"
+        publishes:
+          - /drinking/status

@@ -1,0 +1,14 @@
+config,odom_msgs_14s,note
+"containers' file (autodetermine, spdp), arm LAN up",0,publisher not visible
+~/cyclonedds.xml (eno1 named),265,
+"eno1 + enp3s0 named, spdp",218,
+"eno1 + a down interface, no presence_required",,node creation fails
+"eno1 + a down interface, presence_required=false",203,
+"eno1 + a nonexistent interface, presence_required=false",204,
+"only the arm LAN present (eno1 replaced by a down interface, both optional)",0,node starts
+"neither present (both optional)",,node creation fails
+"PR file as merged in this PR (eno1 only, #12 body)",197,
+same file with the name changed to a down interface,,node creation fails
+named interface layered via CYCLONEDDS_URI onto a file with an autodetermine entry,,node creation fails
+named interface layered onto the same file with the Interfaces block removed,261,spdp still in effect
+that file with nothing layered,0,

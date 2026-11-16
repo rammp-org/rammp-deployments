@@ -1,0 +1,850 @@
+{
+ "mib_abort": [
+  {
+   "t": 1794852171.678,
+   "line": "abort() was called at PC 0x400d3c95 on core 0"
+  },
+  {
+   "t": 1794852327.299,
+   "line": "abort() was called at PC 0x400d3c95 on core 0"
+  },
+  {
+   "t": 1794852337.313,
+   "line": "abort() was called at PC 0x400d3c95 on core 1"
+  },
+  {
+   "t": 1794852343.521,
+   "line": "abort() was called at PC 0x400d3c95 on core 1"
+  },
+  {
+   "t": 1794852350.531,
+   "line": "abort() was called at PC 0x400d3c95 on core 0"
+  },
+  {
+   "t": 1794852358.743,
+   "line": "abort() was called at PC 0x400d3c95 on core 1"
+  }
+ ],
+ "wheel_reboot": [
+  {
+   "t": 1794852676.477,
+   "name": "drive_right",
+   "prev_uptime": 2916,
+   "uptime_s": 13
+  },
+  {
+   "t": 1794852782.504,
+   "name": "drive_right",
+   "prev_uptime": 113,
+   "uptime_s": 4
+  },
+  {
+   "t": 1794853338.496,
+   "name": "drive_right",
+   "prev_uptime": 555,
+   "uptime_s": 3
+  },
+  {
+   "t": 1794853391.489,
+   "name": "drive_right",
+   "prev_uptime": 51,
+   "uptime_s": 4
+  },
+  {
+   "t": 1794853515.492,
+   "name": "drive_right",
+   "prev_uptime": 123,
+   "uptime_s": 4
+  },
+  {
+   "t": 1794853583.516,
+   "name": "drive_right",
+   "prev_uptime": 66,
+   "uptime_s": 4
+  },
+  {
+   "t": 1794853658.504,
+   "name": "drive_right",
+   "prev_uptime": 74,
+   "uptime_s": 3
+  },
+  {
+   "t": 1794853721.501,
+   "name": "drive_right",
+   "prev_uptime": 60,
+   "uptime_s": 4
+  },
+  {
+   "t": 1794853757.507,
+   "name": "drive_right",
+   "prev_uptime": 34,
+   "uptime_s": 4
+  },
+  {
+   "t": 1794853846.486,
+   "name": "drive_right",
+   "prev_uptime": 87,
+   "uptime_s": 4
+  },
+  {
+   "t": 1794853916.486,
+   "name": "drive_left",
+   "prev_uptime": 2684,
+   "uptime_s": 4
+  },
+  {
+   "t": 1794853916.486,
+   "name": "drive_right",
+   "prev_uptime": 65,
+   "uptime_s": 4
+  },
+  {
+   "t": 1794854468.474,
+   "name": "drive_right",
+   "prev_uptime": 550,
+   "uptime_s": 3
+  },
+  {
+   "t": 1794854505.486,
+   "name": "drive_right",
+   "prev_uptime": 34,
+   "uptime_s": 4
+  },
+  {
+   "t": 1794854537.494,
+   "name": "drive_right",
+   "prev_uptime": 30,
+   "uptime_s": 4
+  },
+  {
+   "t": 1794854570.491,
+   "name": "drive_right",
+   "prev_uptime": 30,
+   "uptime_s": 4
+  },
+  {
+   "t": 1794854623.489,
+   "name": "drive_right",
+   "prev_uptime": 51,
+   "uptime_s": 4
+  },
+  {
+   "t": 1794854692.5,
+   "name": "drive_left",
+   "prev_uptime": 775,
+   "uptime_s": 3
+  },
+  {
+   "t": 1794854785.498,
+   "name": "drive_left",
+   "prev_uptime": 90,
+   "uptime_s": 4
+  }
+ ],
+ "wheel_silence": [
+  {
+   "t_back": 1794853916.486,
+   "name": "drive_left",
+   "silent_s": 1487.0
+  }
+ ],
+ "mib_reboot": [
+  {
+   "t": 1794852184.094,
+   "prev_uptime": 345455,
+   "uptime_s": 11,
+   "reset_reason": "panic"
+  },
+  {
+   "t": 1794852334.216,
+   "prev_uptime": 151,
+   "uptime_s": 6,
+   "reset_reason": "panic"
+  },
+  {
+   "t": 1794852364.241,
+   "prev_uptime": 6,
+   "uptime_s": 4,
+   "reset_reason": "panic"
+  }
+ ],
+ "sub_events": [
+  {
+   "t": 1794850441.799,
+   "src": "A",
+   "kind": "start",
+   "pid": 74488,
+   "cyclone": "file:///home/snorlax/cyclonedds.xml",
+   "life": 0
+  },
+  {
+   "t": 1794850445.608,
+   "src": "A",
+   "kind": "first_msg",
+   "topic": "/base/odom",
+   "after_s": 3.897
+  },
+  {
+   "t": 1794851469.486,
+   "src": "A",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794851468.467,
+   "first_after_match_s": 1022.9,
+   "run_s": 1027.8
+  },
+  {
+   "t": 1794851479.701,
+   "src": "A",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794851468.467,
+   "t_end": 1794851479.701,
+   "gap_ms": 11233.6
+  },
+  {
+   "t": 1794851479.701,
+   "src": "A",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 11233.6
+  },
+  {
+   "t": 1794851489.008,
+   "src": "A",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794851487.987,
+   "first_after_match_s": 1042.4,
+   "run_s": 1047.3
+  },
+  {
+   "t": 1794851497.85,
+   "src": "A",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794851487.987,
+   "t_end": 1794851497.85,
+   "gap_ms": 9862.6
+  },
+  {
+   "t": 1794851497.85,
+   "src": "A",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 9862.6
+  },
+  {
+   "t": 1794851619.622,
+   "src": "A",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794851618.614,
+   "first_after_match_s": 1173.0,
+   "run_s": 1177.9
+  },
+  {
+   "t": 1794851645.658,
+   "src": "A",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794851618.614,
+   "t_end": 1794851645.658,
+   "gap_ms": 27043.9
+  },
+  {
+   "t": 1794851645.658,
+   "src": "A",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 27043.9
+  },
+  {
+   "t": 1794852172.57,
+   "src": "A",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794852171.554,
+   "first_after_match_s": 1725.9,
+   "run_s": 1730.9
+  },
+  {
+   "t": 1794852336.608,
+   "src": "A",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794852171.554,
+   "t_end": 1794852336.608,
+   "gap_ms": 165054.2
+  },
+  {
+   "t": 1794852336.609,
+   "src": "A",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 165054.2
+  },
+  {
+   "t": 1794852336.609,
+   "src": "A",
+   "kind": "pose_jump",
+   "dpos": 0.2947,
+   "dyaw": 0.4376,
+   "dt": 165.054,
+   "spd": 0.0001852479024852501,
+   "w": 0.00014974024641247534,
+   "frm": [
+    0.21793154125812864,
+    -0.1984482860233659,
+    -0.43757897598756956
+   ],
+   "to": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "reset_to_zero": true
+  },
+  {
+   "t": 1794852338.155,
+   "src": "A",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794852337.14,
+   "first_after_match_s": 1891.5,
+   "run_s": 1896.4
+  },
+  {
+   "t": 1794852365.872,
+   "src": "A",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794852337.14,
+   "t_end": 1794852365.872,
+   "gap_ms": 28731.4
+  },
+  {
+   "t": 1794852365.872,
+   "src": "A",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 28731.4
+  },
+  {
+   "t": 1794852655.137,
+   "src": "A",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794852654.133,
+   "first_after_match_s": 2208.5,
+   "run_s": 2213.4
+  },
+  {
+   "t": 1794852655.87,
+   "src": "A",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794852654.133,
+   "t_end": 1794852655.87,
+   "gap_ms": 1736.4
+  },
+  {
+   "t": 1794852655.87,
+   "src": "A",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 1736.4
+  },
+  {
+   "t": 1794852662.185,
+   "src": "A",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794852661.174,
+   "first_after_match_s": 2215.6,
+   "run_s": 2220.5
+  },
+  {
+   "t": 1794852676.885,
+   "src": "A",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794852661.174,
+   "t_end": 1794852676.885,
+   "gap_ms": 15711.3
+  },
+  {
+   "t": 1794852676.885,
+   "src": "A",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 15711.3
+  },
+  {
+   "t": 1794852777.287,
+   "src": "A",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794852776.275,
+   "first_after_match_s": 2330.7,
+   "run_s": 2335.6
+  },
+  {
+   "t": 1794852880.167,
+   "src": "A",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794852776.275,
+   "t_end": 1794852880.167,
+   "gap_ms": 103891.4
+  },
+  {
+   "t": 1794852880.167,
+   "src": "A",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 103891.4
+  },
+  {
+   "t": 1794853334.224,
+   "src": "A",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794853333.223,
+   "first_after_match_s": 2887.6,
+   "run_s": 2892.5
+  },
+  {
+   "t": 1794853661.246,
+   "src": "A",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794853333.223,
+   "t_end": 1794853661.246,
+   "gap_ms": 328022.9
+  },
+  {
+   "t": 1794853661.246,
+   "src": "A",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 328022.9
+  },
+  {
+   "t": 1794853716.601,
+   "src": "A",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794853715.586,
+   "first_after_match_s": 3270.0,
+   "run_s": 3274.9
+  },
+  {
+   "t": 1794853813.779,
+   "src": "A",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794853715.586,
+   "t_end": 1794853813.779,
+   "gap_ms": 98192.9
+  },
+  {
+   "t": 1794853813.779,
+   "src": "A",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 98192.9
+  },
+  {
+   "t": 1794853841.345,
+   "src": "A",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794853840.341,
+   "first_after_match_s": 3394.7,
+   "run_s": 3399.6
+  },
+  {
+   "t": 1794853919.35,
+   "src": "A",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794853840.341,
+   "t_end": 1794853919.35,
+   "gap_ms": 79009.8
+  },
+  {
+   "t": 1794853919.351,
+   "src": "A",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 79009.8
+  },
+  {
+   "t": 1794856056.099,
+   "src": "A",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794856055.082,
+   "first_after_match_s": 5609.5,
+   "run_s": 5614.4
+  },
+  {
+   "t": 1794850441.766,
+   "src": "B",
+   "kind": "start",
+   "pid": 74487,
+   "cyclone": "file:///home/snorlax/claude-scratch/odomdrop-20261116/watch/cyclone_B.xml",
+   "life": 0
+  },
+  {
+   "t": 1794850445.601,
+   "src": "B",
+   "kind": "first_msg",
+   "topic": "/base/odom",
+   "after_s": 3.924
+  },
+  {
+   "t": 1794851469.485,
+   "src": "B",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794851468.467,
+   "first_after_match_s": 1022.9,
+   "run_s": 1027.8
+  },
+  {
+   "t": 1794851479.701,
+   "src": "B",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794851468.467,
+   "t_end": 1794851479.7,
+   "gap_ms": 11233.6
+  },
+  {
+   "t": 1794851479.701,
+   "src": "B",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 11233.6
+  },
+  {
+   "t": 1794851493.532,
+   "src": "B",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794851492.52,
+   "first_after_match_s": 1046.9,
+   "run_s": 1051.9
+  },
+  {
+   "t": 1794851497.624,
+   "src": "B",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794851492.52,
+   "t_end": 1794851497.624,
+   "gap_ms": 5103.9
+  },
+  {
+   "t": 1794851497.624,
+   "src": "B",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 5103.9
+  },
+  {
+   "t": 1794851619.622,
+   "src": "B",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794851618.614,
+   "first_after_match_s": 1173.0,
+   "run_s": 1177.9
+  },
+  {
+   "t": 1794851645.658,
+   "src": "B",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794851618.614,
+   "t_end": 1794851645.658,
+   "gap_ms": 27043.5
+  },
+  {
+   "t": 1794851645.658,
+   "src": "B",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 27043.5
+  },
+  {
+   "t": 1794852172.572,
+   "src": "B",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794852171.552,
+   "first_after_match_s": 1726.0,
+   "run_s": 1730.9
+  },
+  {
+   "t": 1794852343.233,
+   "src": "B",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794852171.552,
+   "t_end": 1794852343.233,
+   "gap_ms": 171680.5
+  },
+  {
+   "t": 1794852343.233,
+   "src": "B",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 171680.5
+  },
+  {
+   "t": 1794852343.233,
+   "src": "B",
+   "kind": "pose_jump",
+   "dpos": 0.2947,
+   "dyaw": 0.4376,
+   "dt": 171.681,
+   "spd": 0.00010202485749603917,
+   "w": 0.00030711668009998313,
+   "frm": [
+    0.21793154125812864,
+    -0.1984482860233659,
+    -0.43757897598756956
+   ],
+   "to": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "reset_to_zero": true
+  },
+  {
+   "t": 1794852344.359,
+   "src": "B",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794852343.353,
+   "first_after_match_s": 1897.8,
+   "run_s": 1902.7
+  },
+  {
+   "t": 1794852365.868,
+   "src": "B",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794852343.353,
+   "t_end": 1794852365.868,
+   "gap_ms": 22515.7
+  },
+  {
+   "t": 1794852365.868,
+   "src": "B",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 22515.7
+  },
+  {
+   "t": 1794852655.138,
+   "src": "B",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794852654.133,
+   "first_after_match_s": 2208.5,
+   "run_s": 2213.5
+  },
+  {
+   "t": 1794852655.869,
+   "src": "B",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794852654.133,
+   "t_end": 1794852655.869,
+   "gap_ms": 1736.7
+  },
+  {
+   "t": 1794852655.869,
+   "src": "B",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 1736.7
+  },
+  {
+   "t": 1794852662.185,
+   "src": "B",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794852661.174,
+   "first_after_match_s": 2215.6,
+   "run_s": 2220.5
+  },
+  {
+   "t": 1794852676.885,
+   "src": "B",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794852661.174,
+   "t_end": 1794852676.885,
+   "gap_ms": 15711.3
+  },
+  {
+   "t": 1794852676.885,
+   "src": "B",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 15711.3
+  },
+  {
+   "t": 1794852777.288,
+   "src": "B",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794852776.275,
+   "first_after_match_s": 2330.7,
+   "run_s": 2335.6
+  },
+  {
+   "t": 1794852880.167,
+   "src": "B",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794852776.275,
+   "t_end": 1794852880.167,
+   "gap_ms": 103891.4
+  },
+  {
+   "t": 1794852880.167,
+   "src": "B",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 103891.4
+  },
+  {
+   "t": 1794853334.225,
+   "src": "B",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794853333.223,
+   "first_after_match_s": 2887.6,
+   "run_s": 2892.5
+  },
+  {
+   "t": 1794853661.246,
+   "src": "B",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794853333.223,
+   "t_end": 1794853661.246,
+   "gap_ms": 328022.9
+  },
+  {
+   "t": 1794853661.246,
+   "src": "B",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 328022.9
+  },
+  {
+   "t": 1794853716.601,
+   "src": "B",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794853715.585,
+   "first_after_match_s": 3270.0,
+   "run_s": 3274.9
+  },
+  {
+   "t": 1794853813.778,
+   "src": "B",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794853715.585,
+   "t_end": 1794853813.778,
+   "gap_ms": 98192.9
+  },
+  {
+   "t": 1794853813.779,
+   "src": "B",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 98192.9
+  },
+  {
+   "t": 1794853841.346,
+   "src": "B",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794853840.341,
+   "first_after_match_s": 3394.7,
+   "run_s": 3399.7
+  },
+  {
+   "t": 1794853919.35,
+   "src": "B",
+   "kind": "gap",
+   "topic": "/base/odom",
+   "t_start": 1794853840.341,
+   "t_end": 1794853919.35,
+   "gap_ms": 79009.7
+  },
+  {
+   "t": 1794853919.35,
+   "src": "B",
+   "kind": "resume",
+   "topic": "/base/odom",
+   "silent_ms": 79009.7
+  },
+  {
+   "t": 1794856056.099,
+   "src": "B",
+   "kind": "silent",
+   "topic": "/base/odom",
+   "since": 1794856055.082,
+   "first_after_match_s": 5609.5,
+   "run_s": 5614.4
+  },
+  {
+   "t": 1794857072.372,
+   "src": "A2",
+   "kind": "start",
+   "pid": 146960,
+   "cyclone": "file:///home/snorlax/cyclonedds.xml",
+   "life": 0
+  },
+  {
+   "t": 1794857075.943,
+   "src": "A2",
+   "kind": "first_msg",
+   "topic": "/base/odom",
+   "after_s": 3.667
+  },
+  {
+   "t": 1794857072.361,
+   "src": "C",
+   "kind": "start",
+   "pid": 146961,
+   "cyclone": "file:///home/snorlax/sheppy-local/december_2026/config/dds/cyclonedds.xml",
+   "life": 0
+  }
+ ],
+ "host_log": [
+  {
+   "t": 1794854352.0,
+   "what": "enp3s0 (arm LAN) link up 1 Gbit/s at 13:39:24 after a 10 Mbit/s blip at 13:39:12",
+   "t_first": 1794854352.0,
+   "t_1g": 1794854364.0,
+   "src": "journalctl -k on snorlax"
+  },
+  {
+   "t": 1794856055.092,
+   "what": "eno1 DHCP: no lease, new lease 192.168.4.53 (was 192.168.4.2)",
+   "src": "journalctl NetworkManager on snorlax; MIB console 'DHCP server assigned IP ... 192.168.4.53' at 1794856055.245"
+  }
+ ]
+}

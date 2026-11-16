@@ -3,8 +3,8 @@
   Mounted into every docker node in sheppy-manifest.yaml, with CYCLONEDDS_URI
   pointing at it. rammp-base's docker/cyclonedds.xml as of
   rammp-org/RAMMP-docker#12 as merged (AllowMulticast spdp, ParticipantIndex
-  none), with one change only the deployment can make: the network interfaces
-  are named (see below). Several images pinned here are still built on a
+  none), with one change only the deployment can make: the network interface
+  is named (see below). Several images pinned here are still built on a
   rammp-base without #12: their file multicasts user data and caps a host at 10
   participants, which the flatbot profile alone fills. Once every pinned image
   is built on a rammp-base that includes #12 the rest of this file matches the
@@ -19,16 +19,16 @@
   DDS. The base image sets both RMW_IMPLEMENTATION and CYCLONEDDS_URI so every
   module inherits a consistent, working middleware.
 
-  The interfaces are named, not autodetermined: eno1 is the base's network
-  (the MIB and the wheels), enp3s0 the arm's. autodetermine picks one NIC, and
-  on snorlax that is enp3s0 whenever the arm's network is up, so a node never
-  sees the MIB: no /base/odom and no odom -> base_link in /tf (measured
-  2026-11-16 with this file: 0 messages, against 19 Hz once eno1 is named).
-  Both are presence_required="false" so the stack still starts with the arm or
-  the base unplugged; a named interface that is down is otherwise a fatal
-  error, and with neither present a node fails to start. Run containers with
-  `--network host` so these are the robot's real NICs; on a Docker bridge
-  network neither exists.
+  The interface is named, not autodetermined: eno1 is the base's network (the
+  MIB and the wheels). autodetermine picks one NIC, and on snorlax that is the
+  arm's (enp3s0) whenever it is up, so a node never sees the MIB: no /base/odom
+  and no odom -> base_link in /tf (measured 2026-11-16: 0 messages, against
+  19 Hz once eno1 is named). Naming eno1 alone also keeps DDS off the arm's
+  network, which rammp-org/rammp-deployments#132 asks for. Everything in the
+  stack runs on this host, so the nodes still reach each other. The cost: a
+  named interface that is down is a fatal error, so with the base's network
+  down no node starts. Run containers with `--network host` so eno1 is the
+  robot's real NIC; on a Docker bridge network it does not exist.
 
   Override for a specific robot or bench setup by mounting your own file and
   pointing CYCLONEDDS_URI at it:
@@ -38,8 +38,7 @@
   <Domain id="any">
     <General>
       <Interfaces>
-        <NetworkInterface name="eno1" presence_required="false" />
-        <NetworkInterface name="enp3s0" presence_required="false" />
+        <NetworkInterface name="eno1" />
       </Interfaces>
       <!--
         spdp: multicast for participant discovery only; user data goes

@@ -16,8 +16,8 @@
 # don't have yet. Without it their camera images go out as multicast and a host
 # fits 10 DDS participants, which the flatbot profile alone fills. Every
 # participant needs it, so a new docker node gets the same two lines. The file
-# also names this robot's networks (eno1 for the base, enp3s0 for the arm), which
-# no image can know, so the mount stays after the images catch up with #12.
+# also pins DDS to this robot's base network (eno1, where the MIB is), which no
+# image can know, so the mount stays after the images catch up with #12.
 #
 # Container definitions are inline rather than a `compose:` reference: sheppy
 # resolves a compose file relative to this manifest, so a reference would mean

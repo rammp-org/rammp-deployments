@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Mounted into every docker node in sheppy-manifest.yaml, with CYCLONEDDS_URI
-  pointing at it. A verbatim copy of rammp-base's docker/cyclonedds.xml as of
-  rammp-org/RAMMP-docker#12 (AllowMulticast spdp, MaxAutoParticipantIndex 100).
-  The images pinned here still carry the old file: its default cap of 10
-  participants per host is already full with the flatbot profile alone, and
-  rammp-curobo sets no CYCLONEDDS_URI at all. Delete this file and the mounts
-  once every pinned image is built on a rammp-base that includes #12.
+  pointing at it. rammp-base's docker/cyclonedds.xml as of
+  rammp-org/RAMMP-docker#12 (AllowMulticast spdp, MaxAutoParticipantIndex 100),
+  with one change only the deployment can make: the network interfaces are
+  named (see below). The images pinned here still carry the old file: its
+  default cap of 10 participants per host is already full with the flatbot
+  profile alone, and rammp-curobo sets no CYCLONEDDS_URI at all. Once every
+  pinned image is built on a rammp-base that includes #12 the rest of this file
+  matches the image's, but the file and the mounts stay: an image cannot know
+  this robot's interface names.
 -->
 <!--
   Default Cyclone DDS configuration for RAMMP containers.
@@ -16,10 +19,16 @@
   DDS. The base image sets both RMW_IMPLEMENTATION and CYCLONEDDS_URI so every
   module inherits a consistent, working middleware.
 
-  autodetermine="true" makes Cyclone pick the first non-loopback,
-  multicast-capable interface. Run containers with `--network host` so that
-  interface is the robot's real NIC; on a Docker bridge network, Cyclone will
-  bind the bridge and nodes in other containers will not discover each other.
+  The interfaces are named, not autodetermined: eno1 is the base's network
+  (the MIB and the wheels), enp3s0 the arm's. autodetermine picks one NIC, and
+  on snorlax that is enp3s0 whenever the arm's network is up, so a node never
+  sees the MIB: no /base/odom and no odom -> base_link in /tf (measured
+  2026-11-16 with this file: 0 messages, against 19 Hz once eno1 is named).
+  Both are presence_required="false" so the stack still starts with the arm or
+  the base unplugged; a named interface that is down is otherwise a fatal
+  error, and with neither present a node fails to start. Run containers with
+  `--network host` so these are the robot's real NICs; on a Docker bridge
+  network neither exists.
 
   Override for a specific robot or bench setup by mounting your own file and
   pointing CYCLONEDDS_URI at it:
@@ -29,7 +38,8 @@
   <Domain id="any">
     <General>
       <Interfaces>
-        <NetworkInterface autodetermine="true" priority="default" multicast="default" />
+        <NetworkInterface name="eno1" presence_required="false" />
+        <NetworkInterface name="enp3s0" presence_required="false" />
       </Interfaces>
       <!--
         spdp: multicast for participant discovery only; user data goes

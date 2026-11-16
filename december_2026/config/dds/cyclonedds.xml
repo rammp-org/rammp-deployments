@@ -2,14 +2,14 @@
 <!--
   Mounted into every docker node in sheppy-manifest.yaml, with CYCLONEDDS_URI
   pointing at it. rammp-base's docker/cyclonedds.xml as of
-  rammp-org/RAMMP-docker#12 (AllowMulticast spdp, MaxAutoParticipantIndex 100),
-  with one change only the deployment can make: the network interfaces are
-  named (see below). The images pinned here still carry the old file: its
-  default cap of 10 participants per host is already full with the flatbot
-  profile alone, and rammp-curobo sets no CYCLONEDDS_URI at all. Once every
-  pinned image is built on a rammp-base that includes #12 the rest of this file
-  matches the image's, but the file and the mounts stay: an image cannot know
-  this robot's interface names.
+  rammp-org/RAMMP-docker#12 as merged (AllowMulticast spdp, ParticipantIndex
+  none), with one change only the deployment can make: the network interfaces
+  are named (see below). Several images pinned here are still built on a
+  rammp-base without #12: their file multicasts user data and caps a host at 10
+  participants, which the flatbot profile alone fills. Once every pinned image
+  is built on a rammp-base that includes #12 the rest of this file matches the
+  image's, but the file and the mounts stay: an image cannot know this robot's
+  interface names.
 -->
 <!--
   Default Cyclone DDS configuration for RAMMP containers.
@@ -53,14 +53,17 @@
       <AllowMulticast>spdp</AllowMulticast>
     </General>
     <Discovery>
-      <ParticipantIndex>auto</ParticipantIndex>
       <!--
-        Cyclone's default of 9 caps a host at 10 participants per domain, and
-        every process in every --network host container counts. A full robot
-        stack exceeds that; the next node then fails with "Failed to find a
-        free participant index".
+        none: each participant binds OS-assigned ports and advertises them in
+        its multicast discovery announcements, so there is no per-host cap.
+        "auto" gives each participant a fixed port slot and Cyclone's default
+        caps those at 10 per host per domain. Every process in every
+        --network host container counts, so a full robot stack runs out and
+        the next node fails with "Failed to find a free participant index".
+        Fixed slots only matter for unicast discovery through a <Peers> list,
+        which RAMMP does not use.
       -->
-      <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
+      <ParticipantIndex>none</ParticipantIndex>
     </Discovery>
   </Domain>
 </CycloneDDS>

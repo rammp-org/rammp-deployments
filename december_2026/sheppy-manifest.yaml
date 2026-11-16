@@ -1103,7 +1103,9 @@ nodes:
           volumes:
             - /srv/rammp_feeding/config:/config
             - /srv/rammp_feeding/runs:/runs
+            - ./config/dds/cyclonedds.xml:/etc/cyclonedds/config.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           command: ros2 launch rammp_feeding feed.launch.py

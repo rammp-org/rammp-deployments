@@ -7,7 +7,7 @@ config,odom_msgs_14s,note
 "eno1 + a nonexistent interface, presence_required=false",204,
 "only the arm LAN present (eno1 replaced by a down interface, both optional)",0,node starts
 "neither present (both optional)",,node creation fails
-"PR file as merged in this PR (eno1 only, #12 body)",197,
+"this PR's file (eno1 only, #12 body)",197,
 same file with the name changed to a down interface,,node creation fails
 named interface layered via CYCLONEDDS_URI onto a file with an autodetermine entry,,node creation fails
 named interface layered onto the same file with the Interfaces block removed,261,spdp still in effect

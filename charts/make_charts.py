@@ -106,7 +106,7 @@ def chart_timeline():
         a.plot([dt(t) for t in bt], by, color=S[i], lw=1.4)
         a.set_ylim(-1.5, 23)
         a.set_yticks([0, 10, 20])
-        a.text(0.995, 0.93, lab, transform=a.transAxes, ha="right", va="top", color=P["ink"], fontsize=9)
+        a.set_title(lab, loc="left", color=P["ink"], fontsize=9, pad=3)
         if i < 3:
             plt.setp(a.get_xticklabels(), visible=False)
     for a in axs:
@@ -129,7 +129,7 @@ def chart_multicast():
     items = [
         ("Camera, image default, 1 sub (S7, 13:03)", s1["eno1"]["stress"]["tx_multicast_per_s"]),
         ("Camera, image default, 2 subs (S7, 13:05)", s2["eno1"]["stress"]["tx_multicast_per_s"]),
-        ("Camera, spdp publisher, 2 subs (S7r, 14:03)", sr["tx_mcast_mean_fps"]),
+        ("Camera, spdp publisher, 2 added subs, 3 total (S7r, 14:03)", sr["tx_mcast_mean_fps"]),
         ("Synthetic, default, 1 sub", b1["data_mean_fps"]),
         ("Synthetic, default, 2 subs", b2["data_mean_fps"]),
         ("Synthetic, spdp publisher, 2 subs", bs["data_mean_fps"]),
@@ -147,8 +147,9 @@ def chart_multicast():
         a.annotate(f"{v:,.1f}", xy=(v, i), xytext=(5, 0), textcoords="offset points", va="center",
                    color=P["muted"], fontsize=9.5, fontfamily="Roboto Mono")
     idle = [s1["eno1"]["pre"]["tx_multicast_per_s"], s2["eno1"]["pre"]["tx_multicast_per_s"], sr["tx_mcast_pre_fps"]]
-    a.axvline(max(idle), color=P["warning"], ls=(0, (4, 3)), lw=1)
-    a.annotate(f"idle before the camera runs, up to {max(idle):.1f}", xy=(max(idle), -0.5), xytext=(4, 0),
+    a.set_ylim(len(items) - 0.5, -0.5)
+    a.vlines(max(idle), 0.45, len(items) - 0.5, color=P["warning"], ls=(0, (4, 3)), lw=1)  # stops below row 0's value label
+    a.annotate(f"idle before the camera runs, up to {max(idle):.1f}", xy=(max(idle), len(items) - 1), xytext=(5, 0),
                textcoords="offset points", color=P["muted"], fontsize=8.5, va="center")
     a.set_xlabel("Multicast frames sent on eno1, frames/s (log)")
     a.set_ylabel("Publisher and subscribers")
@@ -175,8 +176,8 @@ def chart_flood():
         a.annotate(lab, xy=(dt(c["t_stress_start"]), 22.5), xytext=(3, 0), textcoords="offset points",
                    color=P["muted"], fontsize=8.5, va="center")
     for t in ABORTS:
-        a.annotate("abort", xy=(dt(t), -0.5), xytext=(2, 0), textcoords="offset points", rotation=90,
-                   color=P["ink"], fontsize=8, va="bottom", ha="left")
+        a.annotate("abort", xy=(dt(t), 6), xytext=(-2, 0), textcoords="offset points", rotation=90,
+                   color=P["ink"], fontsize=8, va="bottom", ha="right")
     for i, s in enumerate(["A", "B"]):
         a.plot([dt(t) for t in T[m]], RATE[s][m], color=S[i], lw=2.0, label=s)
     g = max(case("S7_imgsub_2")["odom"]["gaps"], key=lambda g: g["s"])
@@ -192,8 +193,8 @@ def chart_flood():
     b.plot(tt, tv, color=S[4], lw=2.0)
     b.set_yscale("log"); b.set_ylim(0.1, 400)
     b.set_ylabel("eno1 transmit, Mbit/s (log)")
-    b.text(0.22, 0.95, "All traffic the Jetson sends on eno1, 1 s samples from live.py (not multicast only)",
-           transform=b.transAxes, color=P["muted"], fontsize=8.5, va="top")
+    b.annotate("All traffic the Jetson sends on eno1,\n1 s samples from live.py (not multicast only)",
+               xy=(dt(1794852188), 300), color=P["muted"], fontsize=8.5, va="top", ha="left")
     b.xaxis.set_major_locator(mdates.SecondLocator(bysecond=[0, 30], tz=TZ)); b.xaxis.set_major_formatter(HMS)
     b.set_xlim(dt(t0), dt(t1)); b.set_xlabel("Time on snorlax, EST")
     a.set_xlabel("Time on snorlax, EST"); a.xaxis.label.set_visible(False)

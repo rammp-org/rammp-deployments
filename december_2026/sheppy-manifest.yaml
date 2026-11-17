@@ -972,26 +972,28 @@ nodes:
     description: SAM3 on-demand expert detection and tracking sessions under /perception/sam3
     select: single
     alternatives:
-      # Transcribed from rammp-org/rammp-perception's rammp-alternative.sam3.yaml; same NOT A RELEASE pin
-      # as scene_segmenter above. Services /perception/sam3/{detect,start_tracking,stop_tracking,
-      # renew_tracking}; a session streams ObjectDetections on /perception/sam3/object_detections and
-      # runs until stopped (leases are off). Detect ~0.4-0.9 s; tracking ~12 Hz for one object.
+      # Transcribed from rammp-org/rammp-perception's rammp-alternative.sam3.yaml; NOT A RELEASE pin, as
+      # for scene_segmenter above. 35bc09c is d393a0f plus the baked-in weights (rammp-perception#5): same
+      # interfaces, so it pairs with the other perception images' d393a0f. Services
+      # /perception/sam3/{detect,start_tracking,stop_tracking,renew_tracking}; a session streams
+      # ObjectDetections on /perception/sam3/object_detections and runs until stopped (leases are off).
+      # Detect ~0.4-0.9 s; tracking ~12 Hz for one object.
       #
-      # Weights are gated on Hugging Face and not in the image: this mounts the facebook/sam3 snapshot
-      # already on abra. TensorRT encoders are built once per machine into the sam3_engines volume
-      # (see object_detection/sam3/sam3.yaml in rammp-perception); without them the node falls back to
+      # The facebook/sam3 weights are in the image, so the package is private (the SAM License limits
+      # redistribution): the host needs a `docker login ghcr.io` to pull it (README.md). TensorRT
+      # encoders are built once per machine into the sam3_engines volume (README.md, or
+      # object_detection/sam3/sam3.yaml in rammp-perception); without them the node falls back to
       # PyTorch, slower with the same output.
       - id: sam3_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/sam3:sha-d393a0fb400e319cab1edf4666c91d1533dd1b24
+          image: ghcr.io/rammp-org/rammp-perception/sam3:sha-35bc09c00aced70fbaf8fc8bccd164b07ffe546d
           runtime: nvidia
           network_mode: host
           ipc: host
           user: "1000:1000"
           volumes:
             - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
-            - /home/abra/sam3-test/models/sam3:/models/sam3:ro
             - sam3_engines:/cache/engines
           environment:
             CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml

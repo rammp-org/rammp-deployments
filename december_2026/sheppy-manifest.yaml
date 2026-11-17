@@ -760,11 +760,6 @@ nodes:
             - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
             - curobo_kernel_cache:/root/.cache
             - ./config/robots/current:/config/robot:ro
-            # The worlds the kitchen engines write and hand the planner by path, read at the
-            # same path the engine names: button_press and fridge (planner_world_dir),
-            # microwave_place (worlds_dir).
-            - /tmp/rammp_planner_worlds:/rammp_planner_worlds:ro
-            - /home/snorlax/.ros/rammp_box_opening/worlds:/home/snorlax/.ros/rammp_box_opening/worlds:ro
           command:
             - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
         params:

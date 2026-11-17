@@ -109,15 +109,6 @@ def test_dev_data_dir_on_daily_tree(cap):
     assert not [v for v in volumes if v.startswith(f"/tmp/{cap}")]
 
 
-def test_planner_mounts_engine_world_dirs():
-    volumes = alt("planner", "curobo_planner_nightly")["container"]["volumes"]
-    assert "/tmp/rammp_planner_worlds:/rammp_planner_worlds:ro" in volumes
-    assert (
-        "/home/snorlax/.ros/rammp_box_opening/worlds:/home/snorlax/.ros/rammp_box_opening/worlds:ro"
-        in volumes
-    )
-
-
 def test_arm_observes_contact():
     assert (
         alt("arm", "kinova_gen3_driver_nightly")["params"]["contact_detection"]

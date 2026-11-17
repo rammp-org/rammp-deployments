@@ -44,4 +44,4 @@ overrides:
     # off, boxer says how far the nearest depth frame was instead of lifting a mismatched pair.
     depth_topic: /scene_camera/depth/image_rect_raw
     depth_slop_s: 0.005
-    gravity_frame: arm_mount  # flatbot's tree is world -> arm_mount; nothing publishes base_link
+    gravity_frame: arm_mount  # the cameras hang off arm_mount (transforms/cameras.yaml)

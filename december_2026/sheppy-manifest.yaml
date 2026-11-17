@@ -157,8 +157,8 @@ nodes:
           # textureless side face from 0.83 to 0.51.
           driver.r_laser_dot_intensity: 1.0
           driver.r_floodlight_intensity: 0.0
-          # The camera is mounted right side up (it was upside down until
-          # 2026-11-17, rotated 180° here), so no rotation. If it is remounted
+          # The joystick mount holds the camera right side up (the mount before
+          # it held it upside down, rotated 180° here), so no rotation. If it is remounted
           # upside down, set both to 180: both, so depth stays registered to
           # color. The frame names do not change either way: the mount in the
           # robot's transforms/cameras.yaml is the upright camera's.

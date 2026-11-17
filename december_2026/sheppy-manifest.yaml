@@ -1118,7 +1118,7 @@ nodes:
     description: Robot-assisted feeding -- a capability engine the orchestrator drives, one bite per action
     select: single
     alternatives:
-      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.6.1, for this manifest's 2.0 arm alternatives). A
+      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.6.2, for this manifest's 2.0 arm alternatives). A
       # capability engine (rammp-kitchen-capability-engines' CapabilityEngine, engine id `feeding`): it registers with
       # the orchestrator and moves the arm only in an action the orchestrator starts -- start_meal, feed (one bite),
       # finish_meal and, with a stand to pick the fork from, pick_up_fork and put_down_fork (its docs/interface.md);
@@ -1142,7 +1142,7 @@ nodes:
       - id: rammp_feeding_docker
         kind: docker
         container:
-          image: docker.io/debajyotidasgupta/rammp-feeding:0.6.1
+          image: docker.io/debajyotidasgupta/rammp-feeding:0.6.2
           network_mode: host
           ipc: host
           user: "1000:1000"
@@ -1179,10 +1179,12 @@ nodes:
           - /scene_camera/color/image_raw
           - /scene_camera/color/camera_info
           - /scene_camera/depth/image_rect_raw
+          - /gripper_state
         publishes:
           - /feeding/status
           - /tf_static
           - /reset
+          - /setpoint/gripper
       # Wiring only, like every mock here: its status topic, empty.
       - id: feeding_mock
         kind: process
@@ -1194,16 +1196,16 @@ nodes:
     description: Robot-assisted drinking -- a capability engine the orchestrator drives, one sip per action
     select: single
     alternatives:
-      # Transcribed from rammp-drinking's rammp-alternative.yaml (v0.1.2, on rammp-feeding 0.6.1, for this manifest's 2.0
+      # Transcribed from rammp-drinking's rammp-alternative.yaml (v0.1.3, on rammp-feeding 0.6.2, for this manifest's 2.0
       # arm alternatives). A capability engine (rammp-kitchen-capability-engines' CapabilityEngine, engine id
       # `drinking`): it registers with the orchestrator and moves the arm only in an action the orchestrator starts --
       # pick_up_drink, give_sip (one sip) and put_down_drink (its docs/interface.md); nothing moves when it starts. It
       # moves the arm only through the arm node (execute_joint_trajectory: its own IK paths and the planner's, HOLD_LEVEL
       # while it carries the cup) and commands the gripper (/setpoint/gripper: it holds the cup's handle from inside),
       # so `arm`, `arm_state_publisher` and `planner` must be selected alongside, with `wrist_camera` and `sam3`. The
-      # gripper must be empty for drinking: the fork is taken out by hand. Stopping it cancels the action in flight:
-      # the move stops and the arm settles. It hands the planner its world by path while an action plans and puts the
-      # planner's own back with /reset as the action ends.
+      # gripper must be empty for drinking: the fork put back on its stand (feeding's put_down_fork) or taken out by
+      # hand. Stopping it cancels the action in flight: the move stops and the arm settles. It hands the planner its
+      # world by path while an action plans and puts the planner's own back with /reset as the action ends.
       #
       # It shares rammp-feeding's state folder (/srv/rammp_feeding/config, owned by uid 1000): one site file (the table,
       # workspace.table_height_m; the cup, drinking.mug.*), one wrist camera mount, one home pose; its own poses and
@@ -1217,7 +1219,7 @@ nodes:
       - id: rammp_drinking_docker
         kind: docker
         container:
-          image: docker.io/debajyotidasgupta/rammp-drinking:0.1.2
+          image: docker.io/debajyotidasgupta/rammp-drinking:0.1.3
           network_mode: host
           ipc: host
           user: "1000:1000"

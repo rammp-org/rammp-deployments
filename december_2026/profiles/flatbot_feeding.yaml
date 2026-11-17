@@ -1,6 +1,7 @@
 # flatbot with robot-assisted feeding and drinking: profiles/flatbot.yaml's cameras, foxglove, arm and planner, with
 # the `feeding` and `drinking` nodes and what they need (sam3, static_tf). Perception for other skills (RF-DETR,
-# BoxerNet) is left unselected. One gripper serves both: the fork is taken out by hand for drinking and put back after.
+# BoxerNet) is left unselected. One gripper serves both: for drinking the fork goes back on its stand (put_down_fork)
+# or is taken out by hand, and comes back after (pick_up_fork, or by hand).
 #
 #   uv run scripts/set_robot.py december_2026/config/robots/flatbot   # once per host
 #   sheppy up flatbot_feeding --manifest december_2026/sheppy-manifest.yaml
@@ -10,7 +11,8 @@
 description: flatbot + feeding + drinking — OAK-D cameras, foxglove, arm + planner on the nightly channel, SAM3, the feeding and drinking nodes
 selections:
   scene_camera: oak_d_pro_w_docker
-  wrist_camera: oak_d_pro_docker
+  # Through the arm's Vision Puck, as profiles/flatbot.yaml (on the sensor network instead: oak_d_pro_docker).
+  wrist_camera: oak_d_pro_puck_docker
   foxglove: foxglove_bridge_docker
   # One generation for all three; see the manifest's `arm` node.
   arm: kinova_gen3_driver_nightly

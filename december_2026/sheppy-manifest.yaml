@@ -9,10 +9,19 @@
 # mocks publish empty messages at the right topic and type — enough to develop
 # wiring against, and deliberately not a simulation.
 #
-# DDS: everything here speaks Cyclone. The arm, the planner and (from 0.1.0) the
-# camera images are all built FROM rammp-base, which sets RMW_IMPLEMENTATION and
-# a tuned CYCLONEDDS_URI — so no node below sets either, and overriding one
-# would strip the fleet config with it.
+# DDS: everything here speaks Cyclone. Images built FROM rammp-base set
+# RMW_IMPLEMENTATION and bake the fleet's Cyclone config (AllowMulticast spdp,
+# ParticipantIndex none) at /etc/cyclonedds/config.xml. No node sets
+# RMW_IMPLEMENTATION. Every docker node sets CYCLONEDDS_URI to that file plus the
+# active robot's config/robots/<robot>/cyclonedds.xml, mounted at
+# /etc/cyclonedds/robot.xml, which names the robot's network interface and
+# nothing else (flatbot and gen_1_5, both run from snorlax: eno1, the base's
+# network; gen_1_5's file is a symlink to flatbot's). Cyclone merges the two in
+# order. That needs an image config with no interface of its own (rammp-base
+# 2.1.0-jp6 or newer, rammp-curobo 2.0.2 or newer). The nodes whose images
+# still autodetermine one (the rammp-curobo and kinova-gen3-ros2 nightlies,
+# rammp-feeding) take config/dds/cyclonedds-fleet.xml, a copy of rammp-base's
+# file, in its place until they are rebuilt.
 #
 # Container definitions are inline rather than a `compose:` reference: sheppy
 # resolves a compose file relative to this manifest, so a reference would mean
@@ -29,16 +38,18 @@ nodes:
       - id: gemini336l_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/gemini:0.3.1
+          image: ghcr.io/rammp-org/rammp-suite-software/gemini:0.5.1
           # Userspace-USB device: privileged + /dev survives replugs. The
           # camera needs no root, so it runs as the host user.
           privileged: true
           network_mode: host
           ipc: host
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - /dev:/dev
           user: "1000:1000"
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           # The image's entrypoint runs the node with its defaults; only the
@@ -74,11 +85,14 @@ nodes:
         container:
           # 0.4.0: the driver from our depthai-ros fork (i_rotation, synced + encoded color, and #7: the
           # host-side filters, rotation and Sync below).
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.4.0
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.5.1
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
           command: [--ros-args, -r, __node:=scene_camera]
         params:
@@ -169,16 +183,18 @@ nodes:
       - id: d405_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/realsense:0.3.1
+          image: ghcr.io/rammp-org/rammp-suite-software/realsense:0.5.1
           privileged: true
           network_mode: host
           ipc: host
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - /dev:/dev
           # gid 44 = video: librealsense streams over V4L2, and /dev/video* is
           # root:video 0660. The Orbbec needs no such group (libusb, node 0666).
           user: "1000:44"
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           # The image's entrypoint runs the node with its defaults; only the
@@ -203,7 +219,7 @@ nodes:
         kind: docker
         container:
           # 0.4.0: the driver from our depthai-ros fork with #7 (the host-side filters and Sync below).
-          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.4.0
+          image: ghcr.io/rammp-org/rammp-suite-software/oak:0.5.1
           # PoE camera: reached over the network, so no /dev and no privileges.
           network_mode: host
           ipc: host
@@ -214,7 +230,10 @@ nodes:
           # image decodes it back onto color/image_raw with the same stamps, so
           # consumers see raw images as before. Needs the color.i_low_bandwidth
           # params below.
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             RAMMP_OAK_COLOR_CODEC: h264
           # The image's entrypoint runs the node with the driver's defaults;
@@ -307,14 +326,16 @@ nodes:
       - id: d435i_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-suite-software/d435i:0.3.1
+          image: ghcr.io/rammp-org/rammp-suite-software/d435i:0.5.1
           privileged: true
           network_mode: host
           ipc: host
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - /dev:/dev
           user: "1000:44"
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           command: [--ros-args, -r, __node:=wrist_camera]
@@ -344,10 +365,13 @@ nodes:
       - id: foxglove_bridge_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-tools/foxglove:0.1.0
+          image: ghcr.io/rammp-org/rammp-tools/foxglove:0.3.1
           network_mode: host
           ipc: host
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
           command: ros2 launch foxglove_bridge foxglove_bridge_launch.xml
         # No topics: it is a WebSocket server, reached at ws://<machine>:8765
@@ -368,8 +392,8 @@ nodes:
       # fragment uses `compose:` against the module's own deploy/compose.yaml,
       # which builds images locally; inline here, per this file's convention.
       #
-      # TWO CHANNELS OF ONE GENERATION. The release (kinova-gen3-ros2 2.0.0 with
-      # RAMMP-CuRobo 2.0.1, no suffix) and `_nightly` (kinova-arm nightly
+      # TWO CHANNELS OF ONE GENERATION. The release (kinova-gen3-ros2 2.1.0 with
+      # RAMMP-CuRobo 2.0.2, no suffix) and `_nightly` (kinova-arm nightly
       # channel, rammp-org/rammp-nightly) both read the arm's model from
       # /arm/robot_description, rendered from the active robot's mount.yaml,
       # and take Cartesian goals in arm_mount, so a tilted mount (flatbot,
@@ -391,7 +415,7 @@ nodes:
         # launch, so a params file at startup is the only way it can be set.
         ros_node_name: kinova_gen3_node
         container:
-          image: ghcr.io/rammp-org/kinova-gen3-ros2:2.0.0
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:2.1.0
           network_mode: host
           ipc: host
           # SYS_NICE permits sched_setscheduler; the ulimits are what let it
@@ -403,10 +427,12 @@ nodes:
           ulimits:
             rtprio: 99
             memlock: -1
-          # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base,
-          # which sets Cyclone plus CYCLONEDDS_URI. Overriding it would strip
-          # the tuned config with it.
+          # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base.
+          # CYCLONEDDS_URI adds the robot's interface (see the top of this file).
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
           # Run as root: the RT loop needs the rlimits above.
           #
@@ -455,17 +481,23 @@ nodes:
         ros_node_name: kinova_gen3_node
         container:
           image: ghcr.io/rammp-org/kinova-gen3-ros2:nightly
-          # `:nightly` moves to each green set; without this a robot keeps
-          # running whichever one it pulled first. Pin a dated tag
+          # `:nightly` moves to each green set; without a pull on every start
+          # a robot keeps running whichever one it pulled first. If the pull
+          # fails (robot offline, registry unreachable) it starts from the
+          # cached image instead of failing. Pin a dated tag
           # (`:nightly-YYYYMMDD`) instead to hold a set still.
-          pull_policy: always
+          pull_policy: prefer_latest
           network_mode: host
           ipc: host
           cap_add: [SYS_NICE]
           ulimits:
             rtprio: 99
             memlock: -1
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
           command:
             - /module_ws/install/kinova_gen3_ros2/lib/kinova_gen3_ros2/kinova_gen3_node
@@ -526,13 +558,13 @@ nodes:
       - id: kinova_gen3_description
         kind: docker
         container:
-          image: ghcr.io/rammp-org/kinova-gen3-ros2:2.0.0
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:2.1.0
           network_mode: host
           ipc: host
-          # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base,
-          # which sets Cyclone plus CYCLONEDDS_URI. Overriding it would strip
-          # the tuned config with it.
+          # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base.
+          # CYCLONEDDS_URI adds the robot's interface (see the top of this file).
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           # Unlike the driver, nothing here needs root — run as the host user,
@@ -546,6 +578,7 @@ nodes:
           # The relative path resolves against this manifest only in sheppy at or
           # after #149 (df89566); older sheppy hands it to docker unchanged.
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - ./config/robots/current:/config/robot:ro
           command: ros2 launch kinova_gen3_description description.launch.py mount_file:=/config/robot/mount.yaml
         publishes:
@@ -559,14 +592,17 @@ nodes:
         kind: docker
         container:
           image: ghcr.io/rammp-org/kinova-gen3-ros2:nightly
-          pull_policy: always  # see kinova_gen3_driver_nightly
+          pull_policy: prefer_latest  # see kinova_gen3_driver_nightly
           network_mode: host
           ipc: host
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           user: "1000:1000"
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
             - ./config/robots/current:/config/robot:ro
           command: ros2 launch kinova_gen3_description description.launch.py mount_file:=/config/robot/mount.yaml
         publishes:
@@ -596,18 +632,20 @@ nodes:
       - id: static_tf_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-tools/static_tf:0.2.0
+          image: ghcr.io/rammp-org/rammp-tools/static_tf:0.3.1
           network_mode: host
           ipc: host
-          # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base,
-          # which sets Cyclone plus CYCLONEDDS_URI.
+          # No RMW_IMPLEMENTATION here: the image is built FROM rammp-base.
+          # CYCLONEDDS_URI adds the robot's interface (see the top of this file).
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           user: "1000:1000"
           # Same `current` link as arm_state_publisher: run scripts/set_robot.py
           # first. The image's default command reads /config/robot/transforms.
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - ./config/robots/current:/config/robot:ro
         publishes:
           - /tf_static
@@ -641,12 +679,14 @@ nodes:
         kind: docker
         ros_node_name: rammp_curobo
         container:
-          # 2.0.1: 2.0.0 plus the fleet's Cyclone DDS config in the image.
-          image: ghcr.io/rammp-org/rammp-curobo:2.0.1
+          # 2.0.2: 2.0.0 plus the fleet's Cyclone DDS config in the image, with
+          # no interface of its own, so the robot's file layers onto it.
+          image: ghcr.io/rammp-org/rammp-curobo:2.0.2
           runtime: nvidia              # JetPack exposes the GPU this way, NOT --gpus
           network_mode: host
           ipc: host
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
           # The first plan after a cold start compiles CUDA kernels — minutes,
           # during which go_to_* goals just sit there. The named volume keeps
@@ -657,6 +697,7 @@ nodes:
           # in its curobo/ and its profile names them there. Its run needs
           # set_robot.py, as arm_state_publisher's does.
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - curobo_kernel_cache:/root/.cache
             - ./config/robots/current:/config/robot:ro
             # rammp-feeding's state folder: the collision world it hands the planner by path (set_world) while it
@@ -682,13 +723,16 @@ nodes:
         ros_node_name: rammp_curobo
         container:
           image: ghcr.io/rammp-org/rammp-curobo:nightly
-          pull_policy: always  # see kinova_gen3_driver_nightly
+          pull_policy: prefer_latest  # see kinova_gen3_driver_nightly
           runtime: nvidia
           network_mode: host
           ipc: host
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
             - curobo_kernel_cache:/root/.cache
             - ./config/robots/current:/config/robot:ro
             # rammp-feeding's state folder: the collision world it hands the planner by path (set_world) while it
@@ -724,13 +768,15 @@ nodes:
       - id: xbox_pad
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-teleop:0.2.0
+          image: ghcr.io/rammp-org/rammp-teleop:0.3.1
           network_mode: host
           ipc: host
           privileged: true
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - /dev:/dev
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
           command: /module_ws/src/rammp-teleop/scripts/launch_entry.py rammp_teleop xbox.launch.py
         publishes:
@@ -753,15 +799,17 @@ nodes:
       - id: quest3
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-teleop:0.2.0
+          image: ghcr.io/rammp-org/rammp-teleop:0.3.1
           network_mode: host
           ipc: host
           privileged: true
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - /dev:/dev
             - /home/abra/.android:/root/.android
             - /home/abra/.config/rammp_teleop:/config
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
           command: /module_ws/src/rammp-teleop/scripts/launch_entry.py rammp_teleop quest.launch.py r_align_file:=/config/quest_r_align.json
         publishes:
@@ -783,12 +831,14 @@ nodes:
       - id: spacemouse
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-teleop:0.2.0
+          image: ghcr.io/rammp-org/rammp-teleop:0.3.1
           network_mode: host
           ipc: host
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - /var/run/spnav.sock:/var/run/spnav.sock
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
           command: /module_ws/src/rammp-teleop/scripts/launch_entry.py rammp_teleop space_mouse.launch.py
         publishes:
@@ -825,14 +875,16 @@ nodes:
       - id: yoloe_gpu
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-d393a0fb400e319cab1edf4666c91d1533dd1b24
           runtime: nvidia
           network_mode: host
           ipc: host
           user: "1000:1000"
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - rammp_perception_engines:/cache/engines
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
         params:
@@ -851,14 +903,16 @@ nodes:
       - id: yoloe_dla
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-d393a0fb400e319cab1edf4666c91d1533dd1b24
           runtime: nvidia
           network_mode: host
           ipc: host
           user: "1000:1000"
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - rammp_perception_engines:/cache/engines
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
         params:
@@ -883,12 +937,15 @@ nodes:
       - id: rfdetr
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/rfdetr:sha-629c871b357228f0e48963bdadf1af19b0dcd635
+          image: ghcr.io/rammp-org/rammp-perception/rfdetr:sha-d393a0fb400e319cab1edf4666c91d1533dd1b24
           runtime: nvidia
           network_mode: host
           ipc: host
           user: "1000:1000"
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
         params:
@@ -904,11 +961,14 @@ nodes:
       - id: scene_segmenter_mock
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-d393a0fb400e319cab1edf4666c91d1533dd1b24
           network_mode: host
           ipc: host
           user: "1000:1000"
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
         params:
@@ -932,15 +992,17 @@ nodes:
       - id: sam3_docker
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/sam3:sha-629c871b357228f0e48963bdadf1af19b0dcd635
+          image: ghcr.io/rammp-org/rammp-perception/sam3:sha-d393a0fb400e319cab1edf4666c91d1533dd1b24
           runtime: nvidia
           network_mode: host
           ipc: host
           user: "1000:1000"
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - /home/abra/sam3-test/models/sam3:/models/sam3:ro
             - sam3_engines:/cache/engines
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
         params:
@@ -976,14 +1038,16 @@ nodes:
       - id: boxer
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-629c871b357228f0e48963bdadf1af19b0dcd635
+          image: ghcr.io/rammp-org/rammp-perception/boxer:sha-d393a0fb400e319cab1edf4666c91d1533dd1b24
           runtime: nvidia
           network_mode: host
           ipc: host
           user: "1000:1000"
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - rammp_perception_engines:/cache/engines
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
         params:
@@ -1009,11 +1073,14 @@ nodes:
       - id: object_lifter_mock
         kind: docker
         container:
-          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-629c871b357228f0e48963bdadf1af19b0dcd635
+          image: ghcr.io/rammp-org/rammp-perception/yoloe:sha-d393a0fb400e319cab1edf4666c91d1533dd1b24
           network_mode: host
           ipc: host
           user: "1000:1000"
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           command: [--ros-args, -r, __node:=boxer, -r, /perception/object_detections:=/perception/object_detections_3d]
@@ -1057,9 +1124,12 @@ nodes:
           # State across runs: local.yaml, the captured poses, the wrist camera's measured mount, the meal's bowl
           # reading, the world it hands the planner. The run record beside it (only with `record` on).
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
             - /srv/rammp_feeding/config:/config
             - /srv/rammp_feeding/runs:/runs
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           # The node's executable (sheppy appends --ros-args --params-file with the params below)

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The Cyclone DDS interface for the robots run from snorlax: flatbot, and
+  gen_1_5, whose cyclonedds.xml is a symlink to this file. Layered onto the
+  image's fleet config by CYCLONEDDS_URI in sheppy-manifest.yaml (mounted at
+  /etc/cyclonedds/robot.xml).
+  Only the interface lives here; AllowMulticast spdp and ParticipantIndex none
+  come from rammp-base (2.1.0-jp6 or newer).
+
+  eno1 is snorlax's base network (the MIB, the wheels and both OAKs;
+  flatbot/network.yaml).
+  Left to autodetermine, Cyclone picks the arm's NIC (enp3s0) whenever it is up,
+  and a node then never sees the MIB: no /base/odom and no odom -> base_link
+  (measured on 2026-11-16: 0 messages, against 19 Hz with eno1 named;
+  rammp-org/rammp-deployments#136). Naming eno1 alone also keeps DDS off the
+  arm's network (#132). Every node runs on this host, so they still reach each
+  other.
+
+  Costs: a named interface that is down is fatal, so with eno1 down no node
+  starts, the arm's included. And every node advertises eno1's address, so
+  eno1 needs a stable one: a lease change on 2026-11-16 left already-running
+  nodes deaf to odom.
+-->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface name="eno1" />
+      </Interfaces>
+    </General>
+  </Domain>
+</CycloneDDS>

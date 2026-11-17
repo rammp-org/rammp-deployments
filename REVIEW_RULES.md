@@ -229,7 +229,10 @@ DDS graph as everything else, stop when told, and use the Jetson's GPU.
 
 - **D1** (must-fix) Never set `RMW_IMPLEMENTATION` or `CYCLONEDDS_URI`: not in
   the Dockerfile, launch file, fragment, or code. `rammp-base` owns them, and
-  overriding them takes the node off the fleet's DDS graph.
+  overriding them takes the node off the fleet's DDS graph. The one exception
+  is this repo's `sheppy-manifest.yaml`, which sets `CYCLONEDDS_URI` on every
+  docker node to the image's file plus the robot's interface file
+  (`config/robots/<robot>/cyclonedds.xml`). A module never does.
 - **D2** (must-fix) The real path stops on `docker stop` within 5 s, not only
   the mock CI tests. `ros2 launch` as PID 1 needs `STOPSIGNAL SIGINT`. No
   `bash -c` wrapper that does not forward signals.

@@ -22,13 +22,19 @@ mounts:
     # (10x14, 40 mm squares, DICT_4X4_100) seen at once by the wrist camera (its mount below) and this camera,
     # 5 captures, 5 mm / 0.3 deg spread; the table height at the arm-marked spot matches to 1 mm. Was the
     # hand measurement xyz [-0.0032, -0.50, 0.40], level (quat [0, 0, 0, 1]).
-    # The calibration relates the camera to the arm, so it stays on arm_mount; world.yaml's
-    # base_link -> arm_mount puts the camera at [0.5, 1.0, 1.5] in base_link (#167).
+    # The camera was then turned about 20 deg left on its mount (2026-11-17). Refitted that day on snorlax
+    # (not a calibration session; ~/rammp-wt/night-1116/scenecal/fit3.py) from three box-opening runs' saved
+    # frames against the wrist camera as mounted below: the table both cameras see must be one plane (tilt
+    # and height within 1.5 mm on all three) and the lid must stand where the wrist's far look has it (the
+    # turn: 24-42 mm, three boxes only). Against the 11-12 calibration ([0.3064, -0.5723, 0.4270], quat
+    # [-0.0067, 0.0607, -0.0113, 0.9981]): turned 16.0 deg left, tilted 2.7 deg more, moved [-11, -37, -40] mm.
+    # The calibration relates the camera to the arm, so it stays on arm_mount. world.yaml's base_link ->
+    # arm_mount was solved with the 11-12 one (#167) and is kept: the arm did not move, the camera did.
     scene_camera:
       parent: arm_mount
       child: scene_camera
-      xyz: [0.3064, -0.5723, 0.4270]
-      quat_xyzw: [-0.0067, 0.0607, -0.0113, 0.9981]
+      xyz: [0.294939, -0.609435, 0.387293]
+      quat_xyzw: [0.0221559, 0.0888378, 0.1293172, 0.9873672]
     # OAK-D Pro, looking along the tool. Mounted upside down: its up (+z) points
     # back at the arm (-y). Roll checked against a live frame (#114). As for the
     # scene camera, the driver rotates its images 180° (i_rotation) and keeps the

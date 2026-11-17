@@ -5,7 +5,7 @@
 # arm_mount. These two links make it one tree: world -> odom -> base_link -> arm_mount.
 # world -> odom is identity (#163). base_link -> arm_mount is solved (#167) from two
 # measurements of the scene camera: base_link -> scene_camera at [0.5, 1.0, 1.5], and
-# its arm_mount -> scene_camera calibration (cameras.yaml). arm_mount is taken level
+# its 2026-11-12 arm_mount -> scene_camera calibration (cameras.yaml). arm_mount is taken level
 # with base_link (no rotation), so the offset is [0.5, 1.0, 1.5] minus the calibrated
 # position. Replace it when the chair's geometry is measured, or the chair URDF
 # publishes it.

@@ -3,9 +3,9 @@
   BRIDGE, to be deleted. A verbatim copy of rammp-org/RAMMP-docker's
   docker/cyclonedds.xml at v2.2.0-jp6 (everything below this comment), for the
   few images whose own Cyclone config still lists an autodetermined
-  interface: rammp-curobo (2.0.1 and nightly), the kinova-gen3-ros2 nightly
-  until it is rebuilt on rammp-base 2.2.0-jp6, and rammp-feeding (rammp-base
-  1.1.0). Layering config/robots/<robot>/cyclonedds.xml onto such a file
+  interface: the rammp-curobo nightly until it is rebuilt from a dev with
+  RAMMP-CuRobo#68, the kinova-gen3-ros2 nightly until it is rebuilt on
+  rammp-base 2.2.0-jp6, and rammp-feeding (rammp-base 1.1.0). Layering config/robots/<robot>/cyclonedds.xml onto such a file
   either fails at node creation or binds two NICs, so those nodes take this
   file in its place (CYCLONEDDS_URI in sheppy-manifest.yaml). Every other node
   uses its image's own /etc/cyclonedds/config.xml. Delete this file and those

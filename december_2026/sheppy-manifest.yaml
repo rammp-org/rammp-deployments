@@ -16,12 +16,12 @@
 # active robot's config/robots/<robot>/cyclonedds.xml, mounted at
 # /etc/cyclonedds/robot.xml, which names the robot's network interface and
 # nothing else (flatbot and gen_1_5, both run from snorlax: eno1, the base's
-# network; gen_1_5's file is a symlink to flatbot's). Cyclone merges the two in order.
-# That needs an image config with no interface of its own (rammp-base 2.1.0-jp6
-# or newer). The nodes whose images still autodetermine one (both rammp-curobo
-# channels, the kinova-gen3-ros2 nightly, rammp-feeding) take
-# config/dds/cyclonedds-fleet.xml, a copy of rammp-base's file, in its place
-# until they are rebuilt.
+# network; gen_1_5's file is a symlink to flatbot's). Cyclone merges the two in
+# order. That needs an image config with no interface of its own (rammp-base
+# 2.1.0-jp6 or newer, rammp-curobo 2.0.2 or newer). The nodes whose images
+# still autodetermine one (the rammp-curobo and kinova-gen3-ros2 nightlies,
+# rammp-feeding) take config/dds/cyclonedds-fleet.xml, a copy of rammp-base's
+# file, in its place until they are rebuilt.
 #
 # Container definitions are inline rather than a `compose:` reference: sheppy
 # resolves a compose file relative to this manifest, so a reference would mean
@@ -393,7 +393,7 @@ nodes:
       # which builds images locally; inline here, per this file's convention.
       #
       # TWO CHANNELS OF ONE GENERATION. The release (kinova-gen3-ros2 2.1.0 with
-      # RAMMP-CuRobo 2.0.1, no suffix) and `_nightly` (kinova-arm nightly
+      # RAMMP-CuRobo 2.0.2, no suffix) and `_nightly` (kinova-arm nightly
       # channel, rammp-org/rammp-nightly) both read the arm's model from
       # /arm/robot_description, rendered from the active robot's mount.yaml,
       # and take Cartesian goals in arm_mount, so a tilted mount (flatbot,
@@ -677,13 +677,14 @@ nodes:
         kind: docker
         ros_node_name: rammp_curobo
         container:
-          # 2.0.1: 2.0.0 plus the fleet's Cyclone DDS config in the image.
-          image: ghcr.io/rammp-org/rammp-curobo:2.0.1
+          # 2.0.2: 2.0.0 plus the fleet's Cyclone DDS config in the image, with
+          # no interface of its own, so the robot's file layers onto it.
+          image: ghcr.io/rammp-org/rammp-curobo:2.0.2
           runtime: nvidia              # JetPack exposes the GPU this way, NOT --gpus
           network_mode: host
           ipc: host
           environment:
-            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
           # The first plan after a cold start compiles CUDA kernels — minutes,
           # during which go_to_* goals just sit there. The named volume keeps
@@ -695,7 +696,6 @@ nodes:
           # set_robot.py, as arm_state_publisher's does.
           volumes:
             - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
-            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
             - curobo_kernel_cache:/root/.cache
             - ./config/robots/current:/config/robot:ro
           command:

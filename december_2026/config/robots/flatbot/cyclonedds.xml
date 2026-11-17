@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  flatbot's Cyclone DDS interface, layered onto the image's fleet config by
-  CYCLONEDDS_URI in sheppy-manifest.yaml (mounted at /etc/cyclonedds/robot.xml).
+  The Cyclone DDS interface for the robots run from snorlax: flatbot, and
+  gen_1_5, whose cyclonedds.xml is a symlink to this file. Layered onto the
+  image's fleet config by CYCLONEDDS_URI in sheppy-manifest.yaml (mounted at
+  /etc/cyclonedds/robot.xml).
   Only the interface lives here; AllowMulticast spdp and ParticipantIndex none
   come from rammp-base (2.1.0-jp6 or newer).
 
-  eno1 is the base's network (the MIB, the wheels and both OAKs; network.yaml).
+  eno1 is snorlax's base network (the MIB, the wheels and both OAKs;
+  flatbot/network.yaml).
   Left to autodetermine, Cyclone picks the arm's NIC (enp3s0) whenever it is up,
   and a node then never sees the MIB: no /base/odom and no odom -> base_link
   (measured on 2026-11-16: 0 messages, against 19 Hz with eno1 named;

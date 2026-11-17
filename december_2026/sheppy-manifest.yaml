@@ -14,8 +14,9 @@
 # ParticipantIndex none) at /etc/cyclonedds/config.xml. No node sets
 # RMW_IMPLEMENTATION. Every docker node sets CYCLONEDDS_URI to that file plus the
 # active robot's config/robots/<robot>/cyclonedds.xml, mounted at
-# /etc/cyclonedds/robot.xml, which names the robot's network interface (flatbot:
-# eno1, the base's network) and nothing else. Cyclone merges the two in order.
+# /etc/cyclonedds/robot.xml, which names the robot's network interface and
+# nothing else (flatbot and gen_1_5, both run from snorlax: eno1, the base's
+# network; gen_1_5's file is a symlink to flatbot's). Cyclone merges the two in order.
 # That needs an image config with no interface of its own (rammp-base 2.1.0-jp6
 # or newer). The nodes whose images still autodetermine one (both rammp-curobo
 # channels, the kinova-gen3-ros2 nightly, rammp-feeding) take

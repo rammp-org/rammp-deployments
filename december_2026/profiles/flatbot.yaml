@@ -42,4 +42,4 @@ overrides:
     # off, boxer says how far the nearest depth frame was instead of lifting a mismatched pair.
     depth_topic: /scene_camera/depth/image_rect_raw
     depth_slop_s: 0.005
-    gravity_frame: arm_mount  # the cameras hang off arm_mount (transforms/cameras.yaml)
+    gravity_frame: arm_mount  # level with the chair; reaches the cameras through TF (transforms/)

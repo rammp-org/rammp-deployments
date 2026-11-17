@@ -18,12 +18,14 @@ mounts:
     # at this frame's origin, so the position is unchanged. Only frames the rotated
     # images use are right; the driver's IMU and stereo frames below it would need
     # the physical roll, and nothing on flatbot uses them.
-    # The camera stays on the chair: when the arm moved 8 in (0.2032 m) forward
-    # on 2026-11-07, x went from the measured 0.20 to 0.20 - 0.2032.
+    # The camera is on the chair, so it hangs off base_link. Position is a
+    # placeholder (#167) until it is measured on the chair; it replaces the
+    # hand-measured [-0.0032, -0.50, 0.40] from arm_mount (the 2026-10-19 0.20,
+    # less the arm's 8 in forward move of 2026-11-07).
     scene_camera:
-      parent: arm_mount
+      parent: base_link
       child: scene_camera
-      xyz: [-0.0032, -0.50, 0.40]
+      xyz: [0.5, 1.0, 1.5]
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]
     # OAK-D Pro, looking along the tool. Mounted upside down: its up (+z) points
     # back at the arm (-y). Roll checked against a live frame (#114). As for the

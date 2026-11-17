@@ -1026,15 +1026,16 @@ nodes:
     description: Robot-assisted feeding -- a capability engine the orchestrator drives, one bite per action
     select: single
     alternatives:
-      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.5.4, for this manifest's 2.0 arm alternatives). A
+      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.6.0, for this manifest's 2.0 arm alternatives). A
       # capability engine (rammp-kitchen-capability-engines' CapabilityEngine, engine id `feeding`): it registers with
-      # the orchestrator and moves the arm only in an action the orchestrator starts -- start_meal, feed (one bite) and
-      # finish_meal (its docs/interface.md); nothing moves when it starts. It moves the arm only through the arm node
-      # (execute_joint_trajectory: its own IK paths and the planner's paths), so `arm`, `arm_state_publisher` and
-      # `planner` must be selected alongside, with `wrist_camera`, `scene_camera` and `sam3`. Stopping it cancels the
-      # action in flight: the move stops and the arm settles. It never commands the gripper. It hands the planner its
-      # world by path while an action plans (the `/feeding` mount on both curobo_planner alternatives) and puts the
-      # planner's own back with /reset as the action ends.
+      # the orchestrator and moves the arm only in an action the orchestrator starts -- start_meal, feed (one bite),
+      # finish_meal and, with a stand to pick the fork from, pick_up_fork and put_down_fork (its docs/interface.md);
+      # nothing moves when it starts. It moves the arm only through the arm node (execute_joint_trajectory: its own IK
+      # paths and the planner's paths), so `arm`, `arm_state_publisher` and `planner` must be selected alongside, with
+      # `wrist_camera`, `scene_camera` and `sam3`. Stopping it cancels the action in flight: the move stops and the arm
+      # settles. It commands the gripper only in the two fork actions (/setpoint/gripper, with the action's token). It
+      # hands the planner its world by path while an action plans (the `/feeding` mount on both curobo_planner
+      # alternatives) and puts the planner's own back with /reset as the action ends.
       #
       # Only on a robot set up per rammp-feeding's deployment checklist (docs/porting.md): its measurements, captured
       # poses and calibrations in the host's /srv/rammp_feeding/config (owned by uid 1000). The params' defaults are
@@ -1049,7 +1050,7 @@ nodes:
       - id: rammp_feeding_docker
         kind: docker
         container:
-          image: docker.io/debajyotidasgupta/rammp-feeding:0.5.4
+          image: docker.io/debajyotidasgupta/rammp-feeding:0.6.0
           network_mode: host
           ipc: host
           user: "1000:1000"

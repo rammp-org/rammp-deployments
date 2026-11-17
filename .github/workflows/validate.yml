@@ -61,6 +61,9 @@ jobs:
             if [ -f "$robot/oak_d.yaml" ]; then
               uv run scripts/oak_d_config.py --validate "$robot" || status=1
             fi
+            if [ -f "$robot/arm.yaml" ]; then
+              uv run scripts/arm_config.py --validate "$robot" || status=1
+            fi
             if [ -f "$robot/mount.yaml" ]; then
               uv run scripts/set_robot.py --validate "$robot" || status=1
             fi

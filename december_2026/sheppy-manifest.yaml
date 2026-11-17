@@ -1048,7 +1048,7 @@ nodes:
       #
       # Needs, per frame: the Gemini's registered depth (scene_camera above) and TF from gravity_frame to
       # the camera. static_tf attaches the camera from the active robot's transforms/ (on flatbot,
-      # base_link -> scene_camera, in one tree with arm_mount, so gravity_frame can be arm_mount there); without it, every object comes out with has_pose false and the node logs the
+      # arm_mount -> scene_camera, so gravity_frame is arm_mount there); without it, every object comes out with has_pose false and the node logs the
       # missing transform. The OAK scene camera's depth is /scene_camera/depth/image_rect_raw, synced
       # to color on the device, so depth_slop_s can be tight there (profiles/flatbot.yaml sets all three).
       # BoxerNet's weights are CC-BY-NC 4.0 (non-commercial) and baked into the image.

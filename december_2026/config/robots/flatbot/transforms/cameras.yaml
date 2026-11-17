@@ -18,15 +18,17 @@ mounts:
     # at this frame's origin, so the position is unchanged. Only frames the rotated
     # images use are right; the driver's IMU and stereo frames below it would need
     # the physical roll, and nothing on flatbot uses them.
-    # The camera is on the chair, so it hangs off base_link. Position is a
-    # placeholder (#167) until it is measured on the chair; it replaces the
-    # hand-measured [-0.0032, -0.50, 0.40] from arm_mount (the 2026-10-19 0.20,
-    # less the arm's 8 in forward move of 2026-11-07).
+    # Calibrated 2026-11-12 ~23:20 EST on snorlax after the camera moved to its demo position: a ChArUco board
+    # (10x14, 40 mm squares, DICT_4X4_100) seen at once by the wrist camera (its mount below) and this camera,
+    # 5 captures, 5 mm / 0.3 deg spread; the table height at the arm-marked spot matches to 1 mm. Was the
+    # hand measurement xyz [-0.0032, -0.50, 0.40], level (quat [0, 0, 0, 1]).
+    # The calibration relates the camera to the arm, so it stays on arm_mount; world.yaml's
+    # base_link -> arm_mount puts the camera at [0.5, 1.0, 1.5] in base_link (#167).
     scene_camera:
-      parent: base_link
+      parent: arm_mount
       child: scene_camera
-      xyz: [0.5, 1.0, 1.5]
-      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+      xyz: [0.3064, -0.5723, 0.4270]
+      quat_xyzw: [-0.0067, 0.0607, -0.0113, 0.9981]
     # OAK-D Pro, looking along the tool. Mounted upside down: its up (+z) points
     # back at the arm (-y). Roll checked against a live frame (#114). As for the
     # scene camera, the driver rotates its images 180° (i_rotation) and keeps the

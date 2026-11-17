@@ -7,7 +7,7 @@
   Only the interface lives here; AllowMulticast spdp and ParticipantIndex none
   come from rammp-base (2.1.0-jp6 or newer).
 
-  eno1 is snorlax's base network (the MIB, the wheels and both OAKs;
+  eno1 is snorlax's base network (the MIB, the wheels and the scene OAK;
   flatbot/network.yaml).
   Left to autodetermine, Cyclone picks the arm's NIC (enp3s0) whenever it is up,
   and a node then never sees the MIB: no /base/odom and no odom -> base_link

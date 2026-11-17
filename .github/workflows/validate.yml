@@ -1,5 +1,6 @@
-# The gate that matters here. This repo ships manifests and nothing else, so
-# the only honest check is whether sheppy can load them.
+# The gate that matters here. This repo ships manifests and the scripts that
+# apply robot configs, so the checks are whether sheppy can load the manifests,
+# whether each robot config validates, and the scripts' unit tests.
 name: Validate manifests
 
 on:

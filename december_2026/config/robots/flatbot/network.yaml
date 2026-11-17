@@ -13,7 +13,8 @@ interfaces:
         # routed by the arm base. Harmless while the camera is on the sensor network.
         - to: 10.20.0.0/24
           via: 192.168.1.10
-  # ESP32-P4 sensor network: DHCP server at 192.168.4.1; both OAKs are here.
+  # ESP32-P4 sensor network: DHCP server at 192.168.4.1; the scene OAK is here
+  # (the wrist OAK too, when it is not through the Vision Puck).
   - profile: flatbot-sensors
     device: eno1
     ipv4:

@@ -58,10 +58,10 @@ feature work wants a squash.
 
 ## What CI gates
 
-|                                                                    | PR → `dev` | push `dev` | PR → `main` | push `main` |
-| ------------------------------------------------------------------ | ---------- | ---------- | ----------- | ----------- |
-| `lint.yml` — pre-commit, all files                                 | ✅         | ✅         | ✅          | ✅          |
-| `validate.yml` — every manifest through sheppy, every robot config | ✅         | ✅         | ✅          | ✅          |
+|                                                                              | PR → `dev` | push `dev` | PR → `main` | push `main` |
+| ---------------------------------------------------------------------------- | ---------- | ---------- | ----------- | ----------- |
+| `lint.yml` — pre-commit, all files                                           | ✅         | ✅         | ✅          | ✅          |
+| `validate.yml` — every manifest through sheppy, every robot config, `tests/` | ✅         | ✅         | ✅          | ✅          |
 
 Both are minutes. There is no expensive tier here because nothing in this repo
 is built.
@@ -73,6 +73,13 @@ key sheppy does not know is an error. A key it *ignores* — `depends_on`,
 `restart`, `healthcheck` — is also an error here, and that is deliberate: those
 load green and then silently do not happen, which on a deployment is worse than
 a typo.
+
+It also runs the scripts' unit tests (`tests/`, against stubbed nmcli, depthai
+and Kortex; no hardware). Run them locally before changing a script:
+
+```bash
+uv run --with pytest==8.3.4 --with pyyaml==6.0.2 pytest tests -q
+```
 
 ## Pinning
 

@@ -8,7 +8,8 @@
     uv run scripts/oak_d_config.py [--validate | --dry-run] <robot dir>
 
 Each camera is found by device ID through depthai discovery, the same lookup
-the ROS driver does, so it must be on a subnet this host has an address on.
+the ROS driver does, so it must be on a subnet this host has an address on,
+or be reachable at its `reach_at` (below).
 Only the network fields are rewritten; everything else is written back as read.
 A write restarts the camera, so a camera that already matches is not written.
 

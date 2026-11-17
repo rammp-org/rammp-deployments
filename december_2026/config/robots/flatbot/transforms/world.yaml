@@ -1,13 +1,20 @@
-# Roots flatbot's tree in a world frame, in rammp-calibration's mounts.yaml format.
+# Joins flatbot's two trees, in rammp-calibration's mounts.yaml format.
 # Published by the manifest's static_tf node, alongside cameras.yaml.
 #
-# Nothing on flatbot publishes base_link, so arm_mount is the tree's root. Identity
-# for now: world is arm_mount until the chair URDF owns the geometry between them.
+# The MIB publishes odom -> base_link (/tf); everything on the arm hangs off
+# arm_mount. These two links make it one tree: world -> odom -> base_link -> arm_mount.
+# Both identity for now (#163): base_link -> arm_mount gets the real offset once the
+# chair's geometry is measured, or the chair URDF publishes it.
 mounts:
   ros__parameters:
-    transforms: [arm_mount]
-    arm_mount:
+    transforms: [odom, arm_mount]
+    odom:
       parent: world
+      child: odom
+      xyz: [0.0, 0.0, 0.0]
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+    arm_mount:
+      parent: base_link
       child: arm_mount
       xyz: [0.0, 0.0, 0.0]
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]

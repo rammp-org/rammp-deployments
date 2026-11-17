@@ -1,5 +1,6 @@
-# The gate that matters here. This repo ships manifests and nothing else, so
-# the only honest check is whether sheppy can load them.
+# The gate that matters here. This repo ships manifests and the scripts that
+# apply robot configs, so the checks are whether sheppy can load the manifests,
+# whether each robot config validates, and the scripts' unit tests.
 name: Validate manifests
 
 on:
@@ -43,6 +44,10 @@ jobs:
         with:
           version: "0.12.17"
 
+      # The scripts' own parsing and planning, against stubbed nmcli/depthai/Kortex.
+      - name: Unit tests
+        run: uv run --with pytest==8.3.4 --with pyyaml==6.0.2 pytest tests -q
+
       - name: Validate every robot config
         env:
           # Keep the tag in step with the static_tf image in the manifest.
@@ -56,6 +61,9 @@ jobs:
             fi
             if [ -f "$robot/oak_d.yaml" ]; then
               uv run scripts/oak_d_config.py --validate "$robot" || status=1
+            fi
+            if [ -f "$robot/arm.yaml" ]; then
+              uv run scripts/arm_config.py --validate "$robot" || status=1
             fi
             if [ -f "$robot/mount.yaml" ]; then
               uv run scripts/set_robot.py --validate "$robot" || status=1

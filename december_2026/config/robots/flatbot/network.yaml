@@ -2,12 +2,19 @@
 # Applied by: uv run scripts/network_config.py december_2026/config/robots/flatbot
 interfaces:
   # Kinova Gen3 base, direct cable. No DHCP server on this link; the arm is 192.168.1.10.
+  # No gateway: nothing past the arm but its own wrist subnet, which has a route.
   - profile: flatbot-arm
     device: enp3s0
     ipv4:
       method: static
-      address: 192.168.1.11/24 # no gateway: the arm's network goes nowhere else
-  # ESP32-P4 sensor network: DHCP server at 192.168.4.1; both OAKs are here.
+      address: 192.168.1.11/24
+      routes:
+        # The Vision Puck's subnet: the wrist camera behind the arm (10.20.0.50),
+        # routed by the arm base. Harmless while the camera is on the sensor network.
+        - to: 10.20.0.0/24
+          via: 192.168.1.10
+  # ESP32-P4 sensor network: DHCP server at 192.168.4.1; the scene OAK is here
+  # (the wrist OAK too, when it is not through the Vision Puck).
   - profile: flatbot-sensors
     device: eno1
     ipv4:

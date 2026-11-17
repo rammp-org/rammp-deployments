@@ -533,6 +533,11 @@ nodes:
           arbitration_mode: disabled
           estop_clear_max_age_s: 1.0
           expect_gripper: true
+          # enforce | observe | off (the driver's default is enforce). observe logs a contact and
+          # never stops the arm: the microwave door pull trips the default thresholds, and the
+          # daily demo runs every kitchen task on this arm. Read-only, so it changes only with a
+          # restart. QUOTED: a bare `off` is YAML for false, and the node exits on a bool.
+          contact_detection: "observe"
         publishes:
           - /joint_states
           - /ee_state
@@ -755,6 +760,11 @@ nodes:
             - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
             - curobo_kernel_cache:/root/.cache
             - ./config/robots/current:/config/robot:ro
+            # The worlds the kitchen engines write and hand the planner by path, read at the
+            # same path the engine names: button_press and fridge (planner_world_dir),
+            # microwave_place (worlds_dir).
+            - /tmp/rammp_planner_worlds:/rammp_planner_worlds:ro
+            - /home/snorlax/.ros/rammp_box_opening/worlds:/home/snorlax/.ros/rammp_box_opening/worlds:ro
           command:
             - /opt/rammp_curobo/rammp_curobo_ros/lib/rammp_curobo_ros/planner_node
         params:

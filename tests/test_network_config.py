@@ -75,7 +75,9 @@ def _plan_with_current(monkeypatch, iface, routes_as_read: str):
     current["ipv4.routes"] = routes_as_read
     monkeypatch.setattr(nc, "_get", lambda fields, *target: dict(current))
     monkeypatch.setattr(nc, "_sys", lambda device, name: "")
-    mine = nc.Profile("uuid-1", iface.profile, "802-3-ethernet", iface.device, "yes", "")
+    mine = nc.Profile(
+        "uuid-1", iface.profile, "802-3-ethernet", iface.device, "yes", ""
+    )
     return nc.plan(iface, [mine], {iface.profile})
 
 

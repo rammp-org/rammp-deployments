@@ -17,7 +17,7 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
 
 ## Global Constraints
 
-- Wrist port: enabled, `ETHERNET_SPEED_100M`, `ETHERNET_DUPLEX_FULL`, on the Interconnect's
+- Wrist port: enabled, `ETHERNET_SPEED_100M`, `ETHERNET_DUPLEX_HALF` (Kinova, 2026-11-17), on the Interconnect's
   `ETHERNET_DEVICE_EXPANSION`.
 - Camera through the Puck: static `10.20.0.50/24`, gateway `10.20.0.1`. Host route:
   `10.20.0.0/24` via `192.168.1.10` on `flatbot-arm` (`enp3s0`).
@@ -197,7 +197,7 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
   wrist_ethernet:
     enabled: true
     speed: 100M   # 10M | 100M
-    duplex: full  # half | full
+    duplex: half  # half | full
   ```
 - Produces: `WristEthernet(enabled: bool, speed: str, duplex: str)`,
   `Arm(address: str, wrist_ethernet: WristEthernet)`, `load(robot_dir: Path) -> Arm`,
@@ -208,7 +208,7 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
 
 - [ ] **Step 1: Write the failing tests** in `tests/test_arm_config.py`:
   - `test_parse_flatbot`: the yaml above gives
-    `Arm("192.168.1.10", WristEthernet(True, "100M", "full"))`.
+    `Arm("192.168.1.10", WristEthernet(True, "100M", "half"))`.
   - `test_bad_duplex_rejected`: `duplex: FULL` gives a `ConfigError` containing
     `half, full`; `speed: 1G` gives one containing `10M, 100M`.
   - `test_unknown_key_rejected`: `wrist_ethernet.mtu` gives `ConfigError`.
@@ -230,7 +230,7 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
   `InterconnectConfigClient.GetEthernetConfiguration(EthernetDeviceIdentification(device=ETHERNET_DEVICE_EXPANSION), interconnect_id)`.
   Compare `enabled/speed/duplex` with the file. On mismatch with `--dry-run`, print
   `would change … -> …`. Otherwise set the three fields, `SetEthernetConfiguration`,
-  read back, and fail if the read-back differs. Print values as `enabled 100M full`.
+  read back, and fail if the read-back differs. Print values as `enabled 100M half`.
   Catch `ArmError`, `ConnectionError`, `OSError` and `KServerException` (from
   `kortex_api.Exceptions.KServerException`) into the one-line FAILED. Module docstring:
   what the port is, that Kinova's procedure is where this comes from, and that whether
@@ -240,12 +240,12 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
 - [ ] **Step 4: Run tests to verify they pass.** Expected: all pass.
 
 - [ ] **Step 5: Config + CI.** Write flatbot's `arm.yaml` with a header comment
-  (applied by, what it is for, *full* duplex chosen; Kinova's sample set half against its
-  own comment, and full is being confirmed with them). Add the `arm.yaml` branch to the CI
+  (applied by, what it is for, *half* duplex because Kinova asked for it on 2026-11-17:
+  the forced 100M port likely leaves the camera negotiating half). Add the `arm.yaml` branch to the CI
   loop. Run `uv run scripts/arm_config.py --validate december_2026/config/robots/flatbot`:
   expected `ok`. First run downloads Python 3.9 and the wheel. Run pre-commit.
 
-- [ ] **Step 6: Commit** `arm_config: the arm's wrist Ethernet port from arm.yaml; flatbot enables it at 100M full`.
+- [ ] **Step 6: Commit** `arm_config: the arm's wrist Ethernet port from arm.yaml; flatbot enables it at 100M half`.
 
 ### Task 4: camera node by IP, profiles, and the runbook
 
@@ -292,7 +292,7 @@ it only with the user present and agreeing to each step.
   snorlax.
 - [ ] `network_config.py --dry-run`, then apply. Check `ip route get 10.20.0.50` shows
   `via 192.168.1.10 dev enp3s0`. Re-run: `unchanged` (Review Focus 2 on real nmcli).
-- [ ] `arm_config.py --dry-run`, then apply. Expected read-back `enabled 100M full`.
+- [ ] `arm_config.py --dry-run`, then apply. Expected read-back `enabled 100M half`.
   Re-run: `unchanged`.
 - [ ] `sheppy stop wrist_camera`; `oak_d_config.py` (camera on `eno1`) writes static
   10.20.0.50.

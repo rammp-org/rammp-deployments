@@ -52,7 +52,7 @@ camera tuning (resolution, codecs, bandwidth).
   destination, gateway inside the interface's subnet) and applied as NetworkManager
   `ipv4.routes`.
 - New `arm.yaml` + `scripts/arm_config.py`: the wrist Ethernet port enabled, 100 Mbit/s,
-  **full duplex**. Modeled on Kinova's `VisionPkConf.py`: find the Interconnect with
+  **half duplex** (Kinova, 2026-11-17; `duplex:` stays switchable). Modeled on Kinova's `VisionPkConf.py`: find the Interconnect with
   `DeviceManager.ReadAllDevices`, read the port config, change only enabled/speed/duplex,
   write it back, read it back to confirm. Same shape as the other scripts: `--validate`,
   `--dry-run`, no write when it already matches, exit 0/1/2. Runs under uv on
@@ -93,7 +93,7 @@ on 192.168.1.x.
 ## Verify on snorlax (attended)
 
 1. `network_config.py`: the route is present (`ip route get 10.20.0.50` via enp3s0).
-2. `arm_config.py`: the port reads back enabled, 100M, full.
+2. `arm_config.py`: the port reads back enabled, 100M, half.
 3. `oak_d_config.py` while the camera is still on `eno1`: writes static 10.20.0.50.
 4. Cable into the Puck: `ping 10.20.0.50`; `sheppy up flatbot`; `/wrist_camera` topics
    publish; bandwidth stays under the link (the node measured 63-83 Mbit/s on

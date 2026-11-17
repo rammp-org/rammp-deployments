@@ -1,4 +1,5 @@
-# The daily demo (snorlax, flatbot): every kitchen engine from engines dev, with the flatbot stack
+# The daily demo (snorlax, flatbot): every kitchen engine from engines dev and the eating engines
+# (feeding, drinking; release pins), with the flatbot stack
 # they run on -- both OAK-Ds, foxglove, the arm and planner on the nightly channel, RF-DETR +
 # BoxerNet + SAM3.
 #
@@ -6,7 +7,8 @@
 #
 # Attended only: this starts a driver that can move the arm (CONTRIBUTING.md).
 #
-# Each engine runs its engines-dev `:dev` image, pulled at every start. No merges to engines dev
+# Each kitchen engine runs its engines-dev `:dev` image, pulled at every start (feeding and
+# drinking run their pinned release). No merges to engines dev
 # from 4 PM until the day's logs are collected, so what comes up at 5 is what 4 PM reported.
 # Engines run standalone (use_orchestrator false) until the orchestrator joins this profile.
 #
@@ -18,8 +20,9 @@
 #      fridge node in the manifest has the send_goal command; each engine's node says its action).
 #   3. With someone on the e-stop, flip that engine's allow_execute in the TUI (`p`) and run it.
 #   4. Leave the stack up until the logs are collected: `sheppy down` takes the containers' logs
-#      with it. Runs land in /home/snorlax/daily/data/<engine> (box_opening: ~/.ros/box_opening).
-description: daily demo — every kitchen engine (engines dev) on flatbot, dry until flipped in the TUI
+#      with it. Runs land in /home/snorlax/daily/data/<engine> (box_opening: ~/.ros/box_opening;
+#      feeding and drinking: /srv/rammp_feeding/runs, only with their `record` param on).
+description: daily demo — every kitchen engine (engines dev) plus feeding and drinking on flatbot, dry until flipped in the TUI
 selections:
   scene_camera: oak_d_pro_w_docker
   wrist_camera: oak_d_pro_puck_docker
@@ -38,6 +41,8 @@ selections:
   microwave: microwave_dev
   microwave_place: microwave_place_dev
   place_container: place_container_dev
+  feeding: rammp_feeding_docker
+  drinking: rammp_drinking_docker
 overrides:
   # As profiles/flatbot.yaml.
   planner:
@@ -61,4 +66,9 @@ overrides:
   microwave_place:
     use_orchestrator: false
   place_container:
+    use_orchestrator: false
+  # The eating tasks: feeding and drinking (release pins, outside the engines repo).
+  feeding:
+    use_orchestrator: false
+  drinking:
     use_orchestrator: false

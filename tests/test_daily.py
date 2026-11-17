@@ -9,6 +9,7 @@ where each engine's runs land, and what the daily profile overrides.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -143,3 +144,44 @@ def test_fridge_real_runs_a_local_tag_daily_never_pulls():
         == "ghcr.io/rammp-org/rammp-kitchen-capability-engines/fridge:local"
     )
     assert container["pull_policy"] == "never"
+
+
+# The eating tasks: capability engines outside the engines repo, on Docker Hub with version tags
+# only, so the manifest pins a release and a PR moves the pin.
+EATING = {"feeding": "rammp_feeding_docker", "drinking": "rammp_drinking_docker"}
+
+
+@pytest.mark.parametrize("name", EATING)
+def test_eating_engines_pin_a_release(name):
+    image = alt(name, EATING[name])["container"]["image"]
+    assert re.fullmatch(
+        rf"docker\.io/debajyotidasgupta/rammp-{name}:\d+\.\d+\.\d+", image
+    ), image
+
+
+@pytest.mark.parametrize("name", EATING)
+def test_eating_engines_have_a_mock(name):
+    assert alt(name, f"{name}_mock")
+
+
+@pytest.mark.parametrize("name", EATING)
+def test_eating_engines_speak_fleet_dds(name):
+    container = alt(name, EATING[name])["container"]
+    assert container["environment"]["CYCLONEDDS_URI"] == FLEET_DDS_URI
+    for volume in DDS_VOLUMES:
+        assert volume in container["volumes"]
+
+
+@pytest.mark.parametrize("name", EATING)
+def test_eating_engines_share_the_feeding_state(name):
+    container = alt(name, EATING[name])["container"]
+    assert "/srv/rammp_feeding/config:/config" in container["volumes"]
+    assert "/srv/rammp_feeding/runs:/runs" in container["volumes"]
+    assert alt(name, EATING[name])["params"]["use_orchestrator"] is True
+
+
+def test_daily_runs_the_eating_engines_standalone():
+    profile = daily()
+    for name, alt_id in EATING.items():
+        assert profile["selections"][name] == alt_id
+        assert profile["overrides"][name]["use_orchestrator"] is False

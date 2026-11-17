@@ -96,6 +96,7 @@ reconfigured (Wi-Fi or Tailscale):
 
 ```bash
 uv run scripts/network_config.py december_2026/config/robots/flatbot   # the host's NICs
+uv run scripts/arm_config.py     december_2026/config/robots/flatbot   # the arm's wrist Ethernet port
 uv run scripts/oak_d_config.py   december_2026/config/robots/flatbot   # the OAK-Ds' addressing
 uv run scripts/set_robot.py      december_2026/config/robots/flatbot   # makes flatbot this host's robot
 sudo december_2026/config/hosts/jetson-agx-orin/tuning.sh install       # arm-link host tuning
@@ -105,8 +106,10 @@ sudo december_2026/config/hosts/jetson-agx-orin/time_server.sh install  # NTP fo
 `set_robot.py` is required on every host: the arm, `arm_state_publisher`, `static_tf`, the nightly
 planner and every DDS-speaking node read the robot's files through `config/robots/current`. A node
 started before it has run leaves an empty root-owned `current` directory behind, which `set_robot.py`
-refuses and tells you how to remove. The scripts take `--dry-run`, and the two host scripts take
-`check` to report whether they're in effect.
+refuses and tells you how to remove. `arm_config.py` needs the arm powered on (it applies
+`arm.yaml` through the arm's API), and goes before `oak_d_config.py` since flatbot's wrist camera is
+reached through the arm. The scripts take `--dry-run`, and the two host scripts take `check` to report
+whether they're in effect.
 
 ### 5. Build SAM3's TensorRT engines (once per machine)
 

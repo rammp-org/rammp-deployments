@@ -19,7 +19,9 @@
 description: flatbot, EMPTY planner world — OAK-D cameras, foxglove, arm + planner on the nightly channel, RF-DETR + BoxerNet + SAM3
 selections:
   scene_camera: oak_d_pro_w_docker
-  wrist_camera: oak_d_pro_docker
+  # Through the arm's Vision Puck. On the sensor network instead: oak_d_pro_docker
+  # (config/robots/flatbot/README.md, "Switching the wrist camera").
+  wrist_camera: oak_d_pro_puck_docker
   foxglove: foxglove_bridge_docker
   # One generation for all three; see the manifest's `arm` node.
   arm: kinova_gen3_driver_nightly

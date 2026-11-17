@@ -8,13 +8,25 @@
     uv run scripts/oak_d_config.py [--validate | --dry-run] <robot dir>
 
 Each camera is found by device ID through depthai discovery, the same lookup
-the ROS driver does, so it must be on a subnet this host has an address on.
+the ROS driver does, so it must be on a subnet this host has an address on,
+or be reachable at its `reach_at` (below).
 Only the network fields are rewritten; everything else is written back as read.
 A write restarts the camera, so a camera that already matches is not written.
 
 dhcp stores no fallback address. On bootloader <=0.0.29 a stored address makes
 the camera boot straight onto it without ever sending a DHCP request, even with
 staticIpv4 false.
+
+`reach_at` (optional) is an address to ask when broadcast discovery cannot see
+the camera: a camera behind a router, such as the wrist camera behind the arm's
+Vision Puck (10.20.0.0/24, routed by the arm base). The device ID that answers
+there must match. A camera written to a static address is waited for at that
+address the same way, so it may come back on a subnet this host only routes to.
+
+Asking one address means setting DEPTHAI_DEVICE_NAME_LIST before depthai starts:
+with it, discovery asks only the listed addresses, and it is read once per
+process (checked with depthai 3.10, 2026-11-17). So each such search runs in a
+child process, and this one keeps broadcast discovery.
 
 The bootloader is opened with allowFlashingBootloader=False: this never writes
 firmware.
@@ -27,6 +39,9 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
+import json
+import os
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -53,6 +68,7 @@ class Camera:
     method: str  # "static" or "dhcp"
     address: str = ""  # CIDR, static only
     gateway: str = ""  # dotted, static only, may be empty
+    reach_at: str = ""  # dotted; where to ask when broadcast cannot see the camera
 
 
 def _keys(
@@ -113,14 +129,22 @@ def parse(data: object, where: str) -> list[Camera]:
     cameras = []
     for name, entry in entries.items():
         at = f"{where}.cameras.{name}"
-        _keys(at, entry, ["device_id", "ipv4"])
+        _keys(at, entry, ["device_id", "ipv4"], ["reach_at"])
         device_id = entry["device_id"]
         if not isinstance(device_id, str) or not device_id:
             raise ConfigError(
                 f'{at}.device_id: expected a string in quotes, e.g. "194430107187F42E00", got {device_id!r}'
             )
         method, address, gateway = parse_ipv4(f"{at}.ipv4", entry["ipv4"])
-        cameras.append(Camera(str(name), device_id, method, address, gateway))
+        reach_at = ""
+        if "reach_at" in entry:
+            try:
+                reach_at = str(
+                    ipaddress.IPv4Address(_string(f"{at}.reach_at", entry["reach_at"]))
+                )
+            except ValueError as e:
+                raise ConfigError(f"{at}.reach_at: {e}") from e
+        cameras.append(Camera(str(name), device_id, method, address, gateway, reach_at))
     ids = [c.device_id for c in cameras]
     dupes = sorted({i for i in ids if ids.count(i) > 1})
     if dupes:
@@ -202,18 +226,89 @@ def _discover(dai, ids: list[str], attempts: int = 5) -> dict:
     return found
 
 
-def _wait_for_restart(dai, device_id: str, timeout: float = 60.0) -> str | None:
-    """A config write resets the camera: wait for it to drop off, then come back."""
+_SEARCH = (
+    "import json, depthai as dai; print(json.dumps([[i.deviceId, i.name, i.state.name]"
+    " for i in dai.XLinkConnection.getAllConnectedDevices()]))"
+)
+
+
+def _unicast_search(ip: str) -> list[tuple[str, str, str]]:
+    """(device ID, name, state name) of what answers at `ip`, booted or not.
+
+    A child process, because depthai reads DEPTHAI_DEVICE_NAME_LIST once per
+    process; depthai's log lines precede the JSON on stdout."""
+    env = dict(os.environ, DEPTHAI_DEVICE_NAME_LIST=ip)
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", _SEARCH],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return []  # nothing answered in time: as good as absent
+    if result.returncode != 0:
+        # A broken search must not read as "no camera there": that sends you to the cable.
+        last = (result.stderr.strip().splitlines() or ["no output"])[-1]
+        raise CameraError(f"depthai search of {ip} failed: {last}")
+    lines = [
+        ln for ln in result.stdout.splitlines() if ln.startswith("[[") or ln == "[]"
+    ]
+    if not lines:
+        return []
+    return [tuple(found) for found in json.loads(lines[-1])]
+
+
+def _locate(dai, cam: Camera, found: dict):
+    """The camera's DeviceInfo: from broadcast discovery, else asked at reach_at."""
+    if cam.device_id in found:
+        return found[cam.device_id]
+    if not cam.reach_at:
+        return None
+    answers = _unicast_search(cam.reach_at)
+    if not answers:
+        return None
+    for device_id, _name, state in answers:
+        if device_id == cam.device_id:
+            # As Kinova's device_manager.py builds an info for "Specify IP".
+            info = dai.DeviceInfo(cam.reach_at)
+            info.state = getattr(dai.XLinkDeviceState, state)
+            info.protocol = dai.XLinkProtocol.X_LINK_TCP_IP
+            return info
+    others = ", ".join(device_id for device_id, _, _ in answers)
+    raise CameraError(
+        f"{others} answers at reach_at {cam.reach_at}, not {cam.device_id}; not touching it"
+    )
+
+
+def _wait_for_restart(dai, cam: Camera, timeout: float = 60.0) -> str | None:
+    """A config write resets the camera: wait for it to drop off, then come back.
+
+    Static: asked at its new address, which may be on a subnet this host only
+    routes to. DHCP: by broadcast, since the address is not known in advance."""
+    if cam.method == "static":
+        ip = str(ipaddress.IPv4Interface(cam.address).ip)
+
+        def where() -> str | None:
+            hit = any(d == cam.device_id for d, _, _ in _unicast_search(ip))
+            return ip if hit else None
+    else:
+
+        def where() -> str | None:
+            info = _discover(dai, [cam.device_id], attempts=1).get(cam.device_id)
+            return info.name if info is not None else None
+
     deadline = time.monotonic() + timeout
     gone_by = time.monotonic() + 20
     while time.monotonic() < gone_by:
-        if device_id not in _discover(dai, [device_id], attempts=1):
+        if where() is None:
             break
         time.sleep(1)
     while time.monotonic() < deadline:
-        info = _discover(dai, [device_id], attempts=1).get(device_id)
-        if info is not None:
-            return info.name
+        address = where()
+        if address is not None:
+            return address
         time.sleep(2)
     return None
 
@@ -250,12 +345,13 @@ def _apply_one(dai, cam: Camera, info, dry_run: bool) -> str:
                 f"read back {describe(readback)}, expected {describe(want)}"
             )
     # The bootloader connection is closed here, so the camera can reset.
-    address = _wait_for_restart(dai, cam.device_id)
+    address = _wait_for_restart(dai, cam)
     if address is None:
         raise CameraError(
             f"config written ({describe(want)}) but the camera did not come back within 60 s; "
             "with dhcp, check the server answers it; with static, check this host has an "
-            "address on that subnet"
+            "address on that subnet or a route to it. Expected when the new address is "
+            "behind the arm's Vision Puck and the cable is not there yet"
         )
     if cam.method == "static" and address != str(
         ipaddress.IPv4Interface(cam.address).ip
@@ -275,16 +371,18 @@ def apply(cameras: list[Camera], dry_run: bool) -> int:
     failed = 0
     for cam in cameras:
         prefix = f"{cam.name} ({cam.device_id})"
-        info = found.get(cam.device_id)
-        if info is None:
-            print(
-                f"{prefix}: FAILED: not found by discovery. It is powered off, on a subnet this "
-                "host has no address on, or held by a running camera node (stop it first).",
-                file=sys.stderr,
-            )
-            failed += 1
-            continue
         try:
+            info = _locate(dai, cam, found)
+            if info is None:
+                at = f" or at reach_at {cam.reach_at}" if cam.reach_at else ""
+                print(
+                    f"{prefix}: FAILED: not found by discovery{at}. It is powered off, on a "
+                    "subnet this host has no address on, or held by a running camera node "
+                    "(stop it first).",
+                    file=sys.stderr,
+                )
+                failed += 1
+                continue
             print(f"{prefix}: {_apply_one(dai, cam, info, dry_run)}")
         except (
             CameraError,

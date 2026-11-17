@@ -58,10 +58,10 @@ feature work wants a squash.
 
 ## What CI gates
 
-|                                                                    | PR → `dev` | push `dev` | PR → `main` | push `main` |
-| ------------------------------------------------------------------ | ---------- | ---------- | ----------- | ----------- |
-| `lint.yml` — pre-commit, all files                                 | ✅         | ✅         | ✅          | ✅          |
-| `validate.yml` — every manifest through sheppy, every robot config | ✅         | ✅         | ✅          | ✅          |
+|                                                                              | PR → `dev` | push `dev` | PR → `main` | push `main` |
+| ---------------------------------------------------------------------------- | ---------- | ---------- | ----------- | ----------- |
+| `lint.yml` — pre-commit, all files                                           | ✅         | ✅         | ✅          | ✅          |
+| `validate.yml` — every manifest through sheppy, every robot config, `tests/` | ✅         | ✅         | ✅          | ✅          |
 
 Both are minutes. There is no expensive tier here because nothing in this repo
 is built.
@@ -73,6 +73,13 @@ key sheppy does not know is an error. A key it *ignores* — `depends_on`,
 `restart`, `healthcheck` — is also an error here, and that is deliberate: those
 load green and then silently do not happen, which on a deployment is worse than
 a typo.
+
+It also runs the scripts' unit tests (`tests/`, against stubbed nmcli, depthai
+and Kortex; no hardware). Run them locally before changing a script:
+
+```bash
+uv run --with pytest==8.3.4 --with pyyaml==6.0.2 pytest tests -q
+```
 
 ## Pinning
 
@@ -99,6 +106,7 @@ file per script, applied on the robot:
 | -------------- | --------------------------- | -------------------------------------------------------------------------------------- |
 | `network.yaml` | `scripts/network_config.py` | the host's NICs, through NetworkManager                                                |
 | `oak_d.yaml`   | `scripts/oak_d_config.py`   | each OAK-D PoE camera's addressing                                                     |
+| `arm.yaml`     | `scripts/arm_config.py`     | the arm's own settings through its API (the wrist Ethernet port)                       |
 | `mount.yaml`   | `scripts/set_robot.py`      | the arm's mount rotation; makes this the host's active robot (`config/robots/current`) |
 | `transforms/`  | the `static_tf` node        | fixed and calibrated transforms (camera mounts), on `/tf_static` (rammp-tools image)   |
 | `curobo/`      | the `planner` node          | the robot's own planner config and obstacles (`planner.yaml`, `world.yaml`, layers)    |

@@ -4,13 +4,21 @@
 # dhcp stores no fallback address: on bootloader <=0.0.29 a stored address
 # disables DHCP even with staticIpv4 false.
 cameras:
-  # On the ESP32-P4 sensor network while it is cabled there. Through the arm's
-  # wrist Ethernet it is on the arm's link, which has no DHCP server: then it
-  # becomes static on 192.168.1.x.
+  # Two ways to cable it; switching is in README.md, "Switching the wrist camera".
   wrist_camera:
     device_id: "194430107187F42E00"
+    # Behind the arm, broadcast discovery cannot see it: ask here. Kept in both
+    # setups, so the script can also find it there to flash it back to DHCP.
+    reach_at: 10.20.0.50
+    # Through the Kinova Vision Puck: the arm's wrist subnet, routed by the arm
+    # base (network.yaml, arm.yaml). Kinova's addresses.
     ipv4:
-      method: dhcp
+      method: static
+      address: 10.20.0.50/24
+      gateway: 10.20.0.1
+    # On the ESP32-P4 sensor network (PoE switch on eno1):
+    # ipv4:
+    #   method: dhcp
   scene_camera:
     device_id: "19443010219A974800"
     ipv4:

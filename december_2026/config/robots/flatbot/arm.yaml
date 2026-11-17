@@ -1,0 +1,14 @@
+# flatbot's Kinova Gen3: settings applied through the arm's own API (Kortex).
+# Applied by: uv run scripts/arm_config.py december_2026/config/robots/flatbot
+address: 192.168.1.10
+# The wrist Ethernet port, for the wrist camera through the Kinova Vision Puck
+# (oak_d.yaml, README.md "Switching the wrist camera"). Left on while the camera
+# is on the sensor network: nothing is plugged in, so it carries nothing.
+wrist_ethernet:
+  enabled: true
+  # The slip ring is 100 Mbit/s. Forced rather than negotiated, as Kinova's sample.
+  speed: 100M # 10M | 100M
+  # Half, as Kinova asked (2026-11-17). With the port forced, the camera's side
+  # can only negotiate half; full here would be a duplex mismatch. Half shares the
+  # 100 Mbit/s between directions: the wrist camera measured 63-83 Mbit/s.
+  duplex: half # half | full

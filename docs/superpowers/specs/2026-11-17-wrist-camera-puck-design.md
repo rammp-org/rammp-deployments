@@ -36,7 +36,7 @@ camera tuning (resolution, codecs, bandwidth).
 - **A. Both setups in the files, one commented, plus a runbook (chosen).** The Puck
   setup is live; the sensor-network setup sits beside it, commented. Two edits to switch
   (`oak_d.yaml`, the profile), and a missed one fails loudly: the camera node exits
-  after 60 s with "no camera matches driver.i_ip / driver.i_device_id".
+  after 60 s with "OAK driver not ready".
 - B. Named setups in `oak_d.yaml` with a `use:` key. One word in that file, but the
   profile still changes separately, and the script grows a selection layer. Not worth
   it for a rare switch.
@@ -64,10 +64,15 @@ camera tuning (resolution, codecs, bandwidth).
 
 - `oak_d.yaml`: `wrist_camera` is `static 10.20.0.50/24, gateway 10.20.0.1`. The DHCP
   entry stays beside it, commented.
-- `profiles/flatbot.yaml` (and `flatbot_empty_world.yaml`): override
-  `driver.i_ip: 10.20.0.50` on `wrist_camera`, commented for the sensor network. The
-  manifest's `oak_d_pro_docker` lists `driver.i_ip: ""` in `params:` so the override is
-  allowed; `""` keeps discovery by device ID, the driver's default.
+- `profiles/flatbot.yaml` (and `flatbot_empty_world.yaml`): select
+  `wrist_camera: oak_d_pro_puck_docker`, with `oak_d_pro_docker` named in a comment for the
+  sensor network. The new alternative is `oak_d_pro_docker` (container and params shared by
+  YAML anchors) plus `DEPTHAI_DEVICE_NAME_LIST=10.20.0.50`, which makes depthai ask that
+  address instead of broadcasting. *Revised while building (2026-11-17):* the first design
+  overrode `driver.i_ip`, but the 3.3.0 driver tries the IP only when discovery finds no
+  camera at all, and its `DeviceInfo(ip)` (empty ID, `X_LINK_ANY_STATE`) never connects.
+  Fixing that in our depthai-ros fork would let a later change return to an `i_ip`
+  override and drop the extra alternative.
 
 **Reaching a camera behind the arm:** `oak_d_config.py` takes an optional per-camera
 `reach_at:` (an IP). When set, it connects to that address directly instead of

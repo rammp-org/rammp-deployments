@@ -93,9 +93,9 @@ on 192.168.1.x.
 ## Verify on snorlax (attended)
 
 1. `network_config.py`: the route is present (`ip route get 10.20.0.50` via enp3s0).
-2. `arm_config.py`: the port reads back enabled, 100M, half.
-3. `oak_d_config.py` while the camera is still on `eno1`: writes static 10.20.0.50.
-4. Cable into the Puck: `ping 10.20.0.50`; `sheppy up flatbot`; `/wrist_camera` topics
+1. `arm_config.py`: the port reads back enabled, 100M, half.
+1. `oak_d_config.py` while the camera is still on `eno1`: writes static 10.20.0.50.
+1. Cable into the Puck: `ping 10.20.0.50`; `sheppy up flatbot`; `/wrist_camera` topics
    publish; bandwidth stays under the link (the node measured 63-83 Mbit/s on
    2026-10-27).
 

@@ -37,18 +37,18 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
 
 1. A route whose `via` is outside the interface's subnet, or `routes:` on a `dhcp`
    interface: refused at `--validate` with exit 2, naming the field (Task 1 tests).
-2. `nmcli -g ipv4.routes` reads back in a different spelling than we write (spacing,
+1. `nmcli -g ipv4.routes` reads back in a different spelling than we write (spacing,
    `, ` separators, a metric): a second run must still print `unchanged`, not re-apply
    and bounce the arm link (Task 1 normalization test).
-3. Something answers at `reach_at` with a different device ID (a swapped camera): refuse,
+1. Something answers at `reach_at` with a different device ID (a swapped camera): refuse,
    never flash it (Task 2 test).
-4. The camera is found both by broadcast and at `reach_at`: use one, no duplicate
+1. The camera is found both by broadcast and at `reach_at`: use one, no duplicate
    handling, no error (Task 2 test).
-5. The arm is unreachable or the login is wrong: one-line `FAILED` and exit 1, no Kortex
+1. The arm is unreachable or the login is wrong: one-line `FAILED` and exit 1, no Kortex
    traceback; `duplex: FULL` or `speed: 1G` refused at `--validate`, listing the allowed
    values (Task 3 tests).
 
----
+______________________________________________________________________
 
 ### Task 1: `routes:` in network.yaml (and the test harness)
 
@@ -64,8 +64,10 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
 - Produces: `tests/conftest.py` fixture-free helper `load_script(name: str) -> ModuleType`
   that imports `scripts/<name>.py` by path with `importlib.util` (the scripts are not a
   package). Later tasks' tests use it.
+
 - Produces: `Interface.routes: tuple[tuple[str, str], ...] = ()` (destination CIDR,
   gateway), parsed from
+
   ```yaml
   ipv4:
     method: static
@@ -74,10 +76,12 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
       - to: 10.20.0.0/24
         via: 192.168.1.10
   ```
+
 - Produces: `settings()` includes `"ipv4.routes": "10.20.0.0/24 192.168.1.10"` (entries
   joined with `", "`; `""` when none).
 
 - [ ] **Step 1: Write the failing tests** in `tests/test_network_config.py`:
+
   - `test_routes_parsed`: the yaml above parses to
     `routes == (("10.20.0.0/24", "192.168.1.10"),)`.
   - `test_route_via_outside_subnet_rejected`: `via: 10.20.0.1` raises `ConfigError` whose
@@ -127,7 +131,9 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
 **Interfaces:**
 
 - Consumes: `load_script` (Task 1).
+
 - Produces: `Camera.reach_at: str = ""` (dotted IPv4), optional key beside `device_id`.
+
 - Produces: `_unicast_search(ip: str) -> list[tuple[str, str, str]]` returning
   `(deviceId, name, state.name)`. It runs
   `sys.executable -c <one-liner listing dai.XLinkConnection.getAllConnectedDevices()>`
@@ -137,6 +143,7 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
   in-process after a search has no effect.
 
 - [ ] **Step 1: Write the failing tests** in `tests/test_oak_d_config.py`:
+
   - `test_reach_at_parsed`: `reach_at: 10.20.0.50` gives `Camera.reach_at == "10.20.0.50"`;
     `reach_at: 10.20.0` raises `ConfigError`.
   - `test_locate_prefers_broadcast`: with a fake dai whose `Device.getAllAvailableDevices`
@@ -154,6 +161,7 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
 - [ ] **Step 2: Run to verify they fail.** Run the Task 1 test command. Expected: FAIL.
 
 - [ ] **Step 3: Implement.**
+
   - `_locate(dai, cam: Camera, found: dict) -> DeviceInfo | None`: broadcast hit first;
     otherwise, if `reach_at`, `_unicast_search(reach_at)`; on an ID match build
     `dai.DeviceInfo(reach_at)` with state and protocol set as Kinova's `device_manager.py`
@@ -191,7 +199,9 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
 **Interfaces:**
 
 - Consumes: `load_script` (Task 1).
+
 - Produces: `arm.yaml`:
+
   ```yaml
   address: 192.168.1.10
   wrist_ethernet:
@@ -199,6 +209,7 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
     speed: 100M   # 10M | 100M
     duplex: half  # half | full
   ```
+
 - Produces: `WristEthernet(enabled: bool, speed: str, duplex: str)`,
   `Arm(address: str, wrist_ethernet: WristEthernet)`, `load(robot_dir: Path) -> Arm`,
   `main(argv) -> int`. PEP 723 header: `requires-python = "==3.9.*"`, deps
@@ -207,6 +218,7 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
   (`from __future__ import annotations`, kortex imported only in `apply`).
 
 - [ ] **Step 1: Write the failing tests** in `tests/test_arm_config.py`:
+
   - `test_parse_flatbot`: the yaml above gives
     `Arm("192.168.1.10", WristEthernet(True, "100M", "half"))`.
   - `test_bad_duplex_rejected`: `duplex: FULL` gives a `ConfigError` containing
@@ -252,7 +264,9 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
 **Files:**
 
 - Modify: `december_2026/sheppy-manifest.yaml` (`oak_d_pro_docker` params, ~line 246)
+
 - Modify: `december_2026/profiles/flatbot.yaml`, `december_2026/profiles/flatbot_empty_world.yaml`
+
 - Modify: `december_2026/config/robots/flatbot/README.md`, `CONTRIBUTING.md` (robot-config
   table gets the `arm.yaml` row)
 
@@ -260,16 +274,20 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
   `driver.i_device_id`, with a comment: empty finds the camera by device ID (broadcast,
   same subnet); an IP connects to it directly, as a camera behind the arm's Vision Puck
   needs. Update the device-ID comment that says the camera must be on a host subnet.
+
 - [ ] **Step 2:** In both flatbot profiles, under `overrides:`, add
   `wrist_camera: {driver.i_ip: 10.20.0.50}` with the sensor-network alternative as a
   comment (`# driver.i_ip: ""`). Comments point at the README section.
+
 - [ ] **Step 3:** Verify. Run `uv tool run --from "sheppy @ git+https://github.com/rammp-org/sheppy@dev" python scripts/validate_manifest.py`
   (or `pip install` sheppy@dev into a venv, as CI does). Expected: every manifest and
   profile ok, with no "overrides a key not in params" error.
+
 - [ ] **Step 4:** README. Cabling table: wrist camera row via the Puck. Replace the
   "When the wrist camera is cabled through the arm's wrist Ethernet…" paragraph and the
   temporary-address passage with **Switching the wrist camera**. Each direction is an
   ordered list:
+
   - **Sensor network → Puck:** set the Puck block live in `oak_d.yaml`; run
     `oak_d_config.py` while the camera is still on `eno1` (stop `wrist_camera` first; it
     reports the camera did not come back, which is expected); move the cable to the Puck;
@@ -281,6 +299,7 @@ snorlax), depthai 3.10.0, Kinova `kortex_api` 2.8.0 on Python 3.9, pytest.
 
   Add `arm_config.py` to "After a reflash". Note the 100 Mbit/s link and the measured
   63-83 Mbit/s. Run pre-commit (mdformat).
+
 - [ ] **Step 5: Commit** `flatbot: wrist camera by IP through the Vision Puck; switching runbook`.
 
 ### Task 5: On snorlax (attended, with Swapnil)

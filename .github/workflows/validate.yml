@@ -43,6 +43,10 @@ jobs:
         with:
           version: "0.12.17"
 
+      # The scripts' own parsing and planning, against stubbed nmcli/depthai/Kortex.
+      - name: Unit tests
+        run: uv run --with pytest==8.3.4 --with pyyaml==6.0.2 pytest tests -q
+
       - name: Validate every robot config
         env:
           # Keep the tag in step with the static_tf image in the manifest.

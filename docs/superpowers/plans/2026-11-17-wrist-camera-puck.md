@@ -313,9 +313,9 @@ it only with the user present and agreeing to each step.
   `via 192.168.1.10 dev enp3s0`. Re-run: `unchanged` (Review Focus 2 on real nmcli).
 - [ ] `arm_config.py --dry-run`, then apply. Expected read-back `enabled 100M half`.
   Re-run: `unchanged`.
-- [ ] `sheppy stop wrist_camera`; `oak_d_config.py` (camera on `eno1`) writes static
+- [ ] `sheppy down`; `oak_d_config.py` (camera on `eno1`) writes static
   10.20.0.50.
-- [ ] Move the cable into the Puck. `ping 10.20.0.50`. `sheppy restart wrist_camera`, or
-  `sheppy up flatbot`. `/wrist_camera/color/image_raw` and depth publish; check rates and
+- [ ] Move the cable into the Puck. `ping 10.20.0.50`. Select `oak_d_pro_puck_docker`
+  (already on the branch) and `sheppy up flatbot`. `/wrist_camera/color/image_raw` and depth publish; check rates and
   link load.
 - [ ] Re-run `oak_d_config.py`: `unchanged at 10.20.0.50` (found through `reach_at`).

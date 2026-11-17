@@ -233,7 +233,7 @@ nodes:
           # params below.
           volumes:
             - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
-          environment:
+          environment: &oak_wrist_env
             CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             RAMMP_OAK_COLOR_CODEC: h264
@@ -331,10 +331,9 @@ nodes:
         kind: docker
         container:
           <<: *oak_wrist_container
+          # `<<:` replaces a nested mapping whole, so the env merges its own anchor.
           environment:
-            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
-            ROS_DOMAIN_ID: "0"
-            RAMMP_OAK_COLOR_CODEC: h264
+            <<: *oak_wrist_env
             # Kinova's address for the camera behind the Puck (oak_d.yaml).
             DEPTHAI_DEVICE_NAME_LIST: 10.20.0.50
         params: *oak_wrist_params

@@ -161,3 +161,21 @@ def test_unicast_search_parses_child_output(monkeypatch):
     monkeypatch.setattr(oak.subprocess, "run", run)
     assert oak._unicast_search(PUCK_IP) == [(WRIST_ID, PUCK_IP, "X_LINK_BOOTED")]
     assert calls["env"]["DEPTHAI_DEVICE_NAME_LIST"] == PUCK_IP
+
+
+def test_unicast_search_child_failure_is_reported(monkeypatch):
+    def run(cmd, **kw):
+        err = "Traceback ...\nModuleNotFoundError: No module named 'depthai'\n"
+        return SimpleNamespace(returncode=1, stdout="", stderr=err)
+
+    monkeypatch.setattr(oak.subprocess, "run", run)
+    with pytest.raises(oak.CameraError, match="No module named 'depthai'"):
+        oak._unicast_search(PUCK_IP)
+
+
+def test_unicast_search_timeout_is_no_answer(monkeypatch):
+    def run(cmd, **kw):
+        raise oak.subprocess.TimeoutExpired(cmd, kw["timeout"])
+
+    monkeypatch.setattr(oak.subprocess, "run", run)
+    assert oak._unicast_search(PUCK_IP) == []

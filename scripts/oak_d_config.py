@@ -246,11 +246,15 @@ def _unicast_search(ip: str) -> list[tuple[str, str, str]]:
             timeout=30,
         )
     except subprocess.TimeoutExpired:
-        return []
+        return []  # nothing answered in time: as good as absent
+    if result.returncode != 0:
+        # A broken search must not read as "no camera there": that sends you to the cable.
+        last = (result.stderr.strip().splitlines() or ["no output"])[-1]
+        raise CameraError(f"depthai search of {ip} failed: {last}")
     lines = [
         ln for ln in result.stdout.splitlines() if ln.startswith("[[") or ln == "[]"
     ]
-    if result.returncode != 0 or not lines:
+    if not lines:
         return []
     return [tuple(found) for found in json.loads(lines[-1])]
 

@@ -142,3 +142,13 @@ def test_daily_runs_engines_standalone():
 def test_daily_never_enables_execute():
     for node_name, params in daily()["overrides"].items():
         assert not params.get("allow_execute"), node_name
+
+
+def test_fridge_real_runs_a_local_tag_daily_never_pulls():
+    # fridge_dev pulls ghcr's :dev at every start; a local build on the same tag would be replaced.
+    container = alt("fridge", "fridge_real")["container"]
+    assert (
+        container["image"]
+        == "ghcr.io/rammp-org/rammp-kitchen-capability-engines/fridge:local"
+    )
+    assert container["pull_policy"] == "never"

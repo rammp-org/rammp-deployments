@@ -1391,10 +1391,10 @@ nodes:
         kind: docker
         ros_node_name: fridge
         container:
-          # LOCAL BUILD, for development: whatever :dev was last built on this machine, from the
+          # LOCAL BUILD, for development: whatever was last built on this machine as :local, from the
           # engines checkout (`docker build --network host -f capabilities/fridge/Dockerfile -t <this image> .`).
-          # pull_policy never: a pull would replace the local build with ghcr's :dev.
-          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/fridge:dev
+          # Its own tag, so fridge_dev's pull of :dev never replaces it; pull_policy never: there is no :local on ghcr.
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/fridge:local
           pull_policy: never
           network_mode: host
           ipc: host

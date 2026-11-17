@@ -70,7 +70,10 @@ def test_every_engine_has_dev_and_mock(cap):
 @pytest.mark.parametrize("cap", ENGINES)
 def test_dev_alternatives_run_dev_with_prefer_latest(cap):
     container = alt(cap, f"{cap}_dev")["container"]
-    assert container["image"] == f"ghcr.io/rammp-org/rammp-kitchen-capability-engines/{cap}:dev"
+    assert (
+        container["image"]
+        == f"ghcr.io/rammp-org/rammp-kitchen-capability-engines/{cap}:dev"
+    )
     assert container["pull_policy"] == "prefer_latest"
 
 
@@ -116,7 +119,10 @@ def test_planner_mounts_engine_world_dirs():
 
 
 def test_arm_observes_contact():
-    assert alt("arm", "kinova_gen3_driver_nightly")["params"]["contact_detection"] == "observe"
+    assert (
+        alt("arm", "kinova_gen3_driver_nightly")["params"]["contact_detection"]
+        == "observe"
+    )
 
 
 def test_daily_selects_every_engine_dev():

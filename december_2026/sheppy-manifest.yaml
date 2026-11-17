@@ -454,10 +454,12 @@ nodes:
         ros_node_name: kinova_gen3_node
         container:
           image: ghcr.io/rammp-org/kinova-gen3-ros2:nightly
-          # `:nightly` moves to each green set; without this a robot keeps
-          # running whichever one it pulled first. Pin a dated tag
+          # `:nightly` moves to each green set; without a pull on every start
+          # a robot keeps running whichever one it pulled first. If the pull
+          # fails (robot offline, registry unreachable) it starts from the
+          # cached image instead of failing. Pin a dated tag
           # (`:nightly-YYYYMMDD`) instead to hold a set still.
-          pull_policy: always
+          pull_policy: prefer_latest
           network_mode: host
           ipc: host
           cap_add: [SYS_NICE]
@@ -557,7 +559,7 @@ nodes:
         kind: docker
         container:
           image: ghcr.io/rammp-org/kinova-gen3-ros2:nightly
-          pull_policy: always  # see kinova_gen3_driver_nightly
+          pull_policy: prefer_latest  # see kinova_gen3_driver_nightly
           network_mode: host
           ipc: host
           environment:
@@ -677,7 +679,7 @@ nodes:
         ros_node_name: rammp_curobo
         container:
           image: ghcr.io/rammp-org/rammp-curobo:nightly
-          pull_policy: always  # see kinova_gen3_driver_nightly
+          pull_policy: prefer_latest  # see kinova_gen3_driver_nightly
           runtime: nvidia
           network_mode: host
           ipc: host

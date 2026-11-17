@@ -20,8 +20,8 @@
 # order. That needs an image config with no interface of its own (rammp-base
 # 2.1.0-jp6 or newer, rammp-curobo 2.0.2 or newer). The nodes whose images
 # still autodetermine one (the rammp-curobo and kinova-gen3-ros2 nightlies,
-# rammp-feeding) take config/dds/cyclonedds-fleet.xml, a copy of rammp-base's
-# file, in its place until they are rebuilt.
+# rammp-feeding, rammp-drinking) take config/dds/cyclonedds-fleet.xml, a copy
+# of rammp-base's file, in its place until they are rebuilt.
 #
 # Container definitions are inline rather than a `compose:` reference: sheppy
 # resolves a compose file relative to this manifest, so a reference would mean
@@ -1093,7 +1093,7 @@ nodes:
     description: Robot-assisted feeding -- a capability engine the orchestrator drives, one bite per action
     select: single
     alternatives:
-      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.6.0, for this manifest's 2.0 arm alternatives). A
+      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.6.1, for this manifest's 2.0 arm alternatives). A
       # capability engine (rammp-kitchen-capability-engines' CapabilityEngine, engine id `feeding`): it registers with
       # the orchestrator and moves the arm only in an action the orchestrator starts -- start_meal, feed (one bite),
       # finish_meal and, with a stand to pick the fork from, pick_up_fork and put_down_fork (its docs/interface.md);
@@ -1117,7 +1117,7 @@ nodes:
       - id: rammp_feeding_docker
         kind: docker
         container:
-          image: docker.io/debajyotidasgupta/rammp-feeding:0.6.0
+          image: docker.io/debajyotidasgupta/rammp-feeding:0.6.1
           network_mode: host
           ipc: host
           user: "1000:1000"
@@ -1169,7 +1169,7 @@ nodes:
     description: Robot-assisted drinking -- a capability engine the orchestrator drives, one sip per action
     select: single
     alternatives:
-      # Transcribed from rammp-drinking's rammp-alternative.yaml (v0.1.1, on rammp-feeding 0.5.4, for this manifest's 2.0
+      # Transcribed from rammp-drinking's rammp-alternative.yaml (v0.1.2, on rammp-feeding 0.6.1, for this manifest's 2.0
       # arm alternatives). A capability engine (rammp-kitchen-capability-engines' CapabilityEngine, engine id
       # `drinking`): it registers with the orchestrator and moves the arm only in an action the orchestrator starts --
       # pick_up_drink, give_sip (one sip) and put_down_drink (its docs/interface.md); nothing moves when it starts. It
@@ -1192,7 +1192,7 @@ nodes:
       - id: rammp_drinking_docker
         kind: docker
         container:
-          image: docker.io/debajyotidasgupta/rammp-drinking:0.1.1
+          image: docker.io/debajyotidasgupta/rammp-drinking:0.1.2
           network_mode: host
           ipc: host
           user: "1000:1000"
@@ -1200,9 +1200,12 @@ nodes:
           # cup in the gripper (drink_state.json), the world it hands the planner. The run record beside it (only with
           # `record` on).
           volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
             - /srv/rammp_feeding/config:/config
             - /srv/rammp_feeding/runs:/runs
           environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
           # The node's executable (sheppy appends --ros-args --params-file with the params below)

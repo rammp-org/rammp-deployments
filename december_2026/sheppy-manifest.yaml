@@ -157,12 +157,13 @@ nodes:
           # textureless side face from 0.83 to 0.51.
           driver.r_laser_dot_intensity: 1.0
           driver.r_floodlight_intensity: 0.0
-          # The camera is mounted upside down: rotate color and depth 180° on
-          # the device, so consumers get upright images. Both, so depth stays
-          # registered to color. The frame names do not change: the mount in
-          # the robot's transforms/cameras.yaml is the rotated (upright) one.
-          color.i_rotation: 180
-          depth.i_rotation: 180
+          # The camera is mounted right side up (it was upside down until
+          # 2026-11-17, rotated 180° here), so no rotation. If it is remounted
+          # upside down, set both to 180: both, so depth stays registered to
+          # color. The frame names do not change either way: the mount in the
+          # robot's transforms/cameras.yaml is the upright camera's.
+          color.i_rotation: 0
+          depth.i_rotation: 0
           # Rotate on the host, not the device: ~20 ms less message age. Both
           # outputs leave the camera unencoded, so the flip is ~1 ms here.
           color.i_rotate_on_host: true
@@ -309,8 +310,8 @@ nodes:
           # on, and the white microwave front has little texture of its own.
           driver.r_laser_dot_intensity: 1.0
           driver.r_floodlight_intensity: 0.0
-          # Mounted upside down, as the scene OAK: rotate color and depth 180°
-          # on the device (not the host, as the scene OAK does: color leaves
+          # Mounted upside down: rotate color and depth 180° on the device
+          # (not the host, as the scene OAK can: color leaves
           # this camera H.264-encoded). The frame names do not change: the mount
           # in the robot's transforms/cameras.yaml is the rotated (upright) one.
           color.i_rotation: 180

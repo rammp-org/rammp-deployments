@@ -11,11 +11,11 @@ GMSL (Jetson AGX Orin 64GB, `snorlax`).
 | `enp3s0`   | Kinova Gen3 base, direct               | static `192.168.1.11/24`, no gateway; arm `.10` |
 | `eno1`     | ESP32-P4 sensor network (PoE for OAKs) | DHCP from `192.168.4.1`                         |
 
-The scene camera is on the sensor network. The wrist camera is cabled through the arm by
-the Kinova Vision Puck: it sits on the arm's wrist subnet `10.20.0.0/24` at `10.20.0.50`
-(gateway `10.20.0.1`), which the arm base routes. `network.yaml` routes that subnet via
-the arm on `enp3s0`, and `arm.yaml` turns the arm's wrist Ethernet port on. Both stay in
-place when the wrist camera is on the sensor network instead; see
+Both OAKs are on the sensor network. The wrist camera can instead be cabled through the
+arm by the Kinova Vision Puck: then it sits on the arm's wrist subnet `10.20.0.0/24` at
+`10.20.0.50` (gateway `10.20.0.1`), which the arm base routes. `network.yaml` routes that
+subnet via the arm on `enp3s0`, and `arm.yaml` turns the arm's wrist Ethernet port on. Both
+stay in place while the wrist camera is on the sensor network; see
 [Switching the wrist camera](#switching-the-wrist-camera).
 
 The wrist link is 100 Mbit/s, half duplex as Kinova asked (`arm.yaml`), shared between
@@ -105,6 +105,10 @@ exits after 60 s with "OAK driver not ready".
 1. Move the cable to the PoE switch. The camera takes a lease from the ESP32-P4; a
    re-run of `oak_d_config` reports `unchanged at 192.168.4.x`.
 1. In both profiles, select `wrist_camera: oak_d_pro_docker`, then `sheppy up`.
+
+If the cable was moved before step 3, the camera still holds `10.20.0.50` and nothing
+can reach it on the PoE switch: plug it back into the Vision Puck, run step 3, then move
+it.
 
 ## Bringing it up
 

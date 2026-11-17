@@ -1178,3 +1178,419 @@ nodes:
       - id: feeding_mock
         kind: process
         command: "bash -lc 'sleep infinity'"
+
+  - name: fridge
+    description: Fridge open and close -- the /fridge/execute_action capability engine (rammp-kitchen-capability-engines)
+    select: single
+    alternatives:
+      # Transcribed from rammp-kitchen-capability-engines' capabilities/fridge/rammp-alternative.yaml
+      # (and .mock.yaml) at engines dev adb94c3. Diverges from the fragment, as every kitchen engine
+      # here: the fleet DDS config and robot interface file (as every docker node in this manifest),
+      # the installed executable instead of `ros2 run`, its data on the host's daily tree instead of
+      # /tmp, and `use_orchestrator` declared so a profile can run it standalone.
+      #
+      # Needs arm, arm_state_publisher and planner (nightly: arm_mount frame), static_tf, the wrist
+      # camera, and sam3 when handle_source is sam3. profiles/daily.yaml brings all of them up.
+      #
+      # Run ONE fridge node. Two on the same DDS domain both serve /fridge/execute_action, both take
+      # every goal and drive the arm against each other (11-05 on snorlax). Stop any `docker run`
+      # fridge container before bringing this up.
+      #
+      # allow_execute false makes every goal a dry run (detect, plan, gate; nothing moves). Flip it in
+      # the TUI (`p`) only for an attended run, someone on the e-stop -- never in a profile.
+      #
+      # Send a goal from december_2026/ on the robot (the image carries the action type):
+      #   docker run --rm --network host --ipc host -e ROS_DOMAIN_ID=0 \
+      #     -v "$PWD/config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro" \
+      #     -v "$PWD/config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro" \
+      #     -e CYCLONEDDS_URI=file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml \
+      #     ghcr.io/rammp-org/rammp-kitchen-capability-engines/fridge:dev \
+      #     ros2 action send_goal --feedback /fridge/execute_action \
+      #     rammp_orchestrator_interfaces/action/ExecuteAction \
+      #     '{engine_id: fridge, action_id: open, params_json: "{\"execute\": true, \"speed\": 0.2}"}'
+      # action_id open or close; "execute": false for a dry run. A goal ending INVALID_GOAL "supervisor
+      # rejected planned trajectory" right after planning usually means the arm is faulted: check
+      # `Arm link` in the arm's log, then `ros2 service call /clear_faults std_srvs/srv/Trigger` with
+      # nothing touching the arm. Each run's log and rosbag land in /home/snorlax/daily/data/fridge.
+      - id: fridge_dev
+        kind: docker
+        ros_node_name: fridge
+        container:
+          # `:dev` moves on every merge to engines dev, and prefer_latest pulls it at every start (the
+          # cached image if the pull fails). The daily demo holds it still with a merge freeze from 4 PM.
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/fridge:dev
+          pull_policy: prefer_latest
+          network_mode: host
+          ipc: host
+          # The node's installed executable, as the image's CMD runs it; sheppy appends
+          # `--ros-args --params-file`. Not `ros2 run`: as PID 1 it swallows the stop signal.
+          command: ["/module_ws/install/fridge/lib/fridge/fridge_node"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          # The door geometry and grasp the open saves (the close reads them back) and every run's log:
+          # kept on the host, across container restarts.
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+            - /home/snorlax/daily/data/fridge:/fridge_data
+            # The fridge's collision world for the cuRobo planner, written here and loaded by the planner
+            # (set_world with its path): the planner container must mount the same host directory at the same
+            # path (planner_world_dir), read-only is enough.
+            - /tmp/rammp_planner_worlds:/rammp_planner_worlds
+        params:
+          # false: every goal is a dry run (detect, plan, gate; nothing moves), whatever it asks.
+          # true only for attended runs, someone on the e-stop.
+          allow_execute: false
+          # false: the engine runs standalone, driven by `ros2 action send_goal`; true: it registers
+          # with the orchestrator and waits for it (profiles/daily.yaml sets false until it runs).
+          use_orchestrator: true
+          data_dir: /fridge_data
+          # The arm's forward lean in its mount (deg): 0 (dojo) or 30 (flatbot, gen_1_5).
+          mount_tilt_deg: 0
+          # The open's grasp: side (in along the door from the hinge side, one finger behind the bar, tilted
+          # -40 to 40 deg) or front (fingers across the bar, straight in). Picks the placement advice.
+          grasp: side
+          # Wrist camera; depth must be aligned to colour. camera_frame "" = the colour image's frame_id.
+          # depth/image_rect_raw is aligned to colour on the D405 and the OAK (flatbot); the D435i's is not --
+          # with it, override this to /wrist_camera/aligned_depth_to_color/image_raw.
+          color_topic: /wrist_camera/color/image_raw
+          camera_info_topic: /wrist_camera/color/camera_info
+          depth_topic: /wrist_camera/depth/image_rect_raw
+          camera_frame: ""
+          # Which camera finds the handle and measures the door: wrist (the topics above; what GRIP_EXT was
+          # tuned on) or scene (the scene_* topics below; its handle point is unchecked against GRIP_EXT).
+          detect_camera: wrist
+          # Where the handle comes from: sam3 (SAM 3's mask of sam3_prompts) or depth (the vertical bar
+          # sticking out of the door). door_normal handle_model and handle need sam3.
+          handle_source: sam3
+          sam3_service: /perception/sam3/detect
+          sam3_prompts: [handle]
+          sam3_threshold: 0.3
+          # Measured on the fridge being opened (m); see Before a run in docs/interface.md.
+          # The STL's bar middle; set from the 11-06 measurements once the camera's handle point is measured (TESTING.md).
+          handle_centre_to_face_m: 0.070
+          pin_behind_face_m: 0.04675
+          hinge_along_door_m: 0.3683
+          door_width_m: 0.4572
+          door_depth_m: 0.10668
+          door_above_handle_m: 0.381
+          door_below_handle_m: 0.3937
+          # NOT MEASURED: the STL's straight bar between its mounts. Measure it.
+          handle_length_m: 0.2032
+          body_depth_m: 0.5
+          # The wheelchair: on the 30-deg mount it is the cuRobo planner's own collision layers, in every
+          # world; the level mount (no layers) gets this stand-in box behind the arm base (m) in the fridge's
+          # world. And which way moving the chair back moves the fridge in the arm's frame (x, y).
+          chair_keep_out_behind_m: 0.381
+          chair_back_dir: [1.0, 0.0]
+          # go_to_start's pose, sent before an open: the arm's joints J1..J7 (deg). The web app's Fridge pose,
+          # clear of the wheelchair and occupant layers; cuRobo plans the way there collision-free.
+          start_joints_deg: [103.04, -30.7, -169.63, -123.05, 101.64, 110.04, 2.5]  # 11-12: the start of open run 20261112_194816 (it executed through)
+          # cuRobo plans every motion against the fridge: the node writes its collision world into
+          # planner_world_dir (the volume above; the planner sees it at planner_world_dir_in_planner, "" = the
+          # same path) and loads it with set_world. A pushed world replaces the robot's world.yaml, so it lists
+          # that world's layers again (planner_base_layers, as the planner sees them: flatbot's floor; the
+          # chair's layers are the planner config's and stay in every world). planner_restore_world is put
+          # back when each action ends (resolved next to the planner's config).
+          planner_world_dir: /rammp_planner_worlds
+          planner_world_dir_in_planner: ""
+          planner_base_layers: [/config/robot/curobo/layer_mebot_floor.yaml]
+          planner_restore_world: world.yaml
+          # How each look measures the door's direction: handle_model (the printed handle's model fit to SAM 3's
+          # mask on the depth, as the side grasp's estimator), handle (the bar and its plate), plane (a door-plane
+          # fit over the whole image) or square (TESTING ONLY: the door taken as square to the arm).
+          door_normal: handle_model
+          # Every run also records a rosbag into its run folder: the wrist and scene cameras bag_frame_hz times a second,
+          # boxer's 3D boxes and TF (~150 MB a minute at 1). "" for any scene topic: no scene camera; for boxes_topic: no boxes.
+          # wrist_infra*: the wrist camera's rectified stereo pair with its camera_infos, for running FoundationStereo on later
+          # (~30 MB a minute more at 1; any "": not recorded). The wrist OAK publishes them only with
+          # depth.i_left_rect_publish_topic and depth.i_right_rect_publish_topic true (docs/TESTING.md: its 100 Mbit/s link
+          # needs them compressed). It names its left mono infra2: the camera_infos' projections say which is left.
+          record_bag: true
+          bag_frame_hz: 1.0
+          scene_color_topic: /scene_camera/color/image_raw
+          scene_camera_info_topic: /scene_camera/color/camera_info
+          scene_depth_topic: /scene_camera/depth/image_rect_raw
+          wrist_infra1_topic: /wrist_camera/infra1/image_rect_raw
+          wrist_infra1_info_topic: /wrist_camera/infra1/camera_info
+          wrist_infra2_topic: /wrist_camera/infra2/image_rect_raw
+          wrist_infra2_info_topic: /wrist_camera/infra2/camera_info
+          boxes_topic: /perception/object_detections_3d
+          # arm.*: every tunable of self.arm; see Parameters in docs/interface.md.
+          "arm.tool_z": 0.12
+          "arm.dt": 0.02
+          "arm.joint_speed": 0.85
+          "arm.cart_speed": 0.16
+          "arm.contact_joint_speed": 0.5
+          "arm.contact_cart_speed": 0.09
+          "arm.min_duration_s": 1.0
+          "arm.cart_step_m": 0.02
+          "arm.cart_step_deg": 5.0
+          "arm.rot_equiv_m": 0.15
+          "arm.max_knot_jump_deg": 20.0
+          "arm.path_tol_rad": 0.15
+          "arm.gripper_force": 0.5
+          "arm.gripper_speed": 0.5
+          "arm.frame": "arm_mount"
+          "arm.go_to_speed_scale": 0.3
+          "arm.go_to_timeout_s": 120.0
+          "arm.go_to_track_m": 0.01
+          "arm.go_to_track_deg": 2.0
+          "arm.max_ik_err": 0.02
+          "arm.max_step_jump_deg": 20.0
+          "arm.j6_guard_deg": 115.0
+          "arm.j4_guard_deg": 144.0
+          "arm.max_continuous_delta_deg": 170.0
+          "arm.keep_out_err": 9.0
+          "arm.ik_max_iterations": 200
+          "arm.clearance_query_m": 0.5
+          "arm.fingertip_open_rad": 0.0
+          "arm.finger_closed_rad": 0.7
+          "arm.state_wait_s": 10.0
+          "arm.state_stale_s": 0.5
+          "arm.diagnostics_stale_s": 3.0
+          "arm.goal_accept_s": 5.0
+          "arm.result_margin_s": 30.0
+          "arm.poll_s": 0.01
+          "arm.cancel_settle_s": 0.4
+          "arm.halt_status_wait_s": 0.2
+          "arm.planner_wait_s": 5.0
+          "arm.go_to_settle_s": 0.3
+          "arm.gripper_period_s": 0.02
+          "arm.gripper_moved": 0.002
+          "arm.gripper_judge_after_s": 0.5
+          "arm.gripper_still_s": 0.3
+          "arm.plan_timeout_s": 30.0
+          "arm.service_wait_s": 5.0
+          "arm.service_call_s": 10.0
+          "arm.stream_timeout_s": 0.1
+          "arm.publisher_match_s": 1.0
+          "arm.close_stream_wait_s": 1.0
+          "arm.mock_joints": [0.0, 0.26, 3.14, -2.27, 0.0, 0.96, 1.57]
+          "arm.mock_urdf": ""
+          # The UI bridge node whose request_user_input action and service show the UI buttons' panels (capability_engine).
+          ui_bridge_node_name: ui_bridge_node
+        publishes: [/fridge/status]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /wrist_camera/infra1/image_rect_raw
+          - /wrist_camera/infra1/camera_info
+          - /wrist_camera/infra2/image_rect_raw
+          - /wrist_camera/infra2/camera_info
+          - /perception/object_detections_3d
+      - id: fridge_real
+        kind: docker
+        ros_node_name: fridge
+        container:
+          # LOCAL BUILD, for development: whatever :dev was last built on this machine, from the
+          # engines checkout (`docker build --network host -f capabilities/fridge/Dockerfile -t <this image> .`).
+          # pull_policy never: a pull would replace the local build with ghcr's :dev.
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/fridge:dev
+          pull_policy: never
+          network_mode: host
+          ipc: host
+          # The node's installed executable, as the image's CMD runs it; sheppy appends
+          # `--ros-args --params-file`. Not `ros2 run`: as PID 1 it swallows the stop signal.
+          command: ["/module_ws/install/fridge/lib/fridge/fridge_node"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          # The door geometry and grasp the open saves (the close reads them back) and every run's log:
+          # kept on the host, across container restarts.
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+            - /home/snorlax/daily/data/fridge:/fridge_data
+            # The fridge's collision world for the cuRobo planner, written here and loaded by the planner
+            # (set_world with its path): the planner container must mount the same host directory at the same
+            # path (planner_world_dir), read-only is enough.
+            - /tmp/rammp_planner_worlds:/rammp_planner_worlds
+        params:
+          # false: every goal is a dry run (detect, plan, gate; nothing moves), whatever it asks.
+          # true only for attended runs, someone on the e-stop.
+          allow_execute: false
+          # false: the engine runs standalone, driven by `ros2 action send_goal`; true: it registers
+          # with the orchestrator and waits for it (profiles/daily.yaml sets false until it runs).
+          use_orchestrator: true
+          data_dir: /fridge_data
+          # The arm's forward lean in its mount (deg): 0 (dojo) or 30 (flatbot, gen_1_5).
+          mount_tilt_deg: 0
+          # The open's grasp: side (in along the door from the hinge side, one finger behind the bar, tilted
+          # -40 to 40 deg) or front (fingers across the bar, straight in). Picks the placement advice.
+          grasp: side
+          # Wrist camera; depth must be aligned to colour. camera_frame "" = the colour image's frame_id.
+          # depth/image_rect_raw is aligned to colour on the D405 and the OAK (flatbot); the D435i's is not --
+          # with it, override this to /wrist_camera/aligned_depth_to_color/image_raw.
+          color_topic: /wrist_camera/color/image_raw
+          camera_info_topic: /wrist_camera/color/camera_info
+          depth_topic: /wrist_camera/depth/image_rect_raw
+          camera_frame: ""
+          # Which camera finds the handle and measures the door: wrist (the topics above; what GRIP_EXT was
+          # tuned on) or scene (the scene_* topics below; its handle point is unchecked against GRIP_EXT).
+          detect_camera: wrist
+          # Where the handle comes from: sam3 (SAM 3's mask of sam3_prompts) or depth (the vertical bar
+          # sticking out of the door). door_normal handle_model and handle need sam3.
+          handle_source: sam3
+          sam3_service: /perception/sam3/detect
+          sam3_prompts: [handle]
+          sam3_threshold: 0.3
+          # Measured on the fridge being opened (m); see Before a run in docs/interface.md.
+          # The STL's bar middle; set from the 11-06 measurements once the camera's handle point is measured (TESTING.md).
+          handle_centre_to_face_m: 0.070
+          pin_behind_face_m: 0.04675
+          hinge_along_door_m: 0.3683
+          door_width_m: 0.4572
+          door_depth_m: 0.10668
+          door_above_handle_m: 0.381
+          door_below_handle_m: 0.3937
+          # NOT MEASURED: the STL's straight bar between its mounts. Measure it.
+          handle_length_m: 0.2032
+          body_depth_m: 0.5
+          # The wheelchair: on the 30-deg mount it is the cuRobo planner's own collision layers, in every
+          # world; the level mount (no layers) gets this stand-in box behind the arm base (m) in the fridge's
+          # world. And which way moving the chair back moves the fridge in the arm's frame (x, y).
+          chair_keep_out_behind_m: 0.381
+          chair_back_dir: [1.0, 0.0]
+          # go_to_start's pose, sent before an open: the arm's joints J1..J7 (deg). The web app's Fridge pose,
+          # clear of the wheelchair and occupant layers; cuRobo plans the way there collision-free.
+          start_joints_deg: [103.04, -30.7, -169.63, -123.05, 101.64, 110.04, 2.5]  # 11-12: the start of open run 20261112_194816 (it executed through)
+          # cuRobo plans every motion against the fridge: the node writes its collision world into
+          # planner_world_dir (the volume above; the planner sees it at planner_world_dir_in_planner, "" = the
+          # same path) and loads it with set_world. A pushed world replaces the robot's world.yaml, so it lists
+          # that world's layers again (planner_base_layers, as the planner sees them: flatbot's floor; the
+          # chair's layers are the planner config's and stay in every world). planner_restore_world is put
+          # back when each action ends (resolved next to the planner's config).
+          planner_world_dir: /rammp_planner_worlds
+          planner_world_dir_in_planner: ""
+          planner_base_layers: [/config/robot/curobo/layer_mebot_floor.yaml]
+          planner_restore_world: world.yaml
+          # How each look measures the door's direction: handle_model (the printed handle's model fit to SAM 3's
+          # mask on the depth, as the side grasp's estimator), handle (the bar and its plate), plane (a door-plane
+          # fit over the whole image) or square (TESTING ONLY: the door taken as square to the arm).
+          door_normal: handle_model
+          # Every run also records a rosbag into its run folder: the wrist and scene cameras bag_frame_hz times a second,
+          # boxer's 3D boxes and TF (~150 MB a minute at 1). "" for any scene topic: no scene camera; for boxes_topic: no boxes.
+          # wrist_infra*: the wrist camera's rectified stereo pair with its camera_infos, for running FoundationStereo on later
+          # (~30 MB a minute more at 1; any "": not recorded). The wrist OAK publishes them only with
+          # depth.i_left_rect_publish_topic and depth.i_right_rect_publish_topic true (docs/TESTING.md: its 100 Mbit/s link
+          # needs them compressed). It names its left mono infra2: the camera_infos' projections say which is left.
+          record_bag: true
+          bag_frame_hz: 1.0
+          scene_color_topic: /scene_camera/color/image_raw
+          scene_camera_info_topic: /scene_camera/color/camera_info
+          scene_depth_topic: /scene_camera/depth/image_rect_raw
+          wrist_infra1_topic: /wrist_camera/infra1/image_rect_raw
+          wrist_infra1_info_topic: /wrist_camera/infra1/camera_info
+          wrist_infra2_topic: /wrist_camera/infra2/image_rect_raw
+          wrist_infra2_info_topic: /wrist_camera/infra2/camera_info
+          boxes_topic: /perception/object_detections_3d
+          # arm.*: every tunable of self.arm; see Parameters in docs/interface.md.
+          "arm.tool_z": 0.12
+          "arm.dt": 0.02
+          "arm.joint_speed": 0.85
+          "arm.cart_speed": 0.16
+          "arm.contact_joint_speed": 0.5
+          "arm.contact_cart_speed": 0.09
+          "arm.min_duration_s": 1.0
+          "arm.cart_step_m": 0.02
+          "arm.cart_step_deg": 5.0
+          "arm.rot_equiv_m": 0.15
+          "arm.max_knot_jump_deg": 20.0
+          "arm.path_tol_rad": 0.15
+          "arm.gripper_force": 0.5
+          "arm.gripper_speed": 0.5
+          "arm.frame": "arm_mount"
+          "arm.go_to_speed_scale": 0.3
+          "arm.go_to_timeout_s": 120.0
+          "arm.go_to_track_m": 0.01
+          "arm.go_to_track_deg": 2.0
+          "arm.max_ik_err": 0.02
+          "arm.max_step_jump_deg": 20.0
+          "arm.j6_guard_deg": 115.0
+          "arm.j4_guard_deg": 144.0
+          "arm.max_continuous_delta_deg": 170.0
+          "arm.keep_out_err": 9.0
+          "arm.ik_max_iterations": 200
+          "arm.clearance_query_m": 0.5
+          "arm.fingertip_open_rad": 0.0
+          "arm.finger_closed_rad": 0.7
+          "arm.state_wait_s": 10.0
+          "arm.state_stale_s": 0.5
+          "arm.diagnostics_stale_s": 3.0
+          "arm.goal_accept_s": 5.0
+          "arm.result_margin_s": 30.0
+          "arm.poll_s": 0.01
+          "arm.cancel_settle_s": 0.4
+          "arm.halt_status_wait_s": 0.2
+          "arm.planner_wait_s": 5.0
+          "arm.go_to_settle_s": 0.3
+          "arm.gripper_period_s": 0.02
+          "arm.gripper_moved": 0.002
+          "arm.gripper_judge_after_s": 0.5
+          "arm.gripper_still_s": 0.3
+          "arm.plan_timeout_s": 30.0
+          "arm.service_wait_s": 5.0
+          "arm.service_call_s": 10.0
+          "arm.stream_timeout_s": 0.1
+          "arm.publisher_match_s": 1.0
+          "arm.close_stream_wait_s": 1.0
+          "arm.mock_joints": [0.0, 0.26, 3.14, -2.27, 0.0, 0.96, 1.57]
+          "arm.mock_urdf": ""
+          # The UI bridge node whose request_user_input action and service show the UI buttons' panels (capability_engine).
+          ui_bridge_node_name: ui_bridge_node
+        publishes: [/fridge/status]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /wrist_camera/infra1/image_rect_raw
+          - /wrist_camera/infra1/camera_info
+          - /wrist_camera/infra2/image_rect_raw
+          - /wrist_camera/infra2/camera_info
+          - /perception/object_detections_3d
+      - id: fridge_mock
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/fridge:dev
+          network_mode: host
+          ipc: host
+          # To give make_sim() a model, append "mock_urdf:=/path/to/robot.urdf" (arm.mock_urdf).
+          command: ["ros2", "launch", "fridge", "fridge.launch.py", "mock:=true"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+        # No `params:` here: they would need `ros2 run`, and this fragment uses `ros2 launch` for mock:=true.
+        publishes: [/fridge/status]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /wrist_camera/infra1/image_rect_raw
+          - /wrist_camera/infra1/camera_info
+          - /wrist_camera/infra2/image_rect_raw
+          - /wrist_camera/infra2/camera_info
+          - /perception/object_detections_3d

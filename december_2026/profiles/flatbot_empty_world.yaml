@@ -47,5 +47,4 @@ overrides:
     depth_topic: /scene_camera/depth/image_rect_raw
     depth_slop_s: 0.005
     # camera_extrinsic stays [0.0]: the camera comes from TF (transforms/). world.yaml's base_link ->
-    # arm_mount height is from odom3d's own fit, so the floor checks hold; its x and y are still a
-    # placeholder, and the re-projection while the chair turns depends on them.
+    # arm_mount is from odom3d's own camera fit; the camera's rotation is the calibrated one.

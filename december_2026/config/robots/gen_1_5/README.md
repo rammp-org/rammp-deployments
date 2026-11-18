@@ -32,14 +32,13 @@ copies: a link out of this directory does not resolve inside them.
   covers the base. `robot.yaml` and `arm_kinematics.json` equal flatbot's: the same arm,
   mount and puck.
 
-- `transforms/`: placeholders until the chair is calibrated. `world.yaml`'s
-  `base_link -> arm_mount` is estimated from the scan, with `base_link` where flatbot's MIB
-  puts it; `cameras.yaml` is flatbot's, right for the wrist camera on the puck but not for
-  the scene camera, which sits at the joystick module on this chair.
+- `transforms/`: `cameras.yaml` is calibrated on this chair (2026-11-18), both cameras.
+  `world.yaml`'s `base_link -> arm_mount` is still a placeholder, estimated from the scan,
+  with `base_link` where flatbot's MIB puts it.
 
 ## Not done yet
 
 - The cushion and the footrests are not in the planner's chair.
-- The scene camera's mount and `base_link -> arm_mount`: measure or calibrate them on the chair.
+- `base_link -> arm_mount`: measure or calibrate it on the chair.
 - A rest pose clear of the chair: flatbot's puts the arm's upper arm 100 mm into the
   arm-side armrest, so the planner refuses plans that start there.

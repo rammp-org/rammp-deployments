@@ -48,6 +48,6 @@ overrides:
     # with color's stamp, so a tight slop only rejects frames that weren't paired.
     depth_topic: /scene_camera/depth/image_rect_raw
     depth_slop_s: 0.005
-    # camera_extrinsic stays [0.0]: the camera comes from TF (transforms/). On gen_1_5 both are
-    # placeholders: world.yaml's base_link -> arm_mount is estimated from the chair's scan, and the
-    # scene camera's mount is flatbot's until it is calibrated on the chair.
+    # camera_extrinsic stays [0.0]: the camera comes from TF (transforms/). On gen_1_5 the scene
+    # camera's mount is calibrated on the chair; world.yaml's base_link -> arm_mount is still a
+    # placeholder, estimated from the chair's scan.

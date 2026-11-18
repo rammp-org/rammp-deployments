@@ -533,6 +533,11 @@ nodes:
           arbitration_mode: disabled
           estop_clear_max_age_s: 1.0
           expect_gripper: true
+          # enforce | observe | off (the driver's default is enforce). observe logs a contact and
+          # never stops the arm: the microwave door pull trips the default thresholds, and the
+          # daily demo runs every kitchen task on this arm. Read-only, so it changes only with a
+          # restart. QUOTED: a bare `off` is YAML for false, and the node exits on a bool.
+          contact_detection: "observe"
         publishes:
           - /joint_states
           - /ee_state
@@ -1195,48 +1200,63 @@ nodes:
           - /perception/object_detections_3d
 
   - name: feeding
-    description: Robot-assisted feeding -- bite after bite until the bowl is empty or the user declines
+    description: Robot-assisted feeding -- a capability engine the orchestrator drives, one bite per action
     select: single
     alternatives:
-      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.2.3). It moves the arm only through the arm node
-      # (execute_joint_trajectory: its own IK paths and the planner's paths), so `arm`, `arm_state_publisher` and
-      # `planner` must be selected alongside, with `wrist_camera`, `scene_camera` and `sam3`. Stopping the node
-      # cancels the move in flight: the arm halts where it is. It never commands the gripper.
+      # Transcribed from rammp-feeding's rammp-alternative.yaml (v0.6.3, debajyotidasgupta/rammp-feeding) for the 2.0
+      # arm generation. A release pin: the module publishes version tags only, so a PR moves the pin when it releases.
+      # Diverges from the fragment: the fleet DDS config and robot interface file (as every docker node here), the
+      # image's registry spelled out, and NO planner mount. The fragment has both planners mount
+      # /srv/rammp_feeding/config at /feeding because it hands cuRobo its world as a file path; the shared planner is
+      # not changed for one module, so its set_world fails until the module hands worlds over another way.
       #
-      # NOT RUNNABLE ON THIS MANIFEST'S ARM ALTERNATIVES. 0.2.3 was written against the 1.1.0 arm (a level mount, the
-      # model on /robot_description, unprefixed joints) and hands the planner its world as a file under /config,
-      # which the 1.1.0 planner mounted from /srv/rammp_feeding/config. Every arm alternative here is now the 2.0
-      # generation (arm_-prefixed joints, arm_mount frame, /arm/robot_description) and the planner mounts no
-      # module state, so the node waits for a rammp-feeding release that reads 2.0.
-      #
-      # Selecting it runs `rammp feed` at once: attended only, and only on a robot set up per rammp-feeding's
-      # deployment checklist (docs/porting.md): its measurements, captured poses and calibrations in the host's
-      # /srv/rammp_feeding/config (owned by uid 1000). One step at a time: leave it unselected and run the module's
-      # image by hand (the checklist's `rammp` command).
-      #
-      # Diverges from the fragment: the image is on Docker Hub (the module's repo is not under rammp-org, so there is
-      # no ghcr.io/rammp-org image to pin).
+      # Attended only, and only on a robot set up per rammp-feeding's docs/porting.md: its site file, captured poses
+      # and calibrations in the host's /srv/rammp_feeding/config (owned by uid 1000), which drinking shares.
+      # Transcribed from the feeding module's rammp-alternative.yaml. A capability engine (rammp-kitchen-capability-
+      # engines' CapabilityEngine, engine id `feeding`): it registers with the orchestrator and moves the arm only in an
+      # action the orchestrator starts (start_meal, feed, finish_meal; with a stand, pick_up_fork and put_down_fork;
+      # docs/interface.md). It moves the arm only through
+      # the arm node (execute_joint_trajectory: its own IK paths and the planner's paths), so `arm`,
+      # `arm_state_publisher` and `planner` must be selected alongside, with `wrist_camera`, `scene_camera` and `sam3`.
+      # Stopping it cancels the action in flight: the move stops and the arm settles. It commands the gripper only in the
+      # two fork actions (/setpoint/gripper, with the action's token).
+      # It uses the shared planner as configured for everyone: its own world goes in only while an action plans, and the
+      # planner's comes back as the action ends.
       - id: rammp_feeding_docker
         kind: docker
         container:
-          image: docker.io/debajyotidasgupta/rammp-feeding:0.2.3
+          image: docker.io/debajyotidasgupta/rammp-feeding:0.6.3     # Docker Hub, arm64
           network_mode: host
           ipc: host
           user: "1000:1000"
-          # State across runs: local.yaml, the captured poses, the wrist camera's measured mount, the scene camera's
-          # measured pose and the session's reading, the world it hands the planner. The run record beside it.
+          # State across runs (patterns/storing-state-across-runs): local.yaml, the captured poses, the wrist camera's
+          # measured mount, the scene camera's measured pose and latest reading, the world it hands the planner. The run
+          # record beside it (only with `record` on).
           volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
             - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
-            - /srv/rammp_feeding/config:/config
+            - /srv/rammp_feeding/config:/config     # the host's folders, owned by uid 1000 (docs/porting.md)
             - /srv/rammp_feeding/runs:/runs
           environment:
             CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
             HOME: /tmp
-          command: ros2 launch rammp_feeding feed.launch.py
+          # The node's executable (sheppy appends --ros-args --params-file with the params below)
+          command: ["/module_ws/install/rammp_feeding/lib/rammp_feeding/feeding_node"]
+        # Per robot, overridable from a profile (docs/interface.md, Parameters). The defaults are the December demo
+        # robot's cameras (OAK-D Pro on the wrist, OAK-D Pro W on the scene).
+        params:
+          use_orchestrator: true
+          state_dir: /config
+          runs_dir: /runs
+          record: false                       # the run record: a debug setting, off
+          camera_profile: oak_d_pro
+          scene_camera_profile: oak_d_pro_w
+          config: ""                          # any other setting, "a.b=1,c=[1, 2]"
+        # (the cameras' topics: the selected camera profiles', config/camera/*.yaml; these are the defaults')
         subscribes:
-          - /robot_description
+          - /arm/robot_description
           - /joint_states
           - /control_status
           - /tf
@@ -1244,14 +1264,1779 @@ nodes:
           - /wrist_camera/color/image_raw
           - /wrist_camera/color/camera_info
           - /wrist_camera/depth/image_rect_raw
-          - /wrist_camera/depth/camera_info
           - /scene_camera/color/image_raw
           - /scene_camera/color/camera_info
-          - /scene_camera/depth/image_raw
-          - /scene_camera/depth/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /gripper_state
         publishes:
+          - /feeding/status
           - /tf_static
-      # Wiring only, like every mock here: the module is reached through its command, not a topic.
+          - /reset
+          - /setpoint/gripper
+      # The real alternative's interface with no hardware: the same node with mock:=true (it registers and answers
+      # every action at once; nothing moves).
       - id: feeding_mock
-        kind: process
-        command: "bash -lc 'sleep infinity'"
+        kind: docker
+        container:
+          image: docker.io/debajyotidasgupta/rammp-feeding:0.6.3
+          network_mode: host
+          ipc: host
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          command: ["ros2", "launch", "rammp_feeding", "feeding.launch.py", "mock:=true"]
+        subscribes:
+          - /arm/robot_description
+          - /joint_states
+          - /control_status
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /gripper_state
+        publishes:
+          - /feeding/status
+          - /tf_static
+          - /reset
+          - /setpoint/gripper
+
+  - name: drinking
+    description: Robot-assisted drinking -- a capability engine the orchestrator drives, one sip per action
+    select: single
+    alternatives:
+      # Transcribed from rammp-drinking's rammp-alternative.yaml (v0.1.4, debajyotidasgupta/rammp-drinking), on
+      # rammp-feeding 0.6.3's image. A release pin, as feeding's. Diverges from the fragment as feeding does (fleet DDS,
+      # registry spelled out, no planner mount: its drink_world.yaml goes to the planner by file path, so set_world
+      # fails until the module changes that). Shares feeding's /srv/rammp_feeding state: one site file, one wrist
+      # camera mount, one home pose. Attended only.
+      # Transcribed from the drinking module's rammp-alternative.yaml. A capability engine (rammp-kitchen-capability-
+      # engines' CapabilityEngine, engine id `drinking`): it registers with the orchestrator and moves the arm only in an
+      # action the orchestrator starts (pick_up_drink, give_sip, put_down_drink; docs/interface.md). It moves the arm only
+      # through the arm node (execute_joint_trajectory: its own IK paths and the planner's, HOLD_LEVEL while it carries the
+      # cup) and commands the gripper (/setpoint/gripper: it holds the cup's handle from inside), so `arm`,
+      # `arm_state_publisher` and `planner` must be selected alongside, with `wrist_camera` and `sam3`. The gripper must be
+      # empty for drinking: the fork put back on its stand (feeding's put_down_fork) or taken out by hand. Stopping it
+      # cancels the action in flight: the move stops and the arm settles. It uses the shared planner as configured for
+      # everyone: its own world goes in only while an action plans, and the planner's own comes back as the action ends.
+      - id: rammp_drinking_docker
+        kind: docker
+        container:
+          image: docker.io/debajyotidasgupta/rammp-drinking:0.1.4     # Docker Hub, arm64 (on rammp-feeding 0.6.3's image)
+          network_mode: host
+          ipc: host
+          user: "1000:1000"
+          # The state shared with rammp-feeding (patterns/storing-state-across-runs): the site file, the wrist camera's
+          # mount, the arm poses (drink_gaze, drink_hold, drink_deliver beside feeding's), the cup this session
+          # (drink_state.json), the world it hands the planner; the run record beside it (only with `record` on).
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+            - /srv/rammp_feeding/config:/config     # the host's folders, owned by uid 1000 (rammp-feeding's docs/porting.md)
+            - /srv/rammp_feeding/runs:/runs
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          # The node's executable (sheppy appends --ros-args --params-file with the params below)
+          command: ["/module_ws/install/rammp_drinking/lib/rammp_drinking/drinking_node"]
+        # Per robot, overridable from a profile (docs/interface.md, Parameters). The default is the December demo robot's
+        # wrist camera (OAK-D Pro).
+        params:
+          use_orchestrator: true
+          state_dir: /config
+          runs_dir: /runs
+          record: false                       # the run record: a debug setting, off
+          camera_profile: oak_d_pro
+          config: ""                          # any other setting, "a.b=1,c=[1, 2]"
+        # (the camera's topics: the selected camera profile's, rammp_feeding's config/camera/*.yaml; these are the default's)
+        subscribes:
+          - /arm/robot_description
+          - /joint_states
+          - /control_status
+          - /gripper_state
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+        publishes:
+          - /drinking/status
+          - /setpoint/gripper
+          - /reset
+      # The real alternative's interface with no hardware: the same node with mock:=true (it registers and answers
+      # every action at once; nothing moves).
+      - id: drinking_mock
+        kind: docker
+        container:
+          image: docker.io/debajyotidasgupta/rammp-drinking:0.1.4
+          network_mode: host
+          ipc: host
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          command: ["ros2", "launch", "rammp_drinking", "drinking.launch.py", "mock:=true"]
+        subscribes:
+          - /arm/robot_description
+          - /joint_states
+          - /control_status
+          - /gripper_state
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+        publishes:
+          - /drinking/status
+          - /setpoint/gripper
+          - /reset
+
+  - name: fridge
+    description: Fridge open and close -- the /fridge/execute_action capability engine (rammp-kitchen-capability-engines)
+    select: single
+    alternatives:
+      # Transcribed from rammp-kitchen-capability-engines' capabilities/fridge/rammp-alternative.yaml
+      # (and .mock.yaml) at engines dev adb94c3. Diverges from the fragment, as every kitchen engine
+      # here: the fleet DDS config and robot interface file (as every docker node in this manifest),
+      # the installed executable instead of `ros2 run`, its data on the host's daily tree instead of
+      # /tmp, and `use_orchestrator` declared so a profile can run it standalone.
+      #
+      # Needs arm, arm_state_publisher and planner (nightly: arm_mount frame), static_tf, the wrist
+      # camera, and sam3 when handle_source is sam3. profiles/daily.yaml brings all of them up.
+      #
+      # Run ONE fridge node. Two on the same DDS domain both serve /fridge/execute_action, both take
+      # every goal and drive the arm against each other (11-05 on snorlax). Stop any `docker run`
+      # fridge container before bringing this up.
+      #
+      # allow_execute false makes every goal a dry run (detect, plan, gate; nothing moves). Flip it in
+      # the TUI (`p`) only for an attended run, someone on the e-stop -- never in a profile.
+      #
+      # Send a goal from december_2026/ on the robot (the image carries the action type):
+      #   docker run --rm --network host --ipc host -e ROS_DOMAIN_ID=0 \
+      #     -v "$PWD/config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro" \
+      #     -v "$PWD/config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro" \
+      #     -e CYCLONEDDS_URI=file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml \
+      #     ghcr.io/rammp-org/rammp-kitchen-capability-engines/fridge:dev \
+      #     ros2 action send_goal --feedback /fridge/execute_action \
+      #     rammp_orchestrator_interfaces/action/ExecuteAction \
+      #     '{engine_id: fridge, action_id: open, params_json: "{\"execute\": true, \"speed\": 0.2}"}'
+      # action_id open or close; "execute": false for a dry run. A goal ending INVALID_GOAL "supervisor
+      # rejected planned trajectory" right after planning usually means the arm is faulted: check
+      # `Arm link` in the arm's log, then `ros2 service call /clear_faults std_srvs/srv/Trigger` with
+      # nothing touching the arm. Each run's log and rosbag land in /home/snorlax/daily/data/fridge.
+      - id: fridge_dev
+        kind: docker
+        ros_node_name: fridge
+        container:
+          # `:dev` moves on every merge to engines dev, and prefer_latest pulls it at every start (the
+          # cached image if the pull fails). The daily demo holds it still with a merge freeze from 4 PM.
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/fridge:dev
+          pull_policy: prefer_latest
+          network_mode: host
+          ipc: host
+          # The node's installed executable, as the image's CMD runs it; sheppy appends
+          # `--ros-args --params-file`. Not `ros2 run`: as PID 1 it swallows the stop signal.
+          command: ["/module_ws/install/fridge/lib/fridge/fridge_node"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          # The door geometry and grasp the open saves (the close reads them back) and every run's log:
+          # kept on the host, across container restarts.
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+            - /home/snorlax/daily/data/fridge:/fridge_data
+            # The fridge's collision world for the cuRobo planner, written here and loaded by the planner
+            # (set_world with its path): the planner container must mount the same host directory at the same
+            # path (planner_world_dir), read-only is enough.
+            - /tmp/rammp_planner_worlds:/rammp_planner_worlds
+        params:
+          # false: every goal is a dry run (detect, plan, gate; nothing moves), whatever it asks.
+          # true only for attended runs, someone on the e-stop.
+          allow_execute: false
+          # false: the engine runs standalone, driven by `ros2 action send_goal`; true: it registers
+          # with the orchestrator and waits for it (profiles/daily.yaml sets false until it runs).
+          use_orchestrator: true
+          data_dir: /fridge_data
+          # The arm's forward lean in its mount (deg): 0 (dojo) or 30 (flatbot, gen_1_5).
+          mount_tilt_deg: 0
+          # The open's grasp: side (in along the door from the hinge side, one finger behind the bar, tilted
+          # -40 to 40 deg) or front (fingers across the bar, straight in). Picks the placement advice.
+          grasp: side
+          # Wrist camera; depth must be aligned to colour. camera_frame "" = the colour image's frame_id.
+          # depth/image_rect_raw is aligned to colour on the D405 and the OAK (flatbot); the D435i's is not --
+          # with it, override this to /wrist_camera/aligned_depth_to_color/image_raw.
+          color_topic: /wrist_camera/color/image_raw
+          camera_info_topic: /wrist_camera/color/camera_info
+          depth_topic: /wrist_camera/depth/image_rect_raw
+          camera_frame: ""
+          # Which camera finds the handle and measures the door: wrist (the topics above; what GRIP_EXT was
+          # tuned on) or scene (the scene_* topics below; its handle point is unchecked against GRIP_EXT).
+          detect_camera: wrist
+          # Where the handle comes from: sam3 (SAM 3's mask of sam3_prompts) or depth (the vertical bar
+          # sticking out of the door). door_normal handle_model and handle need sam3.
+          handle_source: sam3
+          sam3_service: /perception/sam3/detect
+          sam3_prompts: [handle]
+          sam3_threshold: 0.3
+          # Measured on the fridge being opened (m); see Before a run in docs/interface.md.
+          # The STL's bar middle; set from the 11-06 measurements once the camera's handle point is measured (TESTING.md).
+          handle_centre_to_face_m: 0.070
+          pin_behind_face_m: 0.04675
+          hinge_along_door_m: 0.3683
+          door_width_m: 0.4572
+          door_depth_m: 0.10668
+          door_above_handle_m: 0.381
+          door_below_handle_m: 0.3937
+          # NOT MEASURED: the STL's straight bar between its mounts. Measure it.
+          handle_length_m: 0.2032
+          body_depth_m: 0.5
+          # The wheelchair: on the 30-deg mount it is the cuRobo planner's own collision layers, in every
+          # world; the level mount (no layers) gets this stand-in box behind the arm base (m) in the fridge's
+          # world. And which way moving the chair back moves the fridge in the arm's frame (x, y).
+          chair_keep_out_behind_m: 0.381
+          chair_back_dir: [1.0, 0.0]
+          # go_to_start's pose, sent before an open: the arm's joints J1..J7 (deg). The web app's Fridge pose,
+          # clear of the wheelchair and occupant layers; cuRobo plans the way there collision-free.
+          start_joints_deg: [103.04, -30.7, -169.63, -123.05, 101.64, 110.04, 2.5]  # 11-12: the start of open run 20261112_194816 (it executed through)
+          # cuRobo plans every motion against the fridge: the node writes its collision world into
+          # planner_world_dir (the volume above; the planner sees it at planner_world_dir_in_planner, "" = the
+          # same path) and loads it with set_world. A pushed world replaces the robot's world.yaml, so it lists
+          # that world's layers again (planner_base_layers, as the planner sees them: flatbot's floor; the
+          # chair's layers are the planner config's and stay in every world). planner_restore_world is put
+          # back when each action ends (resolved next to the planner's config).
+          planner_world_dir: /rammp_planner_worlds
+          planner_world_dir_in_planner: ""
+          planner_base_layers: [/config/robot/curobo/layer_mebot_floor.yaml]
+          planner_restore_world: world.yaml
+          # How each look measures the door's direction: handle_model (the printed handle's model fit to SAM 3's
+          # mask on the depth, as the side grasp's estimator), handle (the bar and its plate), plane (a door-plane
+          # fit over the whole image) or square (TESTING ONLY: the door taken as square to the arm).
+          door_normal: handle_model
+          # Every run also records a rosbag into its run folder: the wrist and scene cameras bag_frame_hz times a second,
+          # boxer's 3D boxes and TF (~150 MB a minute at 1). "" for any scene topic: no scene camera; for boxes_topic: no boxes.
+          # wrist_infra*: the wrist camera's rectified stereo pair with its camera_infos, for running FoundationStereo on later
+          # (~30 MB a minute more at 1; any "": not recorded). The wrist OAK publishes them only with
+          # depth.i_left_rect_publish_topic and depth.i_right_rect_publish_topic true (docs/TESTING.md: its 100 Mbit/s link
+          # needs them compressed). It names its left mono infra2: the camera_infos' projections say which is left.
+          record_bag: true
+          bag_frame_hz: 1.0
+          scene_color_topic: /scene_camera/color/image_raw
+          scene_camera_info_topic: /scene_camera/color/camera_info
+          scene_depth_topic: /scene_camera/depth/image_rect_raw
+          wrist_infra1_topic: /wrist_camera/infra1/image_rect_raw
+          wrist_infra1_info_topic: /wrist_camera/infra1/camera_info
+          wrist_infra2_topic: /wrist_camera/infra2/image_rect_raw
+          wrist_infra2_info_topic: /wrist_camera/infra2/camera_info
+          boxes_topic: /perception/object_detections_3d
+          # arm.*: every tunable of self.arm; see Parameters in docs/interface.md.
+          "arm.tool_z": 0.12
+          "arm.dt": 0.02
+          "arm.joint_speed": 0.85
+          "arm.cart_speed": 0.16
+          "arm.contact_joint_speed": 0.5
+          "arm.contact_cart_speed": 0.09
+          "arm.min_duration_s": 1.0
+          "arm.cart_step_m": 0.02
+          "arm.cart_step_deg": 5.0
+          "arm.rot_equiv_m": 0.15
+          "arm.max_knot_jump_deg": 20.0
+          "arm.path_tol_rad": 0.15
+          "arm.gripper_force": 0.5
+          "arm.gripper_speed": 0.5
+          "arm.frame": "arm_mount"
+          "arm.go_to_speed_scale": 0.3
+          "arm.go_to_timeout_s": 120.0
+          "arm.go_to_track_m": 0.01
+          "arm.go_to_track_deg": 2.0
+          "arm.max_ik_err": 0.02
+          "arm.max_step_jump_deg": 20.0
+          "arm.j6_guard_deg": 115.0
+          "arm.j4_guard_deg": 144.0
+          "arm.max_continuous_delta_deg": 170.0
+          "arm.keep_out_err": 9.0
+          "arm.ik_max_iterations": 200
+          "arm.clearance_query_m": 0.5
+          "arm.fingertip_open_rad": 0.0
+          "arm.finger_closed_rad": 0.7
+          "arm.state_wait_s": 10.0
+          "arm.state_stale_s": 0.5
+          "arm.diagnostics_stale_s": 3.0
+          "arm.goal_accept_s": 5.0
+          "arm.result_margin_s": 30.0
+          "arm.poll_s": 0.01
+          "arm.cancel_settle_s": 0.4
+          "arm.halt_status_wait_s": 0.2
+          "arm.planner_wait_s": 5.0
+          "arm.go_to_settle_s": 0.3
+          "arm.gripper_period_s": 0.02
+          "arm.gripper_moved": 0.002
+          "arm.gripper_judge_after_s": 0.5
+          "arm.gripper_still_s": 0.3
+          "arm.plan_timeout_s": 30.0
+          "arm.service_wait_s": 5.0
+          "arm.service_call_s": 10.0
+          "arm.stream_timeout_s": 0.1
+          "arm.publisher_match_s": 1.0
+          "arm.close_stream_wait_s": 1.0
+          "arm.mock_joints": [0.0, 0.26, 3.14, -2.27, 0.0, 0.96, 1.57]
+          "arm.mock_urdf": ""
+          # The UI bridge node whose request_user_input action and service show the UI buttons' panels (capability_engine).
+          ui_bridge_node_name: ui_bridge_node
+        publishes: [/fridge/status]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /wrist_camera/infra1/image_rect_raw
+          - /wrist_camera/infra1/camera_info
+          - /wrist_camera/infra2/image_rect_raw
+          - /wrist_camera/infra2/camera_info
+          - /perception/object_detections_3d
+      - id: fridge_real
+        kind: docker
+        ros_node_name: fridge
+        container:
+          # LOCAL BUILD, for development: whatever was last built on this machine as :local, from the
+          # engines checkout (`docker build --network host -f capabilities/fridge/Dockerfile -t <this image> .`).
+          # Its own tag, so fridge_dev's pull of :dev never replaces it; pull_policy never: there is no :local on ghcr.
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/fridge:local
+          pull_policy: never
+          network_mode: host
+          ipc: host
+          # The node's installed executable, as the image's CMD runs it; sheppy appends
+          # `--ros-args --params-file`. Not `ros2 run`: as PID 1 it swallows the stop signal.
+          command: ["/module_ws/install/fridge/lib/fridge/fridge_node"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          # The door geometry and grasp the open saves (the close reads them back) and every run's log:
+          # kept on the host, across container restarts.
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+            - /home/snorlax/daily/data/fridge:/fridge_data
+            # The fridge's collision world for the cuRobo planner, written here and loaded by the planner
+            # (set_world with its path): the planner container must mount the same host directory at the same
+            # path (planner_world_dir), read-only is enough.
+            - /tmp/rammp_planner_worlds:/rammp_planner_worlds
+        params:
+          # false: every goal is a dry run (detect, plan, gate; nothing moves), whatever it asks.
+          # true only for attended runs, someone on the e-stop.
+          allow_execute: false
+          # false: the engine runs standalone, driven by `ros2 action send_goal`; true: it registers
+          # with the orchestrator and waits for it (profiles/daily.yaml sets false until it runs).
+          use_orchestrator: true
+          data_dir: /fridge_data
+          # The arm's forward lean in its mount (deg): 0 (dojo) or 30 (flatbot, gen_1_5).
+          mount_tilt_deg: 0
+          # The open's grasp: side (in along the door from the hinge side, one finger behind the bar, tilted
+          # -40 to 40 deg) or front (fingers across the bar, straight in). Picks the placement advice.
+          grasp: side
+          # Wrist camera; depth must be aligned to colour. camera_frame "" = the colour image's frame_id.
+          # depth/image_rect_raw is aligned to colour on the D405 and the OAK (flatbot); the D435i's is not --
+          # with it, override this to /wrist_camera/aligned_depth_to_color/image_raw.
+          color_topic: /wrist_camera/color/image_raw
+          camera_info_topic: /wrist_camera/color/camera_info
+          depth_topic: /wrist_camera/depth/image_rect_raw
+          camera_frame: ""
+          # Which camera finds the handle and measures the door: wrist (the topics above; what GRIP_EXT was
+          # tuned on) or scene (the scene_* topics below; its handle point is unchecked against GRIP_EXT).
+          detect_camera: wrist
+          # Where the handle comes from: sam3 (SAM 3's mask of sam3_prompts) or depth (the vertical bar
+          # sticking out of the door). door_normal handle_model and handle need sam3.
+          handle_source: sam3
+          sam3_service: /perception/sam3/detect
+          sam3_prompts: [handle]
+          sam3_threshold: 0.3
+          # Measured on the fridge being opened (m); see Before a run in docs/interface.md.
+          # The STL's bar middle; set from the 11-06 measurements once the camera's handle point is measured (TESTING.md).
+          handle_centre_to_face_m: 0.070
+          pin_behind_face_m: 0.04675
+          hinge_along_door_m: 0.3683
+          door_width_m: 0.4572
+          door_depth_m: 0.10668
+          door_above_handle_m: 0.381
+          door_below_handle_m: 0.3937
+          # NOT MEASURED: the STL's straight bar between its mounts. Measure it.
+          handle_length_m: 0.2032
+          body_depth_m: 0.5
+          # The wheelchair: on the 30-deg mount it is the cuRobo planner's own collision layers, in every
+          # world; the level mount (no layers) gets this stand-in box behind the arm base (m) in the fridge's
+          # world. And which way moving the chair back moves the fridge in the arm's frame (x, y).
+          chair_keep_out_behind_m: 0.381
+          chair_back_dir: [1.0, 0.0]
+          # go_to_start's pose, sent before an open: the arm's joints J1..J7 (deg). The web app's Fridge pose,
+          # clear of the wheelchair and occupant layers; cuRobo plans the way there collision-free.
+          start_joints_deg: [103.04, -30.7, -169.63, -123.05, 101.64, 110.04, 2.5]  # 11-12: the start of open run 20261112_194816 (it executed through)
+          # cuRobo plans every motion against the fridge: the node writes its collision world into
+          # planner_world_dir (the volume above; the planner sees it at planner_world_dir_in_planner, "" = the
+          # same path) and loads it with set_world. A pushed world replaces the robot's world.yaml, so it lists
+          # that world's layers again (planner_base_layers, as the planner sees them: flatbot's floor; the
+          # chair's layers are the planner config's and stay in every world). planner_restore_world is put
+          # back when each action ends (resolved next to the planner's config).
+          planner_world_dir: /rammp_planner_worlds
+          planner_world_dir_in_planner: ""
+          planner_base_layers: [/config/robot/curobo/layer_mebot_floor.yaml]
+          planner_restore_world: world.yaml
+          # How each look measures the door's direction: handle_model (the printed handle's model fit to SAM 3's
+          # mask on the depth, as the side grasp's estimator), handle (the bar and its plate), plane (a door-plane
+          # fit over the whole image) or square (TESTING ONLY: the door taken as square to the arm).
+          door_normal: handle_model
+          # Every run also records a rosbag into its run folder: the wrist and scene cameras bag_frame_hz times a second,
+          # boxer's 3D boxes and TF (~150 MB a minute at 1). "" for any scene topic: no scene camera; for boxes_topic: no boxes.
+          # wrist_infra*: the wrist camera's rectified stereo pair with its camera_infos, for running FoundationStereo on later
+          # (~30 MB a minute more at 1; any "": not recorded). The wrist OAK publishes them only with
+          # depth.i_left_rect_publish_topic and depth.i_right_rect_publish_topic true (docs/TESTING.md: its 100 Mbit/s link
+          # needs them compressed). It names its left mono infra2: the camera_infos' projections say which is left.
+          record_bag: true
+          bag_frame_hz: 1.0
+          scene_color_topic: /scene_camera/color/image_raw
+          scene_camera_info_topic: /scene_camera/color/camera_info
+          scene_depth_topic: /scene_camera/depth/image_rect_raw
+          wrist_infra1_topic: /wrist_camera/infra1/image_rect_raw
+          wrist_infra1_info_topic: /wrist_camera/infra1/camera_info
+          wrist_infra2_topic: /wrist_camera/infra2/image_rect_raw
+          wrist_infra2_info_topic: /wrist_camera/infra2/camera_info
+          boxes_topic: /perception/object_detections_3d
+          # arm.*: every tunable of self.arm; see Parameters in docs/interface.md.
+          "arm.tool_z": 0.12
+          "arm.dt": 0.02
+          "arm.joint_speed": 0.85
+          "arm.cart_speed": 0.16
+          "arm.contact_joint_speed": 0.5
+          "arm.contact_cart_speed": 0.09
+          "arm.min_duration_s": 1.0
+          "arm.cart_step_m": 0.02
+          "arm.cart_step_deg": 5.0
+          "arm.rot_equiv_m": 0.15
+          "arm.max_knot_jump_deg": 20.0
+          "arm.path_tol_rad": 0.15
+          "arm.gripper_force": 0.5
+          "arm.gripper_speed": 0.5
+          "arm.frame": "arm_mount"
+          "arm.go_to_speed_scale": 0.3
+          "arm.go_to_timeout_s": 120.0
+          "arm.go_to_track_m": 0.01
+          "arm.go_to_track_deg": 2.0
+          "arm.max_ik_err": 0.02
+          "arm.max_step_jump_deg": 20.0
+          "arm.j6_guard_deg": 115.0
+          "arm.j4_guard_deg": 144.0
+          "arm.max_continuous_delta_deg": 170.0
+          "arm.keep_out_err": 9.0
+          "arm.ik_max_iterations": 200
+          "arm.clearance_query_m": 0.5
+          "arm.fingertip_open_rad": 0.0
+          "arm.finger_closed_rad": 0.7
+          "arm.state_wait_s": 10.0
+          "arm.state_stale_s": 0.5
+          "arm.diagnostics_stale_s": 3.0
+          "arm.goal_accept_s": 5.0
+          "arm.result_margin_s": 30.0
+          "arm.poll_s": 0.01
+          "arm.cancel_settle_s": 0.4
+          "arm.halt_status_wait_s": 0.2
+          "arm.planner_wait_s": 5.0
+          "arm.go_to_settle_s": 0.3
+          "arm.gripper_period_s": 0.02
+          "arm.gripper_moved": 0.002
+          "arm.gripper_judge_after_s": 0.5
+          "arm.gripper_still_s": 0.3
+          "arm.plan_timeout_s": 30.0
+          "arm.service_wait_s": 5.0
+          "arm.service_call_s": 10.0
+          "arm.stream_timeout_s": 0.1
+          "arm.publisher_match_s": 1.0
+          "arm.close_stream_wait_s": 1.0
+          "arm.mock_joints": [0.0, 0.26, 3.14, -2.27, 0.0, 0.96, 1.57]
+          "arm.mock_urdf": ""
+          # The UI bridge node whose request_user_input action and service show the UI buttons' panels (capability_engine).
+          ui_bridge_node_name: ui_bridge_node
+        publishes: [/fridge/status]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /wrist_camera/infra1/image_rect_raw
+          - /wrist_camera/infra1/camera_info
+          - /wrist_camera/infra2/image_rect_raw
+          - /wrist_camera/infra2/camera_info
+          - /perception/object_detections_3d
+      - id: fridge_mock
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/fridge:dev
+          network_mode: host
+          ipc: host
+          # To give make_sim() a model, append "mock_urdf:=/path/to/robot.urdf" (arm.mock_urdf).
+          command: ["ros2", "launch", "fridge", "fridge.launch.py", "mock:=true"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+        # No `params:` here: they would need `ros2 run`, and this fragment uses `ros2 launch` for mock:=true.
+        publishes: [/fridge/status]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /wrist_camera/infra1/image_rect_raw
+          - /wrist_camera/infra1/camera_info
+          - /wrist_camera/infra2/image_rect_raw
+          - /wrist_camera/infra2/camera_info
+          - /perception/object_detections_3d
+
+  - name: box_opening
+    description: Box opening -- press the container's button, take its lid off, set it down (rammp-kitchen-capability-engines)
+    select: single
+    alternatives:
+      # Transcribed from rammp-kitchen-capability-engines' capabilities/box_opening/rammp-alternative.yaml
+      # (and .mock.yaml) at engines dev adb94c3, diverging as the fridge node above says.
+      #
+      # Needs arm, arm_state_publisher and planner (nightly: arm_mount frame), static_tf,
+      # both cameras and scene_segmenter. profiles/daily.yaml brings all of them up.
+      #
+      # Run ONE box_opening node: two on the same DDS domain both take every goal. allow_execute false makes
+      # every goal a dry run; flip it in the TUI (`p`) only for an attended run, someone on the e-stop.
+      # Send a goal as the fridge node shows, to /box_opening/execute_action with engine_id box_opening (action
+      # ids in the engine's docs). Each run's record lands in /home/snorlax/.ros/box_opening (its existing state folder on snorlax: reach-zone cache, captures, runs).
+      - id: box_opening_dev
+        kind: docker
+        ros_node_name: box_opening
+        container:
+          # `:dev` moves on every merge to engines dev, and prefer_latest pulls it at every start (the
+          # cached image if the pull fails). The daily demo holds it still with a merge freeze from 4 PM.
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/box_opening:dev
+          pull_policy: prefer_latest
+          network_mode: host
+          ipc: host
+          # The node's installed executable, as the image's CMD runs it; sheppy appends
+          # `--ros-args --params-file`. Not `ros2 run`: as PID 1 it swallows the stop signal.
+          command: ["/module_ws/install/box_opening/lib/box_opening/box_opening_node"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+            # where runs keep their logs, captures and videos (state_dir)
+            - /home/snorlax/.ros/box_opening:/state
+            # the active robot's config, read-only, as the planner (and arm_state_publisher) mount it: the
+            # planner config whose chair and user layers and arm spheres every plan-free line is held out of
+            # (body_layers below, runtime/body). Without it the node's runs stop before they move ("not
+            # starting: body model: cannot read /config/robot/curobo/planner.yaml ... Nothing moved.")
+            - ./config/robots/current:/config/robot:ro
+        params:
+          # false: open_box is reported unavailable and nothing runs (there is no dry
+          # run). true only for attended runs, someone on the e-stop.
+          allow_execute: false
+          # false: the engine runs standalone, driven by `ros2 action send_goal`; true: it registers
+          # with the orchestrator and waits for it (profiles/daily.yaml sets false until it runs).
+          use_orchestrator: true
+          # the container's config, in the image's config/containers (or a path)
+          container: ankou_pink.yaml
+          # the robot's frame, cameras and fixed body, in the image's config (or a path)
+          world: world_flatbot.yaml
+          # where runs keep their logs, captures and videos (the volume above)
+          state_dir: /state
+          # a video of both cameras from the grip to the set-down, written after each
+          # run (the newest 20 kept): on for attended data collection only
+          video: false
+          # what the perception sees and decides, drawn for Foxglove
+          viz: false
+          # debug: each executed run also keeps what its cameras saw (~10 MB a run,
+          # the newest 20 kept), and its record's flight files and room maps
+          mission_frames: false
+          # every motion slowed to this fraction of its speed (0 < x <= 1)
+          speed_scale: 1.0
+          # the cuRobo planner config whose layers (the chair and its user) and robot spheres every
+          # plan-free line and planner goal is held out of (the volume above); unreadable, a run stops
+          # before it moves; a run also refuses a planner not started on this same config with world "".
+          # "" turns the check off (a bench with no chair)
+          body_layers: /config/robot/curobo/planner.yaml
+          # where the scene camera finds no container, look for it with the wrist camera from one or two
+          # poses over the arm's side (a chair parked side-on to a counter the scene camera cannot see);
+          # false: such a run stops with not_found before anything moves. Never for the orchestrator's
+          # selection, which is the scene camera's (docs/interface.md)
+          wrist_survey: false
+          # the wrist camera finds the container: the wrist turns where the arm rests so its camera sees
+          # the table in front of the arm (up to four views of the wrist's three joints, first where the
+          # scene camera has the box; a lid a view cuts is looked at again), and what it finds there is the
+          # box; the scene camera's box only where the wrist finds none. With the orchestrator's selection the
+          # wrist's box is taken only where it stands in the direction the scene camera has the selected
+          # container (docs/interface.md); the instance the world state is written for is the selected one
+          wrist_first: false
+          # with wrist_first, for a selection that is NO detection of the scene camera's: the selected id is
+          # in none of its frames (the UI's object list typed by hand, orchestrator's interactive_perception_node).
+          # true: the wrist looks from its own views, tied to nothing, and what it finds is taken only where
+          # it is the ONE container the wrist sees (two or more: not_found). The arm then opens whichever
+          # single container stands in front of it, under the selected id. false (the default): such a run
+          # ends not_found without turning the wrist. A selection the scene camera does hold is tied to it
+          # either way (docs/interface.md)
+          wrist_alone: false
+          # the run's measured table handed to the planner while a way HOME is planned, and at no other time
+          # (docs/interface.md, "The planner's world"). `planner_worlds_as` is the folder the PLANNER's container
+          # mounts read-only for it, as that container names it, e.g. /box_opening for a planner volume
+          #   - <state_dir on the host>/planner_worlds:/box_opening:ro
+          # "" (the default): box opening sends the planner no world. `planner_worlds_dir` is the same folder as
+          # this node writes it; "" = planner_worlds under state_dir
+          planner_worlds_as: ""
+          planner_worlds_dir: ""
+          # how the arm flies the free air before the press: "impedance" (the default: every leg in the driver's
+          # joint impedance, one motion to under the button, as flown 2026-11-12) or "position" (the look and the
+          # way in's free-air lines in position control and slower, about a second's stand while the springs come
+          # in, then the press on them as ever: the arm follows its path closely, and does not give way to what it
+          # meets in the air). "position" is not flown yet
+          air_control: impedance
+          # the UI bridge's node: the base class's panel calls (ctx.update_user_panel) go to its
+          # request_user_input, with the token the orchestrator pushes for each execution
+          ui_bridge_node_name: ui_bridge_node
+          # the mock only (mock: true): how long each of its seven phases lasts, in seconds. 0: its run
+          # is over at once. A second or two and the UI can be rehearsed on it with no arm: the run's
+          # panel, its bar, Cancel
+          mock_phase_s: 0.0
+          # the line-up before a run, on the UI: the panel tells the user which way to move until the container
+          # is where the arm opens it, then asks, and the arm moves only on its Open. false (the default): open_box
+          # starts its run at once. With wrist_first the wrist turns to look while the user lines up (gently, and
+          # only where the arm stands at rest); without it the scene camera alone follows the container, and one
+          # it cannot see is never asked of (open_box ends not_lined_up)
+          line_up: false
+          # how far from the arm's base (m) the line-up trusts that boundary: a container further out is told to
+          # come closer. 0 (the default): as far as the run's own proof plans a press. A robot's profile sets it
+          line_up_far_m: 0.0
+        publishes:
+          - /box_opening/status
+          # the run's gripper commands (runtime/client.py), to the arm driver
+          - /setpoint/gripper
+          # with viz: true only, what the run's perception sees and decides, for Foxglove
+          - /box_opening/viz/scene/annotated/compressed
+          - /box_opening/viz/wrist/annotated/compressed
+          - /box_opening/viz/markers
+          - /box_opening/viz/status
+        subscribes:
+          - /tf
+          - /tf_static
+          - /joint_states
+          - /arm/robot_description
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /scene_camera/depth/camera_info
+          - /perception/object_detections
+          # the arm driver's diagnostics: its link to the arm, its e-stop (readiness, a refused goal)
+          - /diagnostics
+          # the driver's estimate of the force on the tool, logged at the press's hold and the set-down
+          - /ee_state
+          # the driver's contact monitor's residual, logged per motion (with its contact_debug_topic on)
+          - /contact_monitor/residual
+      - id: box_opening_mock
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/box_opening:dev
+          network_mode: host
+          ipc: host
+          command: ["ros2", "launch", "box_opening", "box_opening.launch.py", "mock:=true"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+        # No `params:` here: they would need the node's executable, and this fragment
+        # uses `ros2 launch` for mock:=true.
+        publishes:
+          - /box_opening/status
+          # the run's gripper commands (runtime/client.py), to the arm driver
+          - /setpoint/gripper
+          # with viz: true only, what the run's perception sees and decides, for Foxglove
+          - /box_opening/viz/scene/annotated/compressed
+          - /box_opening/viz/wrist/annotated/compressed
+          - /box_opening/viz/markers
+          - /box_opening/viz/status
+        subscribes:
+          - /tf
+          - /tf_static
+          - /joint_states
+          - /arm/robot_description
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /scene_camera/depth/camera_info
+          - /perception/object_detections
+          # the arm driver's diagnostics: its link to the arm, its e-stop (readiness, a refused goal)
+          - /diagnostics
+          # the driver's estimate of the force on the tool, logged at the press's hold and the set-down
+          - /ee_state
+          # the driver's contact monitor's residual, logged per motion (with its contact_debug_topic on)
+          - /contact_monitor/residual
+
+  - name: button_press
+    description: Microwave button press -- the press_button action (rammp-kitchen-capability-engines)
+    select: single
+    alternatives:
+      # Transcribed from rammp-kitchen-capability-engines' capabilities/button_press/rammp-alternative.yaml
+      # (and .mock.yaml) at engines dev adb94c3, diverging as the fridge node above says.
+      #
+      # Needs arm, arm_state_publisher and planner (nightly: arm_mount frame), static_tf,
+      # both cameras and scene_segmenter. The params are flatbot's (mount_rpy_deg pitched 30 deg); on a level
+      # mount (dojo) override mount_rpy_deg: [0.0, 0.0, 0.0]. profiles/daily.yaml brings all of them up.
+      #
+      # Run ONE button_press node: two on the same DDS domain both take every goal. allow_execute false makes
+      # every goal a dry run; flip it in the TUI (`p`) only for an attended run, someone on the e-stop.
+      # Send a goal as the fridge node shows, to /button_press/execute_action with engine_id button_press (action
+      # ids in the engine's docs). Each run's record lands in /home/snorlax/daily/data/button_press.
+      - id: button_press_dev
+        kind: docker
+        ros_node_name: button_press
+        container:
+          # `:dev` moves on every merge to engines dev, and prefer_latest pulls it at every start (the
+          # cached image if the pull fails). The daily demo holds it still with a merge freeze from 4 PM.
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/button_press:dev
+          pull_policy: prefer_latest
+          network_mode: host
+          ipc: host
+          # The node's installed executable, as the image's CMD runs it; sheppy appends
+          # `--ros-args --params-file`. Not `ros2 run`: as PID 1 it swallows the stop signal.
+          command: ["/module_ws/install/button_press/lib/button_press/button_press_node"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+            # The microwave's collision world for the cuRobo planner, written here and loaded by the planner
+            # (set_world with its path): the planner container must mount the same host directory at the same
+            # path (planner_world_dir), read-only is enough. The fridge capability uses the same directory.
+            - /tmp/rammp_planner_worlds:/rammp_planner_worlds
+            # Every run's folder (run.jsonl, console.log, bag/), kept on the host. /tmp on the Jetson: copy it off.
+            - /home/snorlax/daily/data/button_press:/button_press_data
+        params:
+          # false: every action is a dry run (detect, plan, gate; nothing moves) and its result says so.
+          # true only for attended runs, someone on the e-stop.
+          allow_execute: false
+          # false: the engine runs standalone, driven by `ros2 action send_goal`; true: it registers
+          # with the orchestrator and waits for it (profiles/daily.yaml sets false until it runs).
+          use_orchestrator: true
+          # The arm base's orientation in arm_mount (the robot's mount.yaml rpy_deg): flatbot 0 30 0.
+          mount_rpy_deg: [0.0, 30.0, 0.0]
+          # Wrist camera; depth must be aligned to colour. camera_frame "" = the colour image's frame_id.
+          camera_frame: ""
+          camera_ns: /wrist_camera
+          depth_topic: depth/image_rect_raw
+          # First look from the scene camera ("scene"), falling back to the wrist camera; "wrist" = wrist only.
+          far: scene
+          scene_ns: /scene_camera
+          scene_depth_topic: depth/image_rect_raw
+          # Narrow the scene camera's search to the segmenter's microwave box (/perception/object_detections).
+          detections: true
+          # A folder per action in this directory (the volume above): run.jsonl (every check), console.log (every
+          # progress line and how the run ended) and, record_bag, bag/ (a rosbag: cameras at bag_frame_hz, arm state,
+          # WARN+ logs of every node, tf). "" = none.
+          log_dir: /button_press_data
+          # The pre-press spot is computed (straight in, fingertips 2 cm out); this moves it off the button's detected
+          # centre, x right / y up on the panel, mm: set it if a presses-0 run stops off centre (wrist camera mount).
+          prepress_aim_mm: [0.0, 0.0]
+          record_bag: true
+          bag_frame_hz: 1.0
+          # cuRobo plans the long moves (staging, back to start, bail) against the microwave and its counter: the
+          # node writes them into planner_world_dir (the volume above; the planner sees it at
+          # planner_world_dir_in_planner, "" = the same path) and loads them with set_world. A pushed world
+          # replaces the robot's world.yaml, so it lists that world's layers again (planner_base_layers, as the
+          # planner sees them: flatbot's floor; the chair's layers are the planner config's and stay in every
+          # world). planner_restore_world is put back when each action ends.
+          planner_world_dir: /rammp_planner_worlds
+          planner_world_dir_in_planner: ""
+          planner_base_layers: [/config/robot/curobo/layer_mebot_floor.yaml]
+          planner_restore_world: world.yaml
+          # arm.*: every tunable of self.arm; see Parameters in docs/interface.md.
+          "arm.tool_z": 0.12
+          "arm.dt": 0.02
+          "arm.joint_speed": 0.85
+          "arm.cart_speed": 0.16
+          "arm.contact_joint_speed": 0.5
+          "arm.contact_cart_speed": 0.09
+          "arm.min_duration_s": 1.0
+          "arm.cart_step_m": 0.02
+          "arm.cart_step_deg": 5.0
+          "arm.rot_equiv_m": 0.15
+          "arm.max_knot_jump_deg": 20.0
+          "arm.path_tol_rad": 0.15
+          "arm.gripper_force": 0.5
+          "arm.gripper_speed": 0.5
+          "arm.frame": "arm_mount"
+          "arm.go_to_speed_scale": 0.3
+          "arm.go_to_timeout_s": 120.0
+          # The long (cuRobo) moves only need to end near their goal: 50 cm moves ended 0.5-1.05 cm off
+          # with the driver reporting success (2026-10-12). The straight legs keep 1 cm (press_arm).
+          "arm.go_to_track_m": 0.05
+          "arm.go_to_track_deg": 2.0
+          "arm.max_ik_err": 0.02
+          "arm.max_step_jump_deg": 20.0
+          "arm.j6_guard_deg": 115.0
+          "arm.j4_guard_deg": 144.0
+          "arm.max_continuous_delta_deg": 170.0
+          "arm.keep_out_err": 9.0
+          "arm.ik_max_iterations": 200
+          "arm.clearance_query_m": 0.5
+          "arm.fingertip_open_rad": 0.0
+          "arm.finger_closed_rad": 0.7
+          "arm.state_wait_s": 10.0
+          "arm.state_stale_s": 0.5
+          "arm.diagnostics_stale_s": 3.0
+          "arm.goal_accept_s": 5.0
+          "arm.result_margin_s": 30.0
+          "arm.poll_s": 0.01
+          "arm.cancel_settle_s": 0.4
+          "arm.halt_status_wait_s": 0.2
+          "arm.planner_wait_s": 5.0
+          "arm.go_to_settle_s": 0.3
+          "arm.gripper_period_s": 0.02
+          "arm.gripper_moved": 0.002
+          "arm.gripper_judge_after_s": 0.5
+          "arm.gripper_still_s": 0.3
+          "arm.plan_timeout_s": 30.0
+          "arm.service_wait_s": 5.0
+          "arm.service_call_s": 10.0
+          "arm.stream_timeout_s": 0.1
+          "arm.publisher_match_s": 1.0
+          "arm.close_stream_wait_s": 1.0
+          "arm.mock_joints": [0.0, 0.26, 3.14, -2.27, 0.0, 0.96, 1.57]
+          "arm.mock_urdf": ""
+        publishes:
+          - /button_press/status
+          - /button_press/target_pose
+        subscribes:
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /scene_camera/depth/camera_info
+          - /perception/object_detections
+      - id: button_press_mock
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/button_press:dev
+          network_mode: host
+          ipc: host
+          command: ["ros2", "launch", "button_press", "button_press.launch.py", "mock:=true"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+        # No `params:` here: they would need the node's executable as the command, and this fragment uses `ros2 launch` for mock:=true.
+        publishes:
+          - /button_press/status
+          - /button_press/target_pose
+        subscribes:
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /scene_camera/depth/camera_info
+          - /perception/object_detections
+
+  - name: grab_container
+    description: Grab the food container -- the tupperware grasp, with a ring-fit grasp point (rammp-kitchen-capability-engines)
+    select: single
+    alternatives:
+      # Transcribed from rammp-kitchen-capability-engines' capabilities/grab_container/rammp-alternative.yaml
+      # (and .mock.yaml) at engines dev adb94c3, diverging as the fridge node above says.
+      #
+      # Needs arm, arm_state_publisher and planner (nightly: arm_mount frame), static_tf,
+      # both cameras and scene_segmenter, and the ring detector's model in /home/snorlax/oxo on the host. profiles/daily.yaml brings all of them up.
+      #
+      # Run ONE grab_container node: two on the same DDS domain both take every goal. allow_execute false makes
+      # every goal a dry run; flip it in the TUI (`p`) only for an attended run, someone on the e-stop.
+      # Send a goal as the fridge node shows, to /grab_container/execute_action with engine_id grab_container (action
+      # ids in the engine's docs). It keeps no data folder on the host.
+      - id: grab_container_dev
+        kind: docker
+        ros_node_name: grab_container
+        container:
+          # `:dev` moves on every merge to engines dev, and prefer_latest pulls it at every start (the
+          # cached image if the pull fails). The daily demo holds it still with a merge freeze from 4 PM.
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/grab_container:dev
+          pull_policy: prefer_latest
+          network_mode: host
+          ipc: host
+          # The node's installed executable, as the image's CMD runs it; sheppy appends
+          # `--ros-args --params-file`. Not `ros2 run`: as PID 1 it swallows the stop signal.
+          command: ["/module_ws/install/grab_container/lib/grab_container/grab_container_node"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          # The ring detector's weights (model_path) on the flatbot; they are not in the image.
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+            - /home/snorlax/oxo:/models:ro
+          # The ring detector's YOLO runs on the GPU (the mock has none and needs none).
+          gpus: all
+        params:
+          # false: every goal is a dry run (grab: detect and plan; park: report), whatever it asks.
+          # true only for attended runs, someone on the e-stop.
+          allow_execute: false
+          # false: the engine runs standalone, driven by `ros2 action send_goal`; true: it registers
+          # with the orchestrator and waits for it (profiles/daily.yaml sets false until it runs).
+          use_orchestrator: true
+          # The YOLO segmentation weights with the ring's `grabber` class (the volume above).
+          model_path: /models/best.pt
+          # Wrist camera (the flatbot's OAK-D); depth must be aligned to colour. camera_frame "" = the
+          # colour image's frame_id.
+          color_topic: /wrist_camera/color/image_raw
+          camera_info_topic: /wrist_camera/color/camera_info
+          depth_topic: /wrist_camera/depth/image_rect_raw
+          camera_frame: ""
+          # The scene segmenter (rammp-perception) and the scene camera it runs on: the container's
+          # coarse position, before the wrist camera's view.
+          detections_topic: /perception/object_detections
+          scene_color_topic: /scene_camera/color/image_raw
+          scene_camera_info_topic: /scene_camera/color/camera_info
+          scene_depth_topic: /scene_camera/depth/image_rect_raw
+          # The grasp point along the approach from the brim's outer edge (m; negative: short of it).
+          grasp_depth_m: -0.008
+          # New frames whose brim edges must agree.
+          detect_frames: 5
+          # Where grab starts (rad, arm_joint_1..7 as /joint_states reports them).
+          home_joints: [0.067, -1.8971, -3.137, -2.2691, -0.211, -0.6831, 1.725]
+          # The driver's impedance profile for `impedance` goals: default, soft, medium or stiff.
+          impedance_gains: default
+          # arm.*: every tunable of self.arm; see Parameters in docs/interface.md.
+          "arm.tool_z": 0.12
+          "arm.dt": 0.02
+          "arm.joint_speed": 0.85
+          "arm.cart_speed": 0.16
+          "arm.contact_joint_speed": 0.5
+          "arm.contact_cart_speed": 0.09
+          "arm.min_duration_s": 1.0
+          "arm.cart_step_m": 0.02
+          "arm.cart_step_deg": 5.0
+          "arm.rot_equiv_m": 0.15
+          "arm.max_knot_jump_deg": 20.0
+          "arm.path_tol_rad": 0.15
+          "arm.gripper_force": 0.5
+          "arm.gripper_speed": 0.5
+          "arm.frame": "arm_mount"
+          "arm.go_to_speed_scale": 0.8
+          "arm.go_to_timeout_s": 120.0
+          "arm.go_to_track_m": 0.01
+          "arm.go_to_track_deg": 2.0
+          "arm.max_ik_err": 0.02
+          "arm.max_step_jump_deg": 20.0
+          "arm.j6_guard_deg": 115.0
+          "arm.j4_guard_deg": 144.0
+          "arm.max_continuous_delta_deg": 170.0
+          "arm.keep_out_err": 9.0
+          "arm.ik_max_iterations": 200
+          "arm.clearance_query_m": 0.5
+          "arm.fingertip_open_rad": 0.0
+          "arm.finger_closed_rad": 0.7
+          "arm.state_wait_s": 10.0
+          "arm.state_stale_s": 0.5
+          "arm.diagnostics_stale_s": 3.0
+          "arm.goal_accept_s": 5.0
+          "arm.result_margin_s": 30.0
+          "arm.poll_s": 0.01
+          "arm.cancel_settle_s": 0.4
+          "arm.halt_status_wait_s": 0.2
+          "arm.planner_wait_s": 5.0
+          "arm.go_to_settle_s": 0.3
+          "arm.gripper_period_s": 0.02
+          "arm.gripper_moved": 0.002
+          "arm.gripper_judge_after_s": 0.5
+          "arm.gripper_still_s": 0.3
+          "arm.plan_timeout_s": 30.0
+          "arm.service_wait_s": 5.0
+          "arm.service_call_s": 10.0
+          "arm.stream_timeout_s": 0.1
+          "arm.publisher_match_s": 1.0
+          "arm.close_stream_wait_s": 1.0
+          "arm.mock_joints": [0.0, 0.26, 3.14, -2.27, 0.0, 0.96, 1.57]
+          "arm.mock_urdf": ""
+        publishes: [/grab_container/status]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /perception/object_detections
+      - id: grab_container_mock
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/grab_container:dev
+          network_mode: host
+          ipc: host
+          # To give make_sim() a model, append "mock_urdf:=/path/to/robot.urdf" (arm.mock_urdf).
+          command: ["ros2", "launch", "grab_container", "grab_container.launch.py", "mock:=true"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+        # No `params:` here: they would need `ros2 run`, and this fragment uses `ros2 launch` for mock:=true.
+        publishes: [/grab_container/status]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /perception/object_detections
+
+  - name: microwave
+    description: Microwave door open and close (rammp-kitchen-capability-engines)
+    select: single
+    alternatives:
+      # Transcribed from rammp-kitchen-capability-engines' capabilities/microwave/rammp-alternative.yaml
+      # (and .mock.yaml) at engines dev adb94c3, diverging as the fridge node above says.
+      #
+      # Needs arm, arm_state_publisher and planner (nightly: arm_mount frame), static_tf,
+      # both cameras, scene_segmenter and object_lifter. profiles/daily.yaml brings all of them up.
+      #
+      # Run ONE microwave node: two on the same DDS domain both take every goal. allow_execute false makes
+      # every goal a dry run; flip it in the TUI (`p`) only for an attended run, someone on the e-stop.
+      # Send a goal as the fridge node shows, to /microwave/execute_action with engine_id microwave (action
+      # ids in the engine's docs). Each run's record lands in /home/snorlax/daily/data/microwave.
+      - id: microwave_dev
+        kind: docker
+        ros_node_name: microwave
+        container:
+          # `:dev` moves on every merge to engines dev, and prefer_latest pulls it at every start (the
+          # cached image if the pull fails). The daily demo holds it still with a merge freeze from 4 PM.
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/microwave:dev
+          pull_policy: prefer_latest
+          network_mode: host
+          ipc: host
+          # The node's installed executable, as the image's CMD runs it; sheppy appends
+          # `--ros-args --params-file`. Not `ros2 run`: as PID 1 it swallows the stop signal.
+          command: ["/module_ws/install/microwave/lib/microwave/microwave_node"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          # The door geometry and grasp the open saves (the close reads them back) and every run's log:
+          # kept on the host, across container restarts.
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+            - /home/snorlax/daily/data/microwave:/microwave_data
+          # The GPU, through JetPack's NVIDIA runtime, not --gpus (10-29 on snorlax: "invoking the NVIDIA Container Runtime
+          # Hook directly ... is not supported"). It was for the YOLO handle detector, gone 11-09; nothing needs it now.
+          runtime: nvidia
+        params:
+          # false: every goal is a dry run (detect, plan, gate; nothing moves), whatever it asks.
+          # true only for attended runs, someone on the e-stop.
+          allow_execute: false
+          # false: the engine runs standalone, driven by `ros2 action send_goal`; true: it registers
+          # with the orchestrator and waits for it (profiles/daily.yaml sets false until it runs).
+          use_orchestrator: true
+          data_dir: /microwave_data
+          # Wrist camera; depth must be aligned to colour. camera_frame "" = the colour image's frame_id.
+          # depth/image_rect_raw is every wrist camera's, and aligned to colour on the D405 and the OAK; the
+          # D435i's is not -- with it, override this to /wrist_camera/aligned_depth_to_color/image_raw.
+          color_topic: /wrist_camera/color/image_raw
+          camera_info_topic: /wrist_camera/color/camera_info
+          depth_topic: /wrist_camera/depth/image_rect_raw
+          camera_frame: ""
+          # Scene camera, depth aligned to colour: without boxer, its view of the door places the view pose.
+          scene_color_topic: /scene_camera/color/image_raw
+          scene_camera_info_topic: /scene_camera/color/camera_info
+          scene_depth_topic: /scene_camera/depth/image_rect_raw
+          # The scene segmenter's 2D boxes on the scene camera (RF-DETR): its box_class box is where the door is looked for.
+          scene_detections_topic: /perception/object_detections
+          # boxer's 3D boxes (scene camera): the handle detector crops the wrist camera's points to the
+          # microwave's box. "" = the scene camera's door (scene_detections_topic) instead.
+          box_topic: ""  # /perception/object_detections_3d to use boxer
+          box_class: microwave
+          # The view pose in front of the box: camera distances out from its front face and heights above
+          # its middle (m), tried in order. Per camera and setup.
+          view_dists: [0.30, 0.25, 0.35, 0.40]
+          view_heights: [0.15, 0.20, 0.10, 0.25, 0.05]
+          # ... and sideways along the face, away from the user (+y): tried first, so the hand stays off the user's lap.
+          view_sides: [0.10, 0.15, 0.05, 0.0]
+          # How far out (m, arm base to the tool point) any goal and the swing may reach. Near full stretch past ~0.90.
+          max_reach_m: 0.90
+          # The grasp's own limit (arm base to the grasp point); raise it with max_reach_m.
+          grasp_max_reach_m: 0.915
+          # Every run's rosbag (in its run folder): both cameras' colour, depth and intrinsics bag_frame_hz times a
+          # second, the detections and TF (~75 MB a minute at 0.5); no more frames past bag_max_mb.
+          record_bag: true
+          bag_frame_hz: 0.5
+          bag_max_mb: 300.0
+          # The wrist camera's rectified stereo pair in the bag too (~15 MB a minute more at 0.5); "" = not recorded.
+          wrist_infra1_topic: ""
+          wrist_infra1_info_topic: ""
+          wrist_infra2_topic: ""
+          wrist_infra2_info_topic: ""
+          # arm.*: every tunable of self.arm; see Parameters in docs/interface.md.
+          "arm.tool_z": 0.12
+          "arm.dt": 0.02
+          "arm.joint_speed": 0.85
+          "arm.cart_speed": 0.16
+          "arm.contact_joint_speed": 0.5
+          "arm.contact_cart_speed": 0.09
+          "arm.min_duration_s": 1.0
+          "arm.cart_step_m": 0.02
+          "arm.cart_step_deg": 5.0
+          "arm.rot_equiv_m": 0.15
+          "arm.max_knot_jump_deg": 20.0
+          "arm.path_tol_rad": 0.15
+          "arm.gripper_force": 0.5
+          "arm.gripper_speed": 0.5
+          "arm.frame": "arm_mount"
+          "arm.go_to_speed_scale": 0.3
+          "arm.go_to_timeout_s": 120.0
+          "arm.go_to_track_m": 0.01
+          "arm.go_to_track_deg": 2.0
+          "arm.max_ik_err": 0.02
+          "arm.max_step_jump_deg": 20.0
+          "arm.j6_guard_deg": 115.0
+          "arm.j4_guard_deg": 144.0
+          "arm.max_continuous_delta_deg": 170.0
+          "arm.keep_out_err": 9.0
+          "arm.ik_max_iterations": 200
+          "arm.clearance_query_m": 0.5
+          "arm.fingertip_open_rad": 0.0
+          "arm.finger_closed_rad": 0.7
+          "arm.state_wait_s": 10.0
+          "arm.state_stale_s": 0.5
+          "arm.diagnostics_stale_s": 3.0
+          "arm.goal_accept_s": 5.0
+          "arm.result_margin_s": 30.0
+          "arm.poll_s": 0.01
+          "arm.cancel_settle_s": 0.4
+          "arm.halt_status_wait_s": 0.2
+          "arm.planner_wait_s": 5.0
+          "arm.go_to_settle_s": 0.3
+          "arm.gripper_period_s": 0.02
+          "arm.gripper_moved": 0.002
+          "arm.gripper_judge_after_s": 0.5
+          "arm.gripper_still_s": 0.3
+          "arm.plan_timeout_s": 30.0
+          "arm.service_wait_s": 5.0
+          "arm.service_call_s": 10.0
+          "arm.stream_timeout_s": 0.1
+          "arm.publisher_match_s": 1.0
+          "arm.close_stream_wait_s": 1.0
+          "arm.mock_joints": [0.0, 0.26, 3.14, -2.27, 0.0, 0.96, 1.57]
+          "arm.mock_urdf": ""
+        publishes: [/microwave/status]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /perception/object_detections
+          - /perception/object_detections_3d
+      - id: microwave_mock
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/microwave:dev
+          network_mode: host
+          ipc: host
+          # To give make_sim() a model, append "mock_urdf:=/path/to/robot.urdf" (arm.mock_urdf).
+          command: ["ros2", "launch", "microwave", "microwave.launch.py", "mock:=true"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+        # No `params:` here: they would need `ros2 run`, and this fragment uses `ros2 launch` for mock:=true.
+        publishes: [/microwave/status]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/color/camera_info
+          - /wrist_camera/depth/image_rect_raw
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /perception/object_detections
+          - /perception/object_detections_3d
+
+  - name: microwave_place
+    description: Microwave place -- put the held container in the open microwave, and take it out (rammp-kitchen-capability-engines)
+    select: single
+    alternatives:
+      # Transcribed from rammp-kitchen-capability-engines' capabilities/microwave_place/rammp-alternative.yaml
+      # (and .mock.yaml) at engines dev adb94c3, diverging as the fridge node above says.
+      #
+      # Needs arm, arm_state_publisher and planner (nightly: arm_mount frame), static_tf,
+      # both cameras and object_lifter. profiles/daily.yaml brings all of them up.
+      #
+      # Run ONE microwave_place node: two on the same DDS domain both take every goal. allow_execute false makes
+      # every goal a dry run; flip it in the TUI (`p`) only for an attended run, someone on the e-stop.
+      # Send a goal as the fridge node shows, to /microwave_place/execute_action with engine_id microwave_place (action
+      # ids in the engine's docs). Each run's record lands in /home/snorlax/daily/data/microwave_place.
+      - id: microwave_place_dev
+        kind: docker
+        ros_node_name: microwave_place
+        container:
+          # `:dev` moves on every merge to engines dev, and prefer_latest pulls it at every start (the
+          # cached image if the pull fails). The daily demo holds it still with a merge freeze from 4 PM.
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/microwave_place:dev
+          pull_policy: prefer_latest
+          network_mode: host
+          ipc: host
+          # The node's installed executable, as the image's CMD runs it; sheppy appends
+          # `--ros-args --params-file`. Not `ros2 run`: as PID 1 it swallows the stop signal.
+          command: ["/module_ws/install/microwave_place/lib/microwave_place/microwave_place_node"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          # state_dir: the plans, the start position and the descent recordings, kept across restarts.
+          # worlds_dir: cuRobo's world files, written here and loaded by the planner by their path, so it is
+          # mounted at the SAME path here and in the planner's container.
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+            - /home/snorlax/daily/data/microwave_place:/config/microwave_place
+            - /home/snorlax/.ros/rammp_box_opening/worlds:/home/snorlax/.ros/rammp_box_opening/worlds
+        params:
+          ui_bridge_node_name: ui_bridge_node
+          record_bag: true
+          bag_frame_hz: 1.0
+          bag_state_hz: 25.0
+          # The arm moves only with this true AND `execute` in the goal; otherwise every goal is a dry run.
+          # true only for attended runs, someone on the e-stop.
+          allow_execute: false
+          # false: the engine runs standalone, driven by `ros2 action send_goal`; true: it registers
+          # with the orchestrator and waits for it (profiles/daily.yaml sets false until it runs).
+          use_orchestrator: true
+          # flange face to the closed fingertips (m)
+          flange_to_tip: 0.17955
+          # contact: vz (m/s, + up) back up to this after moving down; 0.0 came 4.5 s late on the flatbot
+          vz_stop: -0.01
+          # the hold after contact, this far (m) below the contact point, while the gripper opens
+          hold_press: 0.003
+          # held in impedance at the start of the lowering this long (s); must end still
+          settle_s: 0.2
+          # contact more than this (m) above where the box's bottom meets the glass = not the glass
+          early_stop: 0.03
+          # joint impedance for the settle, lowering, hold, back-out and reset (one set: the stiffness never
+          # changes mid-place). Default: the driver's documented starting point (rammp_arm.IMPEDANCE)
+          impedance_kq: [80.0, 80.0, 80.0, 80.0, 30.0, 30.0, 30.0]
+          impedance_zeta: 0.5
+          impedance_torque_limit: [39.0, 39.0, 39.0, 39.0, 9.0, 9.0, 9.0]
+          # the hand's speed where the glass should be (m/s): what the contact test was tuned at
+          lower_speed: 0.12
+          # the plans (plans/, last_plan.json), the start position and the descent recordings (descents/)
+          state_dir: /config/microwave_place
+          # locate: the scene camera's depth and intrinsics (the 3D detections are not used)
+          depth_topic: /scene_camera/depth/image_rect_raw
+          camera_info_topic: /scene_camera/color/camera_info
+          detections_topic: /perception/object_detections_3d
+          # detect continuously until `frames` consecutive detected frames lie within agree_m / agree_deg of their
+          # median (at most timeout_s)
+          frames: 3
+          timeout_s: 20.0
+          agree_m: 0.01
+          agree_deg: 2.0
+          # SAM3's prompt for the whole oven (its outside, for the obstacles)
+          microwave_prompt: microwave
+          # the tool this far (m) over the turntable glass at the end of the line in, then lowered from there
+          above: 0.055
+          # the container's spot this far (m) back from the turntable's middle toward the opening, along the oven's axis
+          closer: 0.02
+          # the hand's heading off the oven's axis (deg, + = left), tried in this order; the first that passes wins
+          heading_offsets_deg: [0.0]
+          # before the transit, the hand moved this far (cm) level to its left (- = right), tried in this order
+          # (each with every heading); the first that passes wins
+          side_shifts_cm: [3.0, -3.0, 6.0, -6.0, 9.0, -9.0]
+          # the side shift and the transit: every arm and gripper link at least this far (m) from the microwave box
+          clear_min: 0.01
+          # the hand's tilt vs the start, anywhere on the transit and the lines (deg)
+          tilt_max_deg: 2.0
+          # cuRobo's world files go here; the planner's container must see this directory at the SAME path
+          worlds_dir: /home/snorlax/.ros/rammp_box_opening/worlds
+          # the hand's peak speed (m/s; position control, min-jerk: about half of it on average) on the approach
+          # (side shift + transit + line in, one motion) and the back-out
+          insert_speed: 0.16
+          # cuRobo approach: world path resolved by the planner, plus fraction of planned speed.
+          take_approach_world: /config/robot/curobo/world.yaml
+          take_approach_speed_scale: 0.3
+          take_exit_speed_scale: 0.3
+          take_pullback_m: 0.05
+          take_home_joints: [-2.9723690063395423, 0.4406113803695808, -0.4320526131268245, -2.4519407240189826, 2.8028915598374065, -0.9451441529603253, -1.413206432450548]
+          # take_out with site fridge (direct goals, no UI button): its viewing pose (rad; default the fridge capability's start
+          # pose, untried for a take-out), approach world, grasp height and line-in length. An executing fridge take-out is
+          # refused unless fridge_accept_unmodeled_door: its world has no fridge, shelves or open door
+          fridge_take_home_joints: [1.7983872612549572, -0.5358160803622591, -2.9606020101579813, -2.1476276445790226, 1.7739526517270365, 1.9205603088945604, 0.04363323129985824]
+          fridge_take_approach_world: /config/robot/curobo/world.yaml
+          fridge_grasp_up: 0.035
+          fridge_reach_in: 0.30
+          fridge_accept_unmodeled_door: false
+          # take_out: the wrist camera (colour, aligned depth, camera_info); the whole container is found on it
+          wrist_topics:
+            - /wrist_camera/color/image_raw
+            - /wrist_camera/depth/image_rect_raw
+            - /wrist_camera/color/camera_info
+          # SAM3 prompt: the whole container with its sleeve
+          container_prompt: food container together with its blue sleeve
+          sam3_threshold: 0.5
+          # Historical names: consecutive agreeing whole-container masks; no rim query.
+          rim_frames: 3
+          rim_mask_iou: 0.85
+          rim_timeout_s: 60.0
+          # the grasp: the tool frame this far (m) past the detected container point along the hand's heading (- = short of it) ...
+          grasp_depth: 0.0
+          # ... and this far (m) above it
+          grasp_up: 0.035
+          # the pre-grasp pose this far (m) back from the grasp along the hand's level heading: the line in's length
+          reach_in: 0.30
+          # the gripper's opening for the reach in (0 = fully open .. 1 closed)
+          grip_open: 0.0
+          # the last this far (m) of the line in, in joint impedance (a short stop to switch); position control before it,
+          # and from the gripper's close on
+          impedance_in: 0.10
+          # take_out's joint impedance (the driver caps kq at 400); torque limits: impedance_torque_limit
+          take_impedance_kq: [400.0, 400.0, 400.0, 400.0, 200.0, 200.0, 200.0]
+          take_impedance_zeta: 0.7
+          # the hand's peak speed (m/s) on that impedance part of the line in
+          impedance_speed: 0.08
+          # after closing: straight up this far (m), then the level line back out
+          take_lift: 0.03
+          # arm.*: every tunable of self.arm; see Parameters in docs/interface.md.
+          "arm.tool_z": 0.12
+          "arm.dt": 0.02
+          "arm.joint_speed": 0.85
+          "arm.cart_speed": 0.16
+          "arm.contact_joint_speed": 0.5
+          "arm.contact_cart_speed": 0.09
+          "arm.min_duration_s": 1.0
+          "arm.cart_step_m": 0.02
+          "arm.cart_step_deg": 5.0
+          "arm.rot_equiv_m": 0.15
+          "arm.max_knot_jump_deg": 20.0
+          "arm.path_tol_rad": 0.15
+          "arm.gripper_force": 0.5
+          "arm.gripper_speed": 0.5
+          "arm.frame": "arm_mount"
+          "arm.go_to_speed_scale": 0.3
+          "arm.go_to_timeout_s": 120.0
+          "arm.go_to_track_m": 0.01
+          "arm.go_to_track_deg": 2.0
+          "arm.max_ik_err": 0.02
+          "arm.max_step_jump_deg": 20.0
+          "arm.j6_guard_deg": 115.0
+          "arm.j4_guard_deg": 144.0
+          "arm.max_continuous_delta_deg": 170.0
+          "arm.keep_out_err": 9.0
+          "arm.ik_max_iterations": 200
+          "arm.clearance_query_m": 0.5
+          "arm.fingertip_open_rad": 0.0
+          "arm.finger_closed_rad": 0.7
+          "arm.state_wait_s": 10.0
+          "arm.state_stale_s": 0.5
+          "arm.diagnostics_stale_s": 3.0
+          "arm.goal_accept_s": 5.0
+          "arm.result_margin_s": 30.0
+          "arm.poll_s": 0.01
+          "arm.cancel_settle_s": 0.4
+          "arm.halt_status_wait_s": 0.2
+          "arm.planner_wait_s": 5.0
+          "arm.go_to_settle_s": 0.3
+          "arm.gripper_period_s": 0.02
+          "arm.gripper_moved": 0.002
+          "arm.gripper_judge_after_s": 0.5
+          "arm.gripper_still_s": 0.3
+          "arm.plan_timeout_s": 30.0
+          "arm.service_wait_s": 5.0
+          "arm.service_call_s": 30.0
+          "arm.stream_timeout_s": 0.1
+          "arm.publisher_match_s": 1.0
+          "arm.close_stream_wait_s": 1.0
+          "arm.mock_joints": [0.0, 0.26, 3.14, -2.27, 0.0, 0.96, 1.57]
+          "arm.mock_urdf": ""
+        publishes: [/microwave_place/status, /microwave_place/sam3_overlay]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /scene_camera/depth/image_rect_raw
+          - /scene_camera/color/camera_info
+          - /perception/object_detections_3d
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/depth/image_rect_raw
+          - /wrist_camera/color/camera_info
+          - /joint_states
+          - /ee_state
+          - /gripper_state
+          - /diagnostics
+          - /rosout
+          - /arm/robot_description
+          - /microwave_place/sam3_overlay
+      - id: microwave_place_mock
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/microwave_place:dev
+          network_mode: host
+          ipc: host
+          command: ["/module_ws/install/microwave_place/lib/microwave_place/microwave_place_node"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+        params:
+          ui_bridge_node_name: ui_bridge_node
+          "arm.service_call_s": 30.0
+          record_bag: true
+          bag_frame_hz: 1.0
+          bag_state_hz: 25.0
+          mock: true
+          take_approach_world: /config/robot/curobo/world.yaml
+          take_approach_speed_scale: 0.3
+          take_exit_speed_scale: 0.3
+          take_pullback_m: 0.05
+          take_home_joints: [-2.9723690063395423, 0.4406113803695808, -0.4320526131268245, -2.4519407240189826, 2.8028915598374065, -0.9451441529603253, -1.413206432450548]
+          # take_out with site fridge (direct goals, no UI button): its viewing pose (rad; default the fridge capability's start
+          # pose, untried for a take-out), approach world, grasp height and line-in length. An executing fridge take-out is
+          # refused unless fridge_accept_unmodeled_door: its world has no fridge, shelves or open door
+          fridge_take_home_joints: [1.7983872612549572, -0.5358160803622591, -2.9606020101579813, -2.1476276445790226, 1.7739526517270365, 1.9205603088945604, 0.04363323129985824]
+          fridge_take_approach_world: /config/robot/curobo/world.yaml
+          fridge_grasp_up: 0.035
+          fridge_reach_in: 0.30
+          fridge_accept_unmodeled_door: false
+        publishes: [/microwave_place/status, /microwave_place/sam3_overlay]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /scene_camera/depth/image_rect_raw
+          - /scene_camera/color/camera_info
+          - /perception/object_detections_3d
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/depth/image_rect_raw
+          - /wrist_camera/color/camera_info
+          - /joint_states
+          - /ee_state
+          - /gripper_state
+          - /diagnostics
+          - /rosout
+          - /arm/robot_description
+          - /microwave_place/sam3_overlay
+
+  - name: place_container
+    description: Place container -- put the held container down on the table (rammp-kitchen-capability-engines)
+    select: single
+    alternatives:
+      # Transcribed from rammp-kitchen-capability-engines' capabilities/place_container/rammp-alternative.yaml
+      # (and .mock.yaml) at engines dev adb94c3, diverging as the fridge node above says.
+      #
+      # Needs arm, arm_state_publisher and planner (nightly: arm_mount frame), static_tf,
+      # the scene camera and scene_segmenter. profiles/daily.yaml brings all of them up.
+      #
+      # Run ONE place_container node: two on the same DDS domain both take every goal. allow_execute false makes
+      # every goal a dry run; flip it in the TUI (`p`) only for an attended run, someone on the e-stop.
+      # Send a goal as the fridge node shows, to /place_container/execute_action with engine_id place_container (action
+      # ids in the engine's docs). Each run's record lands in /home/snorlax/daily/data/place_container.
+      - id: place_container_dev
+        kind: docker
+        ros_node_name: place_container
+        container:
+          # `:dev` moves on every merge to engines dev, and prefer_latest pulls it at every start (the
+          # cached image if the pull fails). The daily demo holds it still with a merge freeze from 4 PM.
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/place_container:dev
+          pull_policy: prefer_latest
+          network_mode: host
+          ipc: host
+          # The node's installed executable, as the image's CMD runs it; sheppy appends
+          # `--ros-args --params-file`. Not `ros2 run`: as PID 1 it swallows the stop signal.
+          command: ["/module_ws/install/place_container/lib/place_container/place_container_node"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          # state_dir: the marked spot, the start position and the descent recordings, kept across restarts.
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+            - /home/snorlax/daily/data/place_container:/config/place_container
+        params:
+          # The arm moves only with this true AND `execute` in the goal; otherwise every goal is a dry run.
+          # true only for attended runs, someone on the e-stop.
+          allow_execute: false
+          # false: the engine runs standalone, driven by `ros2 action send_goal`; true: it registers
+          # with the orchestrator and waits for it (profiles/daily.yaml sets false until it runs).
+          use_orchestrator: true
+          # Flange face to the closed fingertips (m): where the container centre lands. Not ruler-measured yet.
+          flange_to_tip: 0.17955
+          # The hand points this many deg down while placing, so the container touches before the fingers.
+          pitch_deg: 5.0
+          # Contact: the hand's z velocity (m/s, + up) back up to this after moving down.
+          vz_stop: -0.01
+          # The hold after contact, this far (m) below the contact point, while the gripper opens.
+          hold_press: 0.003
+          # Held in impedance at the start this long (s) before going down; must end still. 0 = no pause.
+          settle_s: 0.0
+          # Contact is ignored until the descent's command has gone this far down (m): the sag when the arm
+          # goes compliant must not read as contact.
+          contact_ignore_m: 0.08
+          # Contact more than this (m) above where the bottom meets the table = not the table.
+          early_stop: 0.03
+          # Joint impedance for the settle, lowering, hold, retreat and reset (one set: the stiffness never changes
+          # mid-place). The driver's documented starting point, not the "medium" profile RAMMP-table used.
+          impedance_kq: [80.0, 80.0, 80.0, 80.0, 30.0, 30.0, 30.0]
+          impedance_zeta: 0.5
+          impedance_torque_limit: [39.0, 39.0, 39.0, 39.0, 9.0, 9.0, 9.0]
+          # Speeds. The hand's speed where the table should be (m/s): what the contact test was tuned at.
+          lower_speed: 0.02
+          # The rest is 2x RAMMP-table's: speed_scale of the carrying moves (go_to_ee_poses; and reset's),
+          go_to_speed_scale: 0.6
+          # of the squaring turn and of reset's joint moves (move_joints),
+          adjust_speed_scale: 1.0
+          reset_speed_scale: 1.0
+          # and the retreat's peak speed (m/s).
+          retreat_speed: 0.10
+          # reset: curobo = one go_to_joint_configs motion (up, then the start) around the chair's collision
+          # volumes, at go_to_speed_scale; legacy = the impedance move_joints moves (no chair check).
+          reset_mode: curobo
+          # blend_radius (m) where a blended motion passes a waypoint near the table or the container (the
+          # table is not in cuRobo's world) ...
+          blend_radius_near: 0.03
+          # ... and up at the carrying height.
+          blend_radius_far: 0.05
+          # Before lowering (and in a dry run), ask cuRobo whether the ends of the line down and the retreat,
+          # which it doesn't plan, are clear of the chair's collision volumes.
+          curobo_check: true
+          # adjust -> lift -> transit as ONE go_to_ee_poses motion (cuRobo, blended at the waypoints, at
+          # go_to_speed_scale); false = separate moves as on 2026-10-29 (adjust on move_joints).
+          blend: true
+          # With blend: pose = the squaring turn is the motion's first target (unheld); joints = a
+          # go_to_joint_config to our checked joints first (if cuRobo swings the hand for the pose), then
+          # lift -> transit.
+          adjust_mode: pose
+          # With blend: joints = the carrying motion through our planned joints (go_to_joint_configs), so the
+          # arm keeps the start's posture; pose = hand poses, cuRobo picks the joints (it chose another posture
+          # at the spot on 2026-11-10, and reset could not undo it).
+          carry_targets: joints
+          # After the gripper opens, the hand goes this far (m) straight down before the retreat, which then
+          # doesn't lift; 0.0 = off (the retreat lifts by hold_press).
+          release_drop: 0.01
+          # The slow impedance lowering starts this far (m) above where the container's bottom meets the
+          # table; the carrying motion takes the hand straight down to there first. 0.0 = all of it slow.
+          lower_from: 0.06
+          # Spot distance from the arm base axis (m) with the full descent (flatbot, table z 0.198). Arm
+          # kinematics, measured without the chair volumes: re-measure. Outside it the plan decides.
+          reach: [0.70, 1.10]
+          # Where the line down can't reach the table in the arm's posture, switch to another posture that can
+          # (go_to_joint_config: a bigger move, no level hold); false = refuse instead.
+          allow_reconfigure: false
+          # The squaring turn may correct at most this much (deg).
+          max_adjust_deg: 15.0
+          # A marked spot older than this (min) is refused: the chair may have moved.
+          max_spot_age_min: 30.0
+          # The arm's tool frame vs the model's (m).
+          tool_frame_tol: 0.015
+          # Where the marked spot, the start position and the descent recordings are kept.
+          state_dir: /config/place_container
+          # A spot or start position saved before this (unix s) is refused: 2026-11-07 17:56 UTC, when the arm
+          # moved 8 in forward on the flatbot's chair (rammp-deployments #156).
+          state_valid_after: 1794074180.0
+          # A failure is shown on the user's UI panel with an OK button; the action waits this long (s) for
+          # the OK before it ends with the error. 0 = don't wait.
+          ui_error_wait_s: 60.0
+          # After letting go: legacy = the slow separate moves of 2026-11-10 (drop, back out, swing), ending
+          # by the container (the UI's place_here then runs reset); blended = drop, back out and go back to the
+          # start as ONE impedance go_to_joint_configs motion (cuRobo, blended). legacy since 2026-11-12: cuRobo
+          # rejected its own plan of the short retreat (J2 acceleration) every time on flatbot.
+          return_mode: legacy
+          # speed_scale of that motion's legs by the container; the way up and over goes at go_to_speed_scale.
+          return_speed_scale: 0.3
+          # A rosbag + run.json for every action run in <state_dir>/runs/ (place_container/bag.py).
+          record_bag: true
+          bag_state_hz: 25.0
+          bag_frame_hz: 1.0
+          # The scene camera's colour, camera_info and depth in the bag, for context.
+          bag_camera: true
+          bag_camera_topics:
+            - /scene_camera/color/image_raw
+            - /scene_camera/color/camera_info
+            - /scene_camera/depth/image_rect_raw
+          # Mock only: place fails at this phase (carry, lower, open, return), to try the UI's error panel.
+          mock_fail: ""
+          # place_here's tap-to-place (place_container/spots.py): the scene camera's depth (aligned to colour), its
+          # camera_info, and the scene segmenter's detections (the table's mask; "" = a plane fit to the depth only).
+          scene_depth_topic: /scene_camera/depth/image_rect_raw
+          scene_info_topic: /scene_camera/color/camera_info
+          detections_topic: /perception/object_detections
+          # Wait this long (s) for the scene camera's depth, camera_info and tf.
+          scene_wait_s: 3.0
+          # The offered spots: this far apart (m); the table must reach this far past the container's footprint (m);
+          # nothing on the table closer to the footprint than this (m).
+          spot_step: 0.09
+          spot_edge_margin: 0.03
+          spot_clearance: 0.03
+          # The table's height at the chosen spot (a plane fitted to the depth around it) is raised by this (m): the
+          # descent stops on contact, so erring high is safe.
+          table_z_bias: 0.01
+          # A table more tilted than this (deg) to the scene camera: the camera's mount is off, no spots offered.
+          max_table_tilt_deg: 3.0
+          # With a marked spot: the camera's table height there more than this (m) from the arm's mark = no spots.
+          table_check_tol: 0.03
+          # Where a table may be (m, arm_mount z), for the plane fit without the segmenter's table mask.
+          table_z_range: [-0.10, 0.50]
+          # arm.*: every tunable of self.arm; see Parameters in docs/interface.md.
+          "arm.tool_z": 0.12
+          "arm.dt": 0.02
+          "arm.joint_speed": 0.85
+          "arm.cart_speed": 0.16
+          "arm.contact_joint_speed": 0.5
+          "arm.contact_cart_speed": 0.09
+          "arm.min_duration_s": 1.0
+          "arm.cart_step_m": 0.02
+          "arm.cart_step_deg": 5.0
+          "arm.rot_equiv_m": 0.15
+          "arm.max_knot_jump_deg": 20.0
+          "arm.path_tol_rad": 0.15
+          "arm.gripper_force": 0.5
+          "arm.gripper_speed": 0.5
+          "arm.frame": "arm_mount"
+          "arm.go_to_speed_scale": 0.3
+          "arm.go_to_timeout_s": 120.0
+          "arm.go_to_track_m": 0.01
+          "arm.go_to_track_deg": 2.0
+          "arm.max_ik_err": 0.02
+          "arm.max_step_jump_deg": 20.0
+          "arm.j6_guard_deg": 115.0
+          "arm.j4_guard_deg": 144.0
+          "arm.max_continuous_delta_deg": 170.0
+          "arm.keep_out_err": 9.0
+          "arm.ik_max_iterations": 200
+          "arm.clearance_query_m": 0.5
+          "arm.fingertip_open_rad": 0.0
+          "arm.finger_closed_rad": 0.7
+          "arm.state_wait_s": 10.0
+          "arm.state_stale_s": 0.5
+          "arm.diagnostics_stale_s": 3.0
+          "arm.goal_accept_s": 5.0
+          "arm.result_margin_s": 30.0
+          "arm.poll_s": 0.01
+          "arm.cancel_settle_s": 0.4
+          "arm.halt_status_wait_s": 0.2
+          "arm.planner_wait_s": 5.0
+          "arm.go_to_settle_s": 0.3
+          "arm.gripper_period_s": 0.02
+          "arm.gripper_moved": 0.002
+          "arm.gripper_judge_after_s": 0.5
+          "arm.gripper_still_s": 0.3
+          "arm.plan_timeout_s": 30.0
+          "arm.service_wait_s": 5.0
+          "arm.service_call_s": 10.0
+          "arm.stream_timeout_s": 0.1
+          "arm.publisher_match_s": 1.0
+          "arm.close_stream_wait_s": 1.0
+          "arm.mock_joints": [0.0, 0.26, 3.14, -2.27, 0.0, 0.96, 1.57]
+          "arm.mock_urdf": ""
+          # The UI bridge node ctx.update_user_panel / poll_ui_event talk to (the engine declares it); a
+          # deployment with a differently named bridge overrides this.
+          "ui_bridge_node_name": "ui_bridge_node"
+        publishes: [/place_container/status]
+        subscribes:
+          # place_here's tap-to-place (during that action only): the scene camera's depth and camera_info, the scene
+          # segmenter's detections (the table's mask), tf (arm_mount <- the camera); and the run bag's camera topics
+          - /tf
+          - /tf_static
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /perception/object_detections
+      - id: place_container_mock
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/place_container:dev
+          network_mode: host
+          ipc: host
+          command: ["ros2", "launch", "place_container", "place_container.launch.py", "mock:=true"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          volumes:
+            # The fleet's DDS config and this robot's interface file, as every docker node here.
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+        # No `params:` here: they would need `ros2 run`, and this fragment uses `ros2 launch` for mock:=true.
+        publishes: [/place_container/status]
+        subscribes:
+          # place_here's tap-to-place (during that action only): the scene camera's depth and camera_info, the scene
+          # segmenter's detections (the table's mask), tf (arm_mount <- the camera); and the run bag's camera topics
+          - /tf
+          - /tf_static
+          - /scene_camera/color/image_raw
+          - /scene_camera/color/camera_info
+          - /scene_camera/depth/image_rect_raw
+          - /perception/object_detections

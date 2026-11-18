@@ -1,0 +1,74 @@
+# The daily demo (snorlax, flatbot): every kitchen engine from engines dev and the eating engines
+# (feeding, drinking; release pins), with the flatbot stack
+# they run on -- both OAK-Ds, foxglove, the arm and planner on the nightly channel, RF-DETR +
+# BoxerNet + SAM3.
+#
+#   sheppy up daily --manifest december_2026/sheppy-manifest.yaml
+#
+# Attended only: this starts a driver that can move the arm (CONTRIBUTING.md).
+#
+# Each kitchen engine runs its engines-dev `:dev` image, pulled at every start (feeding and
+# drinking run their pinned release). No merges to engines dev
+# from 4 PM until the day's logs are collected, so what comes up at 5 is what 4 PM reported.
+# Engines run standalone (use_orchestrator false) until the orchestrator joins this profile.
+#
+# Once per host: mkdir -p /home/snorlax/daily/data
+#
+# The run, at 5 PM:
+#   1. Bring the stack up (above). Every engine comes up dry: allow_execute false.
+#   2. For each task: stage the scene, then dry-run it -- send a goal with "execute": false (the
+#      fridge node in the manifest has the send_goal command; each engine's node says its action).
+#   3. With someone on the e-stop, flip that engine's allow_execute in the TUI (`p`) and run it.
+#   4. Leave the stack up until the logs are collected: `sheppy down` takes the containers' logs
+#      with it. Runs land in /home/snorlax/daily/data/<engine> (box_opening: ~/.ros/box_opening;
+#      feeding and drinking: /srv/rammp_feeding/runs, only with their `record` param on).
+description: daily demo — every kitchen engine (engines dev) plus feeding and drinking on flatbot, dry until flipped in the TUI
+selections:
+  scene_camera: oak_d_pro_w_docker
+  wrist_camera: oak_d_pro_puck_docker
+  foxglove: foxglove_bridge_docker
+  arm: kinova_gen3_driver_nightly
+  arm_state_publisher: kinova_gen3_description_nightly
+  planner: curobo_planner_nightly
+  static_tf: static_tf_docker
+  scene_segmenter: rfdetr
+  object_lifter: boxer
+  sam3: sam3_docker
+  box_opening: box_opening_dev
+  button_press: button_press_dev
+  fridge: fridge_dev
+  grab_container: grab_container_dev
+  microwave: microwave_dev
+  microwave_place: microwave_place_dev
+  place_container: place_container_dev
+  feeding: rammp_feeding_docker
+  drinking: rammp_drinking_docker
+overrides:
+  # As profiles/flatbot.yaml.
+  planner:
+    config: /config/robot/curobo/planner.yaml
+    world: ""
+  object_lifter:
+    depth_topic: /scene_camera/depth/image_rect_raw
+    depth_slop_s: 0.005
+    gravity_frame: arm_mount
+  box_opening:
+    use_orchestrator: false
+  button_press:
+    use_orchestrator: false
+  fridge:
+    use_orchestrator: false
+    mount_tilt_deg: 30  # flatbot's arm leans 30 deg forward in its mount
+  grab_container:
+    use_orchestrator: false
+  microwave:
+    use_orchestrator: false
+  microwave_place:
+    use_orchestrator: false
+  place_container:
+    use_orchestrator: false
+  # The eating tasks: feeding and drinking (release pins, outside the engines repo).
+  feeding:
+    use_orchestrator: false
+  drinking:
+    use_orchestrator: false

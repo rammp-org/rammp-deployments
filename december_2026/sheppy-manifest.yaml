@@ -974,6 +974,37 @@ nodes:
           - /perception/scene_segmenter/overlay/compressed
         subscribes:
           - /scene_camera/color/image_raw
+      # RF-DETR as above, feeding object_tracker's odom3d instead of the Orchestrator: thresholds of 0.10 and
+      # tv as fridge evidence (classes_tracking.yaml), no tracker of its own, and published on
+      # /perception/object_detections_raw. odom3d publishes /perception/object_detections, so select the two
+      # together. NOT A RELEASE pin, as above: dd9da01 is the first build carrying classes_tracking.yaml
+      # (rammp-perception#20), with the same interfaces (v2.1.0) as d393a0f.
+      - id: rfdetr_tracking
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-perception/rfdetr:sha-dd9da01134c598876f7bd8b6ac019d736fb1d62e
+          runtime: nvidia
+          network_mode: host
+          ipc: host
+          user: "1000:1000"
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          command: [--ros-args, -r, /perception/object_detections:=/perception/object_detections_raw]
+        params:
+          model: small
+          image_topic: /scene_camera/color/image_raw
+          frame_stride: 3
+          classes_file: /etc/rammp/perception/classes_tracking.yaml
+          tracking: false
+        publishes:
+          - /perception/object_detections_raw
+          - /perception/scene_segmenter/overlay/compressed
+        subscribes:
+          - /scene_camera/color/image_raw
       # Same topic and type, no model, no GPU, no camera: empty detections at 10 Hz.
       - id: scene_segmenter_mock
         kind: docker
@@ -1036,6 +1067,62 @@ nodes:
           - /scene_camera/color/image_raw
       # No mock, as for the planner: SAM3 is reached through services, and a mock would have to
       # implement them to be worth anything. Leave this node unselected on a workstation.
+
+  - name: object_tracker
+    description: Stable ids and 3D boxes for the scene segmenter's objects, at camera rate -> /perception/object_detections
+    select: single
+    alternatives:
+      # Transcribed from rammp-org/rammp-perception's rammp-alternative.odom3d.yaml; NOT A RELEASE pin, the
+      # same build as scene_segmenter's rfdetr_tracking, which it must run with: that publishes
+      # /perception/object_detections_raw, and this publishes /perception/object_detections. Each object is
+      # tracked where it is in odom and re-projected into every camera frame from wheel odometry, so ids stay
+      # put while the chair turns and an object that leaves view gets its old id back. CPU only, ~4 ms per
+      # detection, <1 ms per frame. Known problems to tune: rammp-perception#24.
+      #
+      # Output differs from the segmenter's: one message per camera frame; has_pose true, pose and size a
+      # gravity-aligned 3D box in the camera's optical frame; no masks (mask_id 0, label_image empty).
+      #
+      # Needs depth registered to color, and TF odom <- camera at image stamps. camera_extrinsic [0.0] takes
+      # the camera from TF; [x, y, z, qx, qy, qz, qw] of the optical frame in base_frame replaces
+      # base_frame -> camera when the tree has no such link.
+      #
+      # Diverges from the fragment: the Cyclone config, as for the other perception nodes, and the node's own
+      # defaults for depth_topic (the Gemini's, as for object_lifter) and camera_extrinsic; the fragment's
+      # flatbot values are not used (profiles/flatbot.yaml).
+      - id: odom3d
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-perception/odom3d:sha-dd9da01134c598876f7bd8b6ac019d736fb1d62e
+          network_mode: host
+          ipc: host
+          user: "1000:1000"
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+        params:
+          detections_topic: /perception/object_detections_raw
+          depth_topic: /scene_camera/depth/image_raw
+          camera_info_topic: /scene_camera/color/camera_info
+          output_topic: /perception/object_detections
+          odom_frame: odom
+          base_frame: base_link
+          camera_extrinsic: [0.0]
+          depth_slop_s: 0.02           # how far in time a depth frame may be from a detection
+          publish_out_of_view: false
+        publishes:
+          - /perception/object_detections
+          - /perception/odom3d/markers
+        subscribes:
+          - /perception/object_detections_raw
+          - /scene_camera/depth/image_raw
+          - /scene_camera/color/camera_info
+          - /tf
+          - /tf_static
+      # No mock: on a workstation, scene_segmenter_mock publishes /perception/object_detections itself, so
+      # leave this node unselected.
 
   - name: object_lifter
     description: 3D boxes (pose + size) for the scene segmenter's objects -> /perception/object_detections_3d

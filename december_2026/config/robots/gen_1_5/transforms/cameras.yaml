@@ -1,0 +1,60 @@
+# Camera mounts on gen_1_5, in rammp-calibration's mounts.yaml format; a solved
+# calibration replaces this file unchanged. Published by the manifest's static_tf node.
+#
+# FLATBOT'S MOUNTS, copied (2026-11-18) until gen_1_5's are calibrated: the same two
+# OAKs (oak_d.yaml is flatbot's). The wrist camera is on the arm's sensor puck, so
+# its mount is the arm's own and carries over. The scene camera's does not: on
+# gen_1_5 it sits at the joystick module, and the pose below is where it was on
+# flatbot's stand. Replace it with a ChArUco session on the chair.
+# Each camera driver publishes its own tree; these attach its root to the robot.
+#
+# Both cameras are OAKs, whose image runs the bare driver_node: its tree is rooted
+# at i_tf_base_frame (<camera>, body axes, at the colour sensor) with the sensor
+# frames below. i_tf_parent_frame (<camera>_link) is only used by the driver's URDF,
+# which needs a robot_state_publisher the image does not run, so nothing publishes
+# it. A Gemini or RealSense alternative roots its tree at <camera>_link instead.
+mounts:
+  ros__parameters:
+    transforms: [scene_camera, wrist_camera]
+    # OAK-D Pro W, hand-measured 2026-10-19 (not calibrated): facing arm_mount's +x,
+    # mounted upside down (180° roll). The driver rotates its images 180° on the
+    # device (i_rotation) and keeps the frame names, so this is the mount of the
+    # rotated, upright camera: the physical 180° roll and the image rotation (180°
+    # about the optical axis, which is this frame's x) cancel. The colour sensor is
+    # at this frame's origin, so the position is unchanged. Only frames the rotated
+    # images use are right; the driver's IMU and stereo frames below it would need
+    # the physical roll, and nothing on flatbot uses them.
+    # Calibrated 2026-11-12 ~23:20 EST on snorlax after the camera moved to its demo position: a ChArUco board
+    # (10x14, 40 mm squares, DICT_4X4_100) seen at once by the wrist camera (its mount below) and this camera,
+    # 5 captures, 5 mm / 0.3 deg spread; the table height at the arm-marked spot matches to 1 mm. Was the
+    # hand measurement xyz [-0.0032, -0.50, 0.40], level (quat [0, 0, 0, 1]).
+    # The camera was then turned left on its mount (2026-11-17). This is the 11-12 calibration
+    # ([0.3064, -0.5723, 0.4270], quat [-0.0067, 0.0607, -0.0113, 0.9981]) turned +25 deg about
+    # arm_mount's z (up), position kept: the owner's estimate of the turn, "close to correct". A refit
+    # from three box-opening runs that day (~/rammp-wt/night-1116/scenecal/fit3.py on snorlax, not a
+    # calibration session) found 16 deg; it is 10.6 deg from this one. Replace with a ChArUco session.
+    # The calibration relates the camera to the arm, so it stays on arm_mount. world.yaml's base_link ->
+    # arm_mount was solved with the 11-12 one (#167) and is kept: the arm did not move, the camera did.
+    scene_camera:
+      parent: arm_mount
+      child: scene_camera
+      xyz: [0.3064, -0.5723, 0.4270]
+      quat_xyzw: [-0.0197, 0.0578, 0.2050, 0.9769]
+    # OAK-D Pro, looking along the tool. Mounted upside down: its up (+z) points
+    # back at the arm (-y). Roll checked against a live frame (#114). As for the
+    # scene camera, the driver rotates its images 180° (i_rotation) and keeps the
+    # frame names, so this is the mount of the rotated camera: the physical mount
+    # rolled 180° about the optical axis (this frame's x), up now +y. The colour
+    # sensor is at this frame's origin, so the position is unchanged.
+    # Position fitted 2026-10-22 from one rammp_box_opening depth-press run (not a
+    # calibration): 0.065 m out along +y, 0.015 m along the tool (+z). The hand
+    # measurement of 2026-10-19, [0, 0.10, -0.10], failed all three checks of that
+    # run — its two wrist views of the same button 81 mm apart, the touch 41 mm off,
+    # and fingertips it puts in view that the frame does not show; this fits all
+    # three within 15 mm. x is not observable from those views (kept 0). A
+    # rammp-calibration session replaces it.
+    wrist_camera:
+      parent: arm_end_effector_link
+      child: wrist_camera
+      xyz: [0.0, 0.065, 0.015]
+      quat_xyzw: [-0.5, -0.5, -0.5, 0.5]

@@ -1,0 +1,6 @@
+# Start-up scene of planner_empty_world.yaml: nothing. The planner accepts an
+# empty world only at start-up; a set_world push must carry at least one box.
+
+base_frame: arm_mount
+
+obstacles: []

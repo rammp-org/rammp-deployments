@@ -42,6 +42,6 @@ overrides:
     # with color's stamp, so a tight slop only rejects frames that weren't paired.
     depth_topic: /scene_camera/depth/image_rect_raw
     depth_slop_s: 0.005
-    # camera_extrinsic stays [0.0]: the camera comes from TF (transforms/), whose base_link ->
-    # arm_mount is still a placeholder (world.yaml). odom3d's floor checks and its re-projection
-    # while the chair turns depend on it; measure it before tuning odom3d.
+    # camera_extrinsic stays [0.0]: the camera comes from TF (transforms/). world.yaml's base_link ->
+    # arm_mount height is from odom3d's own fit, so the floor checks hold; its x and y are still a
+    # placeholder, and the re-projection while the chair turns depends on them.

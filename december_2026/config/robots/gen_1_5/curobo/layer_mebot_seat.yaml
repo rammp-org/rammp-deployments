@@ -4,6 +4,7 @@
 layer: seat
 excludable: false
 meta:
+  arm_base_in_mebot: {position: [0.6017, 0.2817, 0.4186], rpy_deg: [0, 0, 0]}
   arm_base_joint: {rpy_deg: [0, 30, 0]}
   grid_m: 0.0001
   padding_assumed_m: 0.02

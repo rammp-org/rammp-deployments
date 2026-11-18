@@ -16,7 +16,7 @@
 #
 # robot.yaml and arm_kinematics.json are gen_1_5's own copies of the RAMMP-CuRobo
 # example robot file (from its bake_robot_config.py). mebot_layers.yaml holds
-# gen_1_5's chair; the three layer_mebot_*.yaml are GENERATED from it
+# gen_1_5's chair; the four layer_mebot_*.yaml are GENERATED from it
 # by RAMMP-CuRobo's scripts/generate_layers.py (never hand-edit them). To change
 # the chair, edit mebot_layers.yaml and, from a RAMMP-CuRobo checkout, run
 #
@@ -24,8 +24,11 @@
 #
 # The arm's tilt in those inputs (mount.arm_base_joint.rpy_deg) must equal
 # ../mount.yaml's rpy_deg. The chair (the seat layer) is a 3D scan of the
-# Gen1.5, boxed by RAMMP-CuRobo's scripts/scan_to_boxes.py; the occupant is the
+# Gen1.5, boxed by this repo's scripts/scan_to_boxes.py; the occupant is the
 # 2026-11-05 tape measurement. The scan has no cushion or footrests yet.
+# layer_mebot_platform.yaml is not listed below: it is the Gen1.2 drive base the
+# generator needs a URDF for (mebot_layers.yaml), and the seat's under_seat box
+# covers the base. world.yaml's floor is the scanned ground.
 #
 # The seat and person are composed into EVERY world,
 # set_world pushes included; a push replaces world.yaml's floor, so a pushed

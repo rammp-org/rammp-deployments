@@ -16,7 +16,7 @@ copies: a link out of this directory does not resolve inside them.
 ## Its own
 
 - `curobo/`: the planner config. The chair is a 3D scan of the Gen1.5
-  (`wheelchair-clean-mm.stl`, 2026-11-17) boxed by RAMMP-CuRobo's `scripts/scan_to_boxes.py`
+  (`wheelchair-clean-mm.stl`, 2026-11-17) boxed by this repo's `scripts/scan_to_boxes.py`
   into the seat layer: one box under the seat, one for the backrest, 12 for the rest
   (armrests, joystick, front casters). The occupant is flatbot's tape-measured profile with
   the legs cut to our user's, 7 in beyond the cushion's front. `mebot_layers.yaml` is the
@@ -26,7 +26,11 @@ copies: a link out of this directory does not resolve inside them.
   make layers DATA=<this directory>/curobo/mebot_layers.yaml OUTDIR=<this directory>/curobo
   ```
 
-  `robot.yaml` and `arm_kinematics.json` equal flatbot's: the same arm, mount and puck.
+  There is no Gen1.5 URDF, and the generator needs one: its inputs pin the Gen1.2 drive
+  base at the Gen1.5's drive axle, which puts the floor on the scanned ground. Its
+  `layer_mebot_platform.yaml` is written but not in `planner.yaml`; the under-seat box
+  covers the base. `robot.yaml` and `arm_kinematics.json` equal flatbot's: the same arm,
+  mount and puck.
 
 - `transforms/`: placeholders until the chair is calibrated. `world.yaml`'s
   `base_link -> arm_mount` is estimated from the scan, with `base_link` where flatbot's MIB

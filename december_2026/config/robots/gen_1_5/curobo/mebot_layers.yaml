@@ -7,17 +7,43 @@
 #   make layers DATA=<this file> OUTDIR=<this directory>
 #
 # The chair is a 3D scan of the Gen1.5 (wheelchair-clean-mm.stl, 2026-11-17),
-# boxed by RAMMP-CuRobo's scripts/scan_to_boxes.py into the seat below. There
-# is no URDF: no `source`, no platform layer, and the floor's top is the
-# scan's lowest point. The scan has no cushion, footrests or occupant; the
-# person below is the 2026-11-05 tape measurement.
+# boxed by this repo's scripts/scan_to_boxes.py into the seat below. The scan
+# has no cushion, footrests or occupant; the person below is the 2026-11-05
+# tape measurement, its legs cut to our user's.
+#
+# There is no Gen1.5 URDF, and the generator needs one: `source` pins the
+# Gen1.2 drive base, placed at the Gen1.5's drive axle (`mount`). It sets the
+# floor (its lowest point is the scanned ground) and is written as
+# layer_mebot_platform.yaml, which planner.yaml does NOT list: the seat's
+# under_seat box covers the drive base.
 #
 # Metres, in arm_mount (x forward, y left, z up), the root of the arm's own
 # URDF, which the planner plans in. arm_mount -> arm_base_link
 # (arm_base_joint) is a rotation only; arm_mount stays square to the chair,
 # and `arm_base_joint` tilts the arm on it.
 
+source:
+  repo: rammp-org/Demo-Software
+  # The commit that added the file on origin/dev (= origin/HEAD).
+  commit: 80908b9f73f02e094106c0b82640a23c3cd6f41c
+  path: core/rammp_prototype_description/urdf/rammp_prototype_base.urdf
+  # Of the raw bytes (the file is CRLF): `git show <commit>:<path> | sha256sum`.
+  sha256: 201ec24aeeff868557b13211eaa4571b8f11cd6709795537098bafaef032c0ec
+  # Provenance only: the same blob at the commits a reviewer might look for.
+  git_blob: 8f571f54
+  same_blob_at:
+    - 59d5aef (authoring commit; only on origin/feature/106-drive-base-publisher)
+    - 0a94cce (origin/main, Release 1.0)
+
 mount:
+  # The arm in the Gen1.2 URDF's root, from the scan: the URDF's drive axle is
+  # 0.4858 m ahead of its root, centred (-0.0027 m), and its lowest point is
+  # 0.0834 m below the root; the scan puts the arm 0.1159 m ahead of the
+  # drive axle, 0.2844 m left of the drive wheels' centreline and 0.5020 m
+  # above the ground. So x 0.4858 + 0.1159, y 0.2844 - 0.0027,
+  # z 0.5020 - 0.0834. x and y are transforms/world.yaml's base_link ->
+  # arm_mount.
+  arm_base_in_mebot: {position: [0.6017, 0.2817, 0.4186], rpy_deg: [0, 0, 0]}
   # The arm's tilt on arm_mount: arm_base_link's rotation in it, as
   # ../mount.yaml states it (the new_adapter_plate_v3, 30 degrees forward).
   # It places the arm's fixed spheres, which the person and the seat are
@@ -32,6 +58,11 @@ padding_assumed_m: 0.02
 # How far a padded box stays from the arm's fixed spheres: the person is
 # carved back by this much.
 keep_out_margin_m: 0.005
+
+# The Gen1.2 base's merge budget. Its layer is written but not planned against.
+platform:
+  max_boxes: 16
+  max_over_pct: 15.0
 
 # The arm's joint-independent collision spheres: arm_base_link's, and
 # arm_shoulder_link's, which sit on the arm_joint_1 axis. A padded box touching
@@ -120,13 +151,15 @@ seat:
     scan_11: [[-0.4000, -0.0500, 0.1500], [-0.3500, 0.0200, 0.2300]]
     scan_12: [[0.1300, -0.5200, -0.3900], [0.1400, -0.0500, -0.3700]]
 
-# The chair's cell stand-in: a slab whose top is the seat's lowest point.
+# The chair's cell stand-in: a slab whose top is the URDF's lowest point, the
+# scanned ground.
 floor:
   half_extent_m: 1.5
   thickness_m: 0.1
 
 # --outdir writes these by file name next to this file.
 outputs:
+  platform: core/tests/data/mebot/layer_mebot_platform.yaml
   person: core/tests/data/mebot/layer_mebot_person.yaml
   seat: core/tests/data/mebot/layer_mebot_seat.yaml
   floor: core/tests/data/mebot/layer_mebot_floor.yaml

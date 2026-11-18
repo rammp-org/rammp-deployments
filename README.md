@@ -18,7 +18,7 @@ december_2026/                    the December 2026 deployment
   config/robots/current           -> the host's active robot (made by scripts/set_robot.py, git-ignored)
   config/hosts/jetson-agx-orin/   host tuning and the MIB's time server, for the Jetson
   config/dds/                     the fleet's Cyclone DDS config
-scripts/                          apply a robot's config to a host; validate the manifests
+scripts/                          apply a robot's config to a host; validate the manifests; box a chair scan
 ```
 
 Robots in `december_2026`:

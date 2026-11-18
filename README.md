@@ -23,11 +23,11 @@ scripts/                          apply a robot's config to a host; validate the
 
 Robots in `december_2026`:
 
-| Robot     | Host      | What it is                                                                          | Docs                                                    |
-| --------- | --------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `flatbot` | `snorlax` | Mobile test platform: Gen3 on a 30° mount, two OAK-D PoE                            | [README](december_2026/config/robots/flatbot/README.md) |
-| `gen_1_5` | `snorlax` | Gen3 on a 30° mount with the sensor puck. Mount and DDS config only; no profile yet | —                                                       |
-| `dojo`    | `abra`    | The dojo bench: Gen3 on a flat mount. No profile in the repo yet                    | —                                                       |
+| Robot     | Host      | What it is                                                                             | Docs                                                    |
+| --------- | --------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `flatbot` | `snorlax` | Mobile test platform: Gen3 on a 30° mount, two OAK-D PoE                               | [README](december_2026/config/robots/flatbot/README.md) |
+| `gen_1_5` | `snorlax` | The Gen1.5 chair: Gen3 on a 30° mount with the sensor puck; flatbot's host and cameras | [README](december_2026/config/robots/gen_1_5/README.md) |
+| `dojo`    | `abra`    | The dojo bench: Gen3 on a flat mount. No profile in the repo yet                       | —                                                       |
 
 ## Setting up a robot
 

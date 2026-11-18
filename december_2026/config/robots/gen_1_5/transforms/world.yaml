@@ -1,0 +1,32 @@
+# Joins gen_1_5's two trees, in rammp-calibration's mounts.yaml format.
+# Published by the manifest's static_tf node, alongside cameras.yaml.
+#
+# The MIB publishes odom -> base_link (/tf); everything on the arm hangs off
+# arm_mount. These two links make it one tree: world -> odom -> base_link -> arm_mount.
+# world -> odom is identity, as on flatbot.
+#
+# base_link -> arm_mount is ESTIMATED from the chair's 3D scan (2026-11-17,
+# curobo/mebot_layers.yaml), not measured on the running robot:
+#   - base_link is taken as on flatbot, whose MIB and drive base gen_1_5 shares:
+#     odom3d's fit there (../../flatbot/transforms/world.yaml) put arm_mount
+#     where the Gen1.2 URDF's root puts it, to 5 mm in x. That root is 0.4858 m
+#     behind the drive axle, centred between the drive wheels (-0.0027 m), on
+#     the floor (the fit's z is height above the floor).
+#   - The scan puts arm_mount 0.1159 m ahead of the drive axle, 0.2844 m left of
+#     the drive wheels' centreline, and 0.5020 m above the ground.
+# So x 0.4858 + 0.1159, y 0.2844 - 0.0027, z 0.5020. arm_mount is taken level
+# with base_link (no rotation). Replace it with odom3d's fit, or a measurement,
+# on gen_1_5.
+mounts:
+  ros__parameters:
+    transforms: [odom, arm_mount]
+    odom:
+      parent: world
+      child: odom
+      xyz: [0.0, 0.0, 0.0]
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+    arm_mount:
+      parent: base_link
+      child: arm_mount
+      xyz: [0.6017, 0.2817, 0.5020]
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0]

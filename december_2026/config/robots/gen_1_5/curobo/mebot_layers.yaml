@@ -1,0 +1,132 @@
+# gen_1_5's chair: the input of RAMMP-CuRobo's scripts/generate_layers.py.
+# keep_out.robot_config names gen_1_5's own robot.yaml, next to this file.
+#
+# Regenerate the layer_mebot_*.yaml next to this file, from a RAMMP-CuRobo
+# checkout (the generator is deterministic; never hand-edit the layers):
+#
+#   make layers DATA=<this file> OUTDIR=<this directory>
+#
+# The chair is a 3D scan of the Gen1.5 (wheelchair-clean-mm.stl, 2026-11-17),
+# boxed by RAMMP-CuRobo's scripts/scan_to_boxes.py into the seat below. There
+# is no URDF: no `source`, no platform layer, and the floor's top is the
+# scan's lowest point. The scan has no cushion, footrests or occupant; the
+# person below is the 2026-11-05 tape measurement.
+#
+# Metres, in arm_mount (x forward, y left, z up), the root of the arm's own
+# URDF, which the planner plans in. arm_mount -> arm_base_link
+# (arm_base_joint) is a rotation only; arm_mount stays square to the chair,
+# and `arm_base_joint` tilts the arm on it.
+
+mount:
+  # The arm's tilt on arm_mount: arm_base_link's rotation in it, as
+  # ../mount.yaml states it (the new_adapter_plate_v3, 30 degrees forward).
+  # It places the arm's fixed spheres, which the person and the seat are
+  # carved around; the boxes themselves stay square to the chair.
+  arm_base_joint: {rpy_deg: [0, 30, 0]}
+
+# Everything after one outward snap is integer ticks of this grid.
+grid_m: 0.0001
+# The layers are sized for this much planner padding per side; it must equal
+# the chair config's world_padding.
+padding_assumed_m: 0.02
+# How far a padded box stays from the arm's fixed spheres: the person is
+# carved back by this much.
+keep_out_margin_m: 0.005
+
+# The arm's joint-independent collision spheres: arm_base_link's, and
+# arm_shoulder_link's, which sit on the arm_joint_1 axis. A padded box touching
+# them makes every state a collision. This keep-out places them for a level
+# mount (arm_base_joint the identity); the planner's FK-based guard checks
+# every layer box against the column of the live mount, tilted or not.
+keep_out:
+  # The robot file the spheres and collision_sphere_buffer are read from: a
+  # name resolves next to THIS file, `example:<name>` is the image's example.
+  robot_config: robot.yaml
+  # arm_joint_1's origin, which places arm_shoulder_link in arm_base_link
+  # (cuRobo v0.7.8, kinova_gen3_7dof.urdf:55; the same in the arm's URDF).
+  # The key keeps its pre-#38 name.
+  shoulder_link_origin: {xyz: [0, 0, 0.15643], rpy: [3.1416, 0, 0]}
+  # The gate: a layer whose padded boxes come closer than this is not written.
+  min_clearance_m: 0.004
+
+# The occupant, MEASURED on flatbot (2026-11-05) from the arm's base, and
+# carried over unchanged: the cardboard side profile, clearance
+# included, so no margin is added. Metres in arm_mount (x forward, y left,
+# z up) from the arm's base; the inches are beside each box. The arm moved 8 in
+# forward on 2026-11-07, so this box is the measurement less
+# 8 in in x. Its front, top to bottom: A (-8, 43) head top,
+# K (-8, 12.5) chest/head front to the thigh top, J (5, 12.5) thigh top,
+# I (17, 3) knee cut, H (17, -20.5) shins to the ground. 19 in wide in y, its
+# near side 2.5 in from the side of the arm's base (radius 1.81 in). Its back
+# is the backrest's face (unmeasured: the arm does not plan behind it).
+#
+# The legs are cut to our user's (2026-11-18): they reach 7 in beyond the
+# cushion's front, not to the cardboard's knee cut and shins. The cushion is
+# not measured yet, so its front is taken as the scanned seat pan's,
+# x 0.0825 (3.25 in): the legs end at 0.2603 (10.25 in). Below the lap they are
+# one box, from the thigh's underside to the ground.
+person:
+  frame: arm_mount
+  boxes:
+    torso: [[-0.434848, -0.592074, 0.3175], [-0.2032, -0.109474, 1.0922]]  # in: [[-17.12, -23.31, 12.5], [-8, -4.31, 43]]
+    lap: [[-0.434848, -0.592074, 0.237236], [0.2286, -0.109474, 0.3175]]  # in: [[-17.12, -23.31, 9.34], [9, -4.31, 12.5]]
+    legs: [[-0.434848, -0.592074, -0.5207], [0.2603, -0.109474, 0.237236]]  # in: [[-17.12, -23.31, -20.5], [10.25, -4.31, 9.34]]
+
+# The chair, from its 3D scan, in metres in arm_mount, as the person.
+#
+# arm_mount's origin in the scan (mm; the scan's +x is the chair's left, -y
+# its forward, z up from the ground): the arm's base column, fitted as a
+# cylinder (r 50.7 mm, tilted 34.2 deg forward), at 44.5 mm above the mount
+# block's lowest face (new_adapter_plate_v3: the arm's origin is 44.5 mm above
+# the plate's lowest face). The scan's block has no 30 degree face to fit.
+# The arm, parked in the scan, is cut out: the four --cut points are on its
+# links and the gripper's fingertips.
+#
+# Two volumes the arm never enters are each one box (--solid, 2026-11-18):
+# under_seat, everything below the seat pan's top from the rear casters to the
+# pan's front, and the backrest, from the pan up, behind the person's back.
+# The rest of the scan (armrests, joystick, front casters) is boxed.
+#
+# TODO: the cushion and the footrests, from their measured dimensions.
+seat:
+  # The seat is carved further from the arm's fixed spheres than the person
+  # (keep_out_margin_m): it surrounds the arm's base, and closer than the
+  # planner's collision_activation_distance (0.03) those spheres carry a
+  # collision cost no joint can lower, under which cuRobo's trajectory
+  # optimisation finds only paths slower than its largest dt (DT_EXCEPTION),
+  # on nearly every plan.
+  keep_out_margin_m: 0.035
+  # Carved by a cube around each fixed sphere, not one box around them all:
+  # with the arm tilted 30 degrees that box covers the armrest's whole height
+  # over the arm.
+  carve: spheres
+  frame: arm_mount
+  # GENERATED by scripts/scan_to_boxes.py from wheelchair-clean-mm.stl (sha256 ffc09b0999f9346ef14cf382914011f804ce37a2df6a5bd0eecc7c059930cbae):
+  #   --origin 284.43 -115.85 501.95 --cut 287.8 -205.5 635 --cut 282 -399 777 --cut 329 -449 755 --cut 237 -449 755 --solid under_seat=-0.9629,-0.6060,-0.5020,0.0824,0.0371,0.0581 --solid backrest=-0.5663,-0.5415,0.0581,-0.4348,-0.0274,0.4827 --pitch 10 --boxes 12
+  # 436290 surface points checked inside; outside the solids 12 boxes hold 34836 cells of 10 mm, 28.3 % over
+  boxes:
+    under_seat: [[-0.9700, -0.6100, -0.5100], [0.0900, 0.0400, 0.0600]]
+    backrest: [[-0.5700, -0.5500, 0.0500], [-0.4300, -0.0200, 0.4900]]
+    scan_01: [[-0.4300, -0.5600, 0.0600], [0.0900, 0.0000, 0.1500]]
+    scan_02: [[-0.4300, -0.6100, 0.2200], [0.1800, -0.5100, 0.2900]]
+    scan_03: [[0.0900, -0.5300, -0.5100], [0.2700, -0.4200, -0.3500]]
+    scan_04: [[0.0900, -0.1500, -0.5100], [0.2700, -0.0400, -0.3500]]
+    scan_05: [[-0.4300, -0.0500, 0.2300], [-0.0700, 0.0400, 0.3200]]
+    scan_06: [[-0.0900, -0.6400, 0.2600], [0.0600, -0.5200, 0.3800]]
+    scan_07: [[0.1200, -0.6400, 0.2900], [0.2100, -0.5200, 0.4100]]
+    scan_08: [[0.0900, -0.3300, -0.4300], [0.2100, -0.2400, -0.3500]]
+    scan_09: [[0.1700, -0.4500, -0.4500], [0.2200, -0.0400, -0.4100]]
+    scan_10: [[-0.4000, -0.5900, 0.1500], [-0.3500, -0.5100, 0.2300]]
+    scan_11: [[-0.4000, -0.0500, 0.1500], [-0.3500, 0.0200, 0.2300]]
+    scan_12: [[0.1300, -0.5200, -0.3900], [0.1400, -0.0500, -0.3700]]
+
+# The chair's cell stand-in: a slab whose top is the seat's lowest point.
+floor:
+  half_extent_m: 1.5
+  thickness_m: 0.1
+
+# --outdir writes these by file name next to this file.
+outputs:
+  person: core/tests/data/mebot/layer_mebot_person.yaml
+  seat: core/tests/data/mebot/layer_mebot_seat.yaml
+  floor: core/tests/data/mebot/layer_mebot_floor.yaml

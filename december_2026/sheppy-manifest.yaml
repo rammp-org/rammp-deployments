@@ -409,6 +409,28 @@ nodes:
       # No mock: nothing in the graph consumes it, so an unselected node costs
       # a workstation profile nothing.
 
+  - name: unreal_ui
+    description: The Unreal touchscreen UI (RammpUI) on the robot's own screen
+    select: single
+    alternatives:
+      # The packaged LinuxArm64 build unzipped in the robot user's home; a new
+      # build means a new directory, and changing it here. Same launch as
+      # rammp-kitchen-capability-engines' scripts/kitchen-ui/unreal.sh:
+      # - LD_LIBRARY_PATH: the Vulkan loader built by hand on snorlax; the
+      #   system one is too old ("Unable to initialize Vulkan").
+      # - DISPLAY :0 always: an ssh session's DISPLAY is the laptop's, where
+      #   Unreal finds no video device and exits.
+      # Web Remote Control on HTTP 30010 and WebSocket 30020 (the build's
+      # RammpUI-Arm64.sh turns it on); rammp_ui_bridge connects out to it, so
+      # start this before the bridge. The bridge is not in this manifest yet.
+      # Stop the kitchen-ui tmux session first: two copies fight over the ports.
+      - id: rammp_ui_main_ea47ca1
+        kind: process
+        command: "cd $HOME/RammpUI-main-ea47ca1-LinuxArm64 && LD_LIBRARY_PATH=$HOME/Vulkan-Loader/build/loader DISPLAY=:0 XAUTHORITY=${XAUTHORITY:-/run/user/$(id -u)/gdm/Xauthority} exec ./RammpUI-Arm64.sh"
+        publishes: []
+        subscribes: []
+      # No mock: not a ROS node, nothing in the graph consumes it.
+
   - name: arm
     description: Kinova Gen3 7-DoF on a 2F-85 gripper
     select: single

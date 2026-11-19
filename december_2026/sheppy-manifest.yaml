@@ -456,6 +456,8 @@ nodes:
           # CYCLONEDDS_URI adds the robot's interface (see the top of this file).
           volumes:
             - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            # The robot's arm_presets.yaml, below. Run scripts/set_robot.py first.
+            - ./config/robots/current:/config/robot:ro
           environment:
             CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
@@ -479,6 +481,16 @@ nodes:
             # it too. Without --cpu the node sets no affinity at all.
             - --cpu
             - "11"
+            # go_to_preset's poses are the robot's, not a profile's: each robot's
+            # config/robots/<robot>/arm_presets.yaml (presets.home), loaded here
+            # ahead of the params file sheppy appends. Not declared under params,
+            # so no profile can override them. Any node then reaches home with
+            #   ros2 action send_goal /go_to_preset \
+            #     rammp_arm_interfaces/action/GoToPreset "{preset_name: home}"
+            # which the driver plans collision-free, as go_to_joint_config.
+            - --ros-args
+            - --params-file
+            - /config/robot/arm_presets.yaml
         params:
           arbitration_mode: disabled
           estop_clear_max_age_s: 1.0
@@ -520,6 +532,7 @@ nodes:
           volumes:
             - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
             - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+            - ./config/robots/current:/config/robot:ro
           environment:
             CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
             ROS_DOMAIN_ID: "0"
@@ -529,6 +542,10 @@ nodes:
             - 192.168.1.10
             - --cpu
             - "11"
+            # The robot's go_to_preset poses; see kinova_gen3_driver.
+            - --ros-args
+            - --params-file
+            - /config/robot/arm_presets.yaml
         params:
           arbitration_mode: disabled
           estop_clear_max_age_s: 1.0

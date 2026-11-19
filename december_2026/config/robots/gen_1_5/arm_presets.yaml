@@ -1,0 +1,11 @@
+# gen_1_5's named arm poses for the driver's go_to_preset, in ROS params format.
+# The arm nodes in the manifest load it from /config/robot/arm_presets.yaml (this
+# directory, through `current`). 7 joint angles in rad, arm_joint_1..7. Write every
+# angle with its decimal point (0.0, not 0): ROS refuses a list that mixes integers
+# and reals, and the driver does not start.
+/**:
+  ros__parameters:
+    # Read off the arm in the Web App on 2026-11-18 ([15.709, 264.868, 200.948,
+    # 223.095, 320.016, 327.955, 132.377] deg), in rad within +-pi. Not yet
+    # checked against gen_1_5's chair, seat and occupant layers.
+    presets.home: [0.2742, -1.6604, -2.7760, -2.3894, -0.6979, -0.5593, 2.3104]

@@ -1237,16 +1237,33 @@ nodes:
       # the same services.
       - id: ui_bridge
         kind: docker
-        ros_node_name: ui_bridge_node
+        # No ros_node_name: the params file is keyed /**, so both nodes below read it (each takes
+        # only the params it declares).
         container:
           # `:main` moves on every merge to main; prefer_latest pulls it at every start.
           image: ghcr.io/rammp-org/rammp-ui-bridge:main
           pull_policy: prefer_latest
           network_mode: host
           ipc: host
-          # The node's installed executable; sheppy appends `--ros-args --params-file`. Not
-          # `ros2 launch` (the image's CMD): it rejects those arguments.
-          command: ["/module_ws/install/rammp_ui_bridge/lib/rammp_ui_bridge/ui_bridge_node"]
+          # Two nodes from the image: ui_bridge_node and rammp_ui_bridge_streaming's camera_stream_node
+          # (C++), which streams the scene camera and engine overlay to UE. sheppy appends
+          # `--ros-args --params-file`, which reaches both as "$@". Not `ros2 launch` (the image's CMD):
+          # it rejects those arguments. Stopping the container (SIGINT) stops both; if either exits,
+          # the other is stopped and the container exits with the first one's status.
+          command:
+            - bash
+            - -c
+            - |
+              install=/module_ws/install
+              "$install/rammp_ui_bridge/lib/rammp_ui_bridge/ui_bridge_node" "$@" &
+              "$install/rammp_ui_bridge_streaming/lib/rammp_ui_bridge_streaming/camera_stream_node" "$@" &
+              trap 'kill -TERM $(jobs -p) 2>/dev/null; wait; exit 0' INT TERM
+              wait -n
+              status=$?
+              kill -TERM $(jobs -p) 2>/dev/null
+              wait
+              exit $status
+            - bash
           volumes:
             - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
           environment:
@@ -1281,9 +1298,12 @@ nodes:
           # and differs only by that standard rotation (tf2_echo on snorlax, 2026-11-19).
           scene_camera_tf_frame: "scene_camera"
           engine_overlay_topic: "/engine_overlay/image_raw"
-          # true: this node streams the camera to UE. No rammp_ui_bridge_streaming (C++) node is
-          # deployed here; set false only alongside one.
-          use_python_camera_streaming: true
+          # false: camera_stream_node (above) streams the camera and overlay to UE, so ui_bridge_node
+          # subscribes to no camera topic. true would send every frame twice.
+          use_python_camera_streaming: false
+          # camera_stream_node only: send made-up depth intrinsics/extrinsics until the real
+          # CameraInfo and TF arrive. flatbot has both, so off.
+          use_fake_depth_metadata_fallback: false
         publishes:
           - /ui_bridge_node/ui_control/status
           - /ui_bridge_node/ue_connection
@@ -1338,9 +1358,10 @@ nodes:
           # serves /acquire_control, the base (MIB) /base/acquire_control.
           arm_driver_node: "/"
           base_driver_node: "base"
-          # No camera_stream_node or static_overlay_node is deployed, so no token is pushed to either.
+          # camera_stream_node runs in the ui_bridge container and checks engine overlay frames against
+          # the run's token, so it gets the token too. No static_overlay_node is deployed.
           camera_stream_node: "camera_stream_node"
-          push_token_to_streaming_node: false
+          push_token_to_streaming_node: true
           static_overlay_node: "static_overlay_node"
           push_token_to_static_overlay: false
         publishes:

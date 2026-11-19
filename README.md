@@ -95,12 +95,20 @@ for its hardware. For flatbot, after a reflash, from a session that isn't over a
 reconfigured (Wi-Fi or Tailscale):
 
 ```bash
+uv run scripts/robot_config.py december_2026/config/robots/flatbot     # every per-robot step below
+sudo december_2026/config/hosts/jetson-agx-orin/tuning.sh install       # arm-link host tuning
+sudo december_2026/config/hosts/jetson-agx-orin/time_server.sh install  # NTP for the MIB
+```
+
+`robot_config.py` runs, in order, each script the robot has a file for, and keeps going past one that
+fails:
+
+```bash
 uv run scripts/network_config.py december_2026/config/robots/flatbot   # the host's NICs
 uv run scripts/arm_config.py     december_2026/config/robots/flatbot   # the arm's wrist Ethernet port
 uv run scripts/oak_d_config.py   december_2026/config/robots/flatbot   # the OAK-Ds' addressing
 uv run scripts/set_robot.py      december_2026/config/robots/flatbot   # makes flatbot this host's robot
-sudo december_2026/config/hosts/jetson-agx-orin/tuning.sh install       # arm-link host tuning
-sudo december_2026/config/hosts/jetson-agx-orin/time_server.sh install  # NTP for the MIB
+uv run scripts/desktop_config.py december_2026/config/robots/flatbot   # terminal env, screen rotation
 ```
 
 `set_robot.py` is required on every host: the arm, `arm_state_publisher`, `static_tf`, the nightly

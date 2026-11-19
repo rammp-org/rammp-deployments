@@ -28,21 +28,24 @@ From a checkout of this repo on the Jetson, over Wi-Fi or Tailscale — not over
 being reconfigured:
 
 ```bash
-uv run scripts/network_config.py december_2026/config/robots/flatbot
-uv run scripts/arm_config.py     december_2026/config/robots/flatbot
-uv run scripts/oak_d_config.py   december_2026/config/robots/flatbot
-uv run scripts/set_robot.py      december_2026/config/robots/flatbot
+uv run scripts/robot_config.py december_2026/config/robots/flatbot
 sudo december_2026/config/hosts/jetson-agx-orin/tuning.sh install
 sudo december_2026/config/hosts/jetson-agx-orin/time_server.sh install
 ```
 
-Each of the first four takes `--dry-run` to show what it would change. All six are safe to
-re-run. `arm_config` needs the arm on; it fetches Python 3.9 and Kinova's Kortex API on its
+`robot_config` runs `network_config`, `arm_config`, `oak_d_config`, `set_robot` and
+`desktop_config` in that order, keeps going past one that fails, and prints a summary;
+each can be run on its own too. It takes `--dry-run` to show what it would change. All
+three are safe to re-run. `arm_config` needs the arm on; it fetches Python 3.9 and Kinova's Kortex API on its
 first run. Whether the arm keeps the wrist port setting across a power cycle is not yet
 known, so re-run it after powering the arm until it is. `tuning.sh` tunes the Jetson for the arm link ([why](../../hosts/jetson-agx-orin/README.md));
 `time_server.sh` serves time to the MIB, which stamps odometry with it
 ([why](../../hosts/jetson-agx-orin/README.md#time-server-for-the-mib)). Each one's `check`
 reports whether it is in effect.
+
+`desktop_config` sets up the `snorlax` desktop account from `desktop.yaml`: the env
+block at the end of `~/.zshrc` (the login shell's rc file; terminals only, apps started
+from desktop icons don't see it) and the screen's portrait rotation, applied now and at each login.
 
 `set_robot` makes flatbot this host's active robot: `config/robots/current` points at
 it, and the arm's nodes read its `mount.yaml` through that link. Run it before starting

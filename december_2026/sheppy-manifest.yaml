@@ -782,6 +782,12 @@ nodes:
         params:
           config: /config/robot/curobo/planner.yaml
           world: ""
+          # A JSONL file to append every plan request to, with the collision
+          # world it was planned in and the result, for RAMMP-CuRobo's
+          # bench/sweep_bench.py to replay (RAMMP-CuRobo#74; "" = off). Only
+          # /root/.cache (the kernel-cache volume) is writable, e.g.
+          # /root/.cache/plan_log.jsonl.
+          plan_log: ""
         publishes: []
         subscribes:
           - /arm/robot_description

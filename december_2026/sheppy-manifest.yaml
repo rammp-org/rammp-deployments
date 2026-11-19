@@ -420,15 +420,11 @@ nodes:
       # initialize Vulkan"). The loader is built by hand from
       # KhronosGroup/Vulkan-Loader 1.4.368. /opt/rammp/ui must belong to the
       # user sheppy runs as: Unreal writes its Saved/ inside the build, and the
-      # launch script chmods the binary. Once per host:
-      #   sudo install -d -o $USER -g $USER /opt/rammp/ui
-      #   mkdir /opt/rammp/ui/vulkan-loader
-      #   cp -P ~/Vulkan-Loader/build/loader/libvulkan.so* /opt/rammp/ui/vulkan-loader/
-      # Each new build is a rammp-ui test-build release (here test-main-25ead58):
-      #   gh release download test-main-25ead58 -R rammp-org/rammp-ui -p '*LinuxArm64.zip' -D /tmp
-      #   unzip -q /tmp/RammpUI-main-25ead58-LinuxArm64.zip -d /opt/rammp/ui
-      #   ln -sfn RammpUI-main-25ead58-LinuxArm64 /opt/rammp/ui/latest
-      # Going back to an older build is pointing latest at it again.
+      # launch script chmods the binary. scripts/install_ui.sh does all of it:
+      # with no argument it installs the newest rammp-ui test build, with a
+      # release tag (test-main-25ead58) that build, which is also how to roll
+      # back. Its first run on a host creates /opt/rammp/ui (sudo) and copies
+      # the loader in. Restart this node afterwards to run the new build.
       # Settings go on the command line, not in the build's Saved/ ini: every
       # build unzips with a fresh Saved/, and Unreal rewrites that ini on exit.
       # t.MaxFPS 24: uncapped, the UI held the Orin's GPU at 97% and ~3 CPU

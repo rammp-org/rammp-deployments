@@ -12,7 +12,8 @@
 # The test builds are draft releases, which GitHub shows only to accounts with
 # write access to rammp-org/rammp-ui: `gh auth login` as one first.
 #
-# The first run on a host also creates /opt/rammp/ui (sudo, once) and copies in
+# The first run on a host also creates /opt/rammp/ui, or makes it the user's if
+# root owns it (sudo, once), and copies in
 # the Vulkan loader the UI needs, hand-built from KhronosGroup/Vulkan-Loader
 # 1.4.368 into ~/Vulkan-Loader/build (the system loader is too old).
 set -euo pipefail
@@ -20,7 +21,9 @@ set -euo pipefail
 repo=rammp-org/rammp-ui
 root=${RAMMP_UI_ROOT:-/opt/rammp/ui}
 
-if [ ! -d "$root" ]; then
+# Also when it exists but is root's (made with a plain `sudo mkdir`):
+# install -d gives an existing directory the owner too.
+if [ ! -w "$root" ]; then
     sudo install -d -o "$(id -un)" -g "$(id -gn)" "$root"
 fi
 if [ ! -e "$root/vulkan-loader/libvulkan.so.1" ]; then

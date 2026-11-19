@@ -28,13 +28,6 @@ selections:
   # Detects and tracks only for clients that ask, through /perception/sam3 services.
   sam3: sam3_docker
 overrides:
-  arm:
-    # gen_1_5's home, where go_to_preset `home` takes the arm: read off the arm
-    # in the Web App on 2026-11-18 ([15.709, 264.868, 200.948, 223.095, 320.016,
-    # 327.955, 132.377] deg), in radians within +-pi. Not yet checked against
-    # this profile's chair, seat and occupant. The manifest's default is the
-    # factory Home, which is for a level mount; see profiles/flatbot.yaml.
-    presets.home: [0.2742, -1.6604, -2.7760, -2.3894, -0.6979, -0.5593, 2.3104]
   planner:
     # gen_1_5's own planner config: the chair from its 3D scan and the occupant
     # in every world, for the arm on the chair's left, tilted 30 degrees as

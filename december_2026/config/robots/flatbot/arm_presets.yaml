@@ -1,0 +1,15 @@
+# flatbot's named arm poses for the driver's go_to_preset, in ROS params format.
+# The arm nodes in the manifest load it from /config/robot/arm_presets.yaml (this
+# directory, through `current`). 7 joint angles in rad, arm_joint_1..7. Write every
+# angle with its decimal point (0.0, not 0): ROS refuses a list that mixes integers
+# and reals, and the driver does not start.
+/**:
+  ros__parameters:
+    # Folded over its base with the hand ahead and up (0.34 m forward of the base,
+    # 0.56 m above it, in arm_mount) and the elbow swung out past the chair's
+    # armrest. It is the pose box opening starts from and returns to, in use since
+    # 2026-11-09, and it is clear of flatbot's chair, seat and occupant. Kinova's
+    # factory Home is for a level mount: on this 30 degree one it stretches the arm
+    # 0.73 m forward, 8 cm above its base. If the arm or the chair's layers move,
+    # check this pose again.
+    presets.home: [0.4425, -1.5718, -2.9033, -2.1048, -0.7412, -0.9194, 2.1631]

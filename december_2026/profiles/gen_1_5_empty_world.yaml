@@ -36,11 +36,6 @@ selections:
   # Detects and tracks only for clients that ask, through /perception/sam3 services.
   sam3: sam3_docker
 overrides:
-  arm:
-    # gen_1_5's home, where go_to_preset `home` takes the arm; see gen_1_5.yaml.
-    # The pose is the same one. Only the path to it differs: this profile's
-    # planner knows no chair, seat or occupant to go around.
-    presets.home: [0.2742, -1.6604, -2.7760, -2.3894, -0.6979, -0.5593, 2.3104]
   planner:
     # gen_1_5's planner config with no collision volumes: the arm alone
     # (config/robots/gen_1_5/curobo/planner_empty_world.yaml). The only line

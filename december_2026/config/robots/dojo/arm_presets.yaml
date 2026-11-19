@@ -1,0 +1,9 @@
+# dojo's named arm poses for the driver's go_to_preset, in ROS params format.
+# The arm nodes in the manifest load it from /config/robot/arm_presets.yaml (this
+# directory, through `current`). 7 joint angles in rad, arm_joint_1..7. Write every
+# angle with its decimal point (0.0, not 0): ROS refuses a list that mixes integers
+# and reals, and the driver does not start.
+/**:
+  ros__parameters:
+    # Kinova's factory Home, the driver's own default: right for dojo's level mount.
+    presets.home: [0.0, 0.262, 3.142, -2.269, 0.0, 0.96, 1.571]

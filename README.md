@@ -152,7 +152,7 @@ sheppy up <profile> --manifest december_2026/sheppy-manifest.yaml
   the planner) are re-pulled on every start and fall back to the cached image when the robot is
   offline.
 - If the pull touched the robot's `config/robots/<robot>/` files, re-run the script that applies them
-  (step 4). Changes under `transforms/`, `curobo/` or `mount.yaml` reach a node only when it restarts
+  (step 4). Changes under `transforms/`, `curobo/`, `mount.yaml` or `arm_presets.yaml` reach a node only when it restarts
   (`sheppy restart <node>`).
 - A robot with local, uncommitted calibration edits: `git stash`, `git pull`, `git stash pop`.
   Don't overwrite its checkout from a workstation with a sync that deletes, since it would take the

@@ -1,0 +1,53 @@
+# gen_1_5 (snorlax), EMPTY WORLD: profiles/gen_1_5.yaml with the planner planning
+# against the arm alone, without the chair, seat or occupant. Use it only when
+# those layers get in the way (a rest pose they refuse), with someone on the
+# e-stop: plans can run through the chair and the person in it.
+#
+# Everything else matches gen_1_5.yaml; keep the two in step. To switch, `sheppy
+# up` the other profile.
+#
+# gen_1_5 (snorlax): the Gen1.5 chair. flatbot's stack (both OAK-D PoE cameras,
+# foxglove, the arm on the nightly channel, the generation that supports the 30°
+# tilted mount) with the chair's own planner config and transforms
+# (config/robots/gen_1_5/).
+#
+#   uv run scripts/set_robot.py december_2026/config/robots/gen_1_5   # once per host
+#   sheppy up gen_1_5_empty_world --manifest december_2026/sheppy-manifest.yaml
+#
+# Attended only: this starts a driver that can move the arm (CONTRIBUTING.md).
+# Perception is RF-DETR on the scene camera with odom3d ids and 3D boxes, and SAM3
+# sessions on demand (the microwave app finds the handle with them). Teleop is left
+# unselected; add one line under `selections` to bring one up.
+description: gen_1_5, EMPTY planner world — Gen1.5 chair, OAK-D cameras, foxglove, arm + planner on the nightly channel, RF-DETR + odom3d + SAM3
+selections:
+  scene_camera: oak_d_pro_w_docker
+  # Through the arm's Vision Puck. On the sensor network instead: oak_d_pro_docker
+  # (config/robots/flatbot/README.md, "Switching the wrist camera": the same cameras).
+  wrist_camera: oak_d_pro_puck_docker
+  foxglove: foxglove_bridge_docker
+  # One generation for all three; see the manifest's `arm` node.
+  arm: kinova_gen3_driver_nightly
+  arm_state_publisher: kinova_gen3_description_nightly
+  planner: curobo_planner_nightly
+  static_tf: static_tf_docker
+  # odom3d tracks rfdetr_tracking's detections; the two run together.
+  scene_segmenter: rfdetr_tracking
+  object_tracker: odom3d
+  # Detects and tracks only for clients that ask, through /perception/sam3 services.
+  sam3: sam3_docker
+overrides:
+  planner:
+    # gen_1_5's planner config with no collision volumes: the arm alone
+    # (config/robots/gen_1_5/curobo/planner_empty_world.yaml). The only line
+    # that differs from gen_1_5.yaml. `world` must be "": a non-empty one
+    # replaces the start-up world the config names.
+    config: /config/robot/curobo/planner_empty_world.yaml
+    world: ""
+  object_tracker:
+    # The OAK's depth topic. The scene OAK pairs depth with color on the device and stamps both
+    # with color's stamp, so a tight slop only rejects frames that weren't paired.
+    depth_topic: /scene_camera/depth/image_rect_raw
+    depth_slop_s: 0.005
+    # camera_extrinsic stays [0.0]: the camera comes from TF (transforms/). On gen_1_5 the scene
+    # camera's mount is calibrated on the chair; world.yaml's base_link -> arm_mount is still a
+    # placeholder, estimated from the chair's scan.

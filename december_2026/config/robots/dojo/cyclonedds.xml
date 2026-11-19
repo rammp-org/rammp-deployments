@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  This robot's Cyclone DDS interface, layered onto the image's fleet config by
+  CYCLONEDDS_URI in sheppy-manifest.yaml (mounted at /etc/cyclonedds/robot.xml).
+  It names none, so Cyclone autodetermines one, as before this file existed.
+  Name one here (see ../flatbot/cyclonedds.xml) if the robot has several NICs
+  and autodetermine picks the wrong one.
+-->
+<CycloneDDS xmlns="https://cdds.io/config" />

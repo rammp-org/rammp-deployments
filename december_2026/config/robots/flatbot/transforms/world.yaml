@@ -1,13 +1,30 @@
-# Roots flatbot's tree in a world frame, in rammp-calibration's mounts.yaml format.
+# Joins flatbot's two trees, in rammp-calibration's mounts.yaml format.
 # Published by the manifest's static_tf node, alongside cameras.yaml.
 #
-# Nothing on flatbot publishes base_link, so arm_mount is the tree's root. Identity
-# for now: world is arm_mount until the chair URDF owns the geometry between them.
+# The MIB publishes odom -> base_link (/tf); everything on the arm hangs off
+# arm_mount. These two links make it one tree: world -> odom -> base_link -> arm_mount.
+# world -> odom is identity (#163). base_link -> arm_mount is solved (#167) from two
+# measurements of the scene camera: base_link -> scene_camera at [0.5, 1.0, 1.5], and
+# its 2026-11-12 arm_mount -> scene_camera calibration (cameras.yaml). arm_mount is taken level
+# with base_link (no rotation), so the offset is [0.5, 1.0, 1.5] minus the calibrated
+# position. Replace it when the chair's geometry is measured, or the chair URDF
+# publishes it.
+# Now replaced by odom3d's fit on the 2026-11-10 bags (rammp-perception rammp-alternative.odom3d.yaml):
+# visual odometry against the MIB's wheel odometry put the scene camera at [0.8257, -0.2643, 0.9228] in
+# base_link (z above the floor), so arm_mount is that minus the calibrated [0.3064, -0.5723, 0.4270].
+# The fit's camera tilt and heading match the 11-12 calibration to ~3 deg, so the mount was the same.
+# The planner's chair model agrees: arm_mount at [0.524, 0.351] in the MEBot frame
+# (curobo/mebot_layers.yaml) and 0.521 m above its floor (curobo/layer_mebot_floor.yaml).
 mounts:
   ros__parameters:
-    transforms: [arm_mount]
-    arm_mount:
+    transforms: [odom, arm_mount]
+    odom:
       parent: world
-      child: arm_mount
+      child: odom
       xyz: [0.0, 0.0, 0.0]
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+    arm_mount:
+      parent: base_link
+      child: arm_mount
+      xyz: [0.5193, 0.3080, 0.4958]
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]

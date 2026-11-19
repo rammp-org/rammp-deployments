@@ -45,9 +45,10 @@ Not set here, on purpose:
 - **`kernel.sched_rt_runtime_us`:** this kernel ships `-1` (RT throttling off), so a stuck FIFO thread can starve
   its CPU. The kernel default `950000` is safer; it hasn't been tested with the arm loop yet.
 - **Separating arm traffic from other traffic on the arm NIC:** lan743x has fixed-off ntuple filters and receive
-  hashing (everything lands in RX queue 0), so the NAPI thread above processes every packet on the arm link. Today
-  that's only Kortex. If camera data ever shares the arm link (e.g. a wrist camera downlinked through the arm), it
-  would land on CPU 11 too: re-measure before keeping this setting.
+  hashing (everything lands in RX queue 0), so the NAPI thread above processes every packet on the arm link. On
+  flatbot that now includes the wrist camera, cabled through the arm's Vision Puck (~70 Mbit/s on `enp3s0`, from
+  2026-11-17), so its packets land on CPU 11 too. The arm timing above was measured before that, with only Kortex
+  on the link: re-measure it with the wrist camera streaming before relying on this setting.
 - **Arm traffic priority on the Jetson:** this kernel has no `prio`/`htb` qdiscs and no DSCP marking. The only lever
   is `SO_PRIORITY` on the Kortex socket, in the driver.
 

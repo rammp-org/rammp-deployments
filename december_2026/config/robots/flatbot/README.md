@@ -11,9 +11,16 @@ GMSL (Jetson AGX Orin 64GB, `snorlax`).
 | `enp3s0`   | Kinova Gen3 base, direct               | static `192.168.1.11/24`, no gateway; arm `.10` |
 | `eno1`     | ESP32-P4 sensor network (PoE for OAKs) | DHCP from `192.168.4.1`                         |
 
-Both OAKs are on the sensor network today. When the wrist camera is cabled through the
-arm's wrist Ethernet, it is on the `enp3s0` link instead, which has no DHCP server; set
-its entry in `oak_d.yaml` to `static` on `192.168.1.x` first.
+The scene camera is on the sensor network. The wrist camera is cabled through the arm by
+the Kinova Vision Puck: it sits on the arm's wrist subnet `10.20.0.0/24` at `10.20.0.50`
+(gateway `10.20.0.1`), which the arm base routes. `network.yaml` routes that subnet via
+the arm on `enp3s0`, and `arm.yaml` turns the arm's wrist Ethernet port on. Both stay in
+place when the wrist camera is on the sensor network instead; see
+[Switching the wrist camera](#switching-the-wrist-camera).
+
+The wrist link is 100 Mbit/s, half duplex as Kinova asked (`arm.yaml`), shared between
+both directions. The wrist camera's tuning measured 63-83 Mbit/s on a 100 Mbit/s link
+(2026-10-27, 2026-11-01). If frames drop through the Puck, lower its depth rate first.
 
 ## After a reflash
 
@@ -22,14 +29,17 @@ being reconfigured:
 
 ```bash
 uv run scripts/network_config.py december_2026/config/robots/flatbot
+uv run scripts/arm_config.py     december_2026/config/robots/flatbot
 uv run scripts/oak_d_config.py   december_2026/config/robots/flatbot
 uv run scripts/set_robot.py      december_2026/config/robots/flatbot
 sudo december_2026/config/hosts/jetson-agx-orin/tuning.sh install
 sudo december_2026/config/hosts/jetson-agx-orin/time_server.sh install
 ```
 
-Each of the first three takes `--dry-run` to show what it would change. All five are safe to
-re-run. `tuning.sh` tunes the Jetson for the arm link ([why](../../hosts/jetson-agx-orin/README.md));
+Each of the first four takes `--dry-run` to show what it would change. All six are safe to
+re-run. `arm_config` needs the arm on; it fetches Python 3.9 and Kinova's Kortex API on its
+first run. Whether the arm keeps the wrist port setting across a power cycle is not yet
+known, so re-run it after powering the arm until it is. `tuning.sh` tunes the Jetson for the arm link ([why](../../hosts/jetson-agx-orin/README.md));
 `time_server.sh` serves time to the MIB, which stamps odometry with it
 ([why](../../hosts/jetson-agx-orin/README.md#time-server-for-the-mib)). Each one's `check`
 reports whether it is in effect.
@@ -37,35 +47,64 @@ reports whether it is in effect.
 `set_robot` makes flatbot this host's active robot: `config/robots/current` points at
 it, and the arm's nodes read its `mount.yaml` through that link. Run it before starting
 sheppy; a start without it leaves an empty `current` directory behind, which
-`set_robot` refuses and tells you how to remove.
+`set_robot` refuses and tells you how to remove. Re-running `set_robot` while the stack is
+up takes effect only after `arm`, `arm_state_publisher` and `planner` are restarted, since
+the bind mount is fixed at container start.
 
-The host's sheppy must be at or after #149 (df89566), which resolves the relative bind-mount
-path against the manifest; older versions pass it to docker unchanged, and docker refuses it
-as a volume name, so `arm_state_publisher` never starts. No sheppy tag has it yet (only
-`dev` does; snorlax had 84fc8e7 on 2026-10-18, which predates it), so install from `dev`:
-
-````bash
-uv tool install --force "sheppy @ git+https://github.com/rammp-org/sheppy@dev"
-``` Re-running
-`set_robot` while the stack is up takes effect only after `arm`, `arm_state_publisher` and
-`planner` are restarted, since the bind mount is fixed at container start.
+The host's sheppy must be `dev` at 0a4c2d2 or later, and the SAM3 image needs a GHCR login:
+see [Setting up a robot](../../../../README.md#setting-up-a-robot) in the top-level README.
 
 `network_config` asks for sudo once. It turns off autoconnect on any other profile bound
 to the same NICs (a leftover one takes the NIC back at boot) but does not delete them.
 
-`oak_d_config` finds each camera by device ID, so the camera must be reachable: on a
-subnet the Jetson has an address on, and not held by a running camera node. A camera
-still on an old static address elsewhere needs a temporary address on that subnet
-first, and the address removed after:
+`oak_d_config` finds each camera by device ID, so the camera must be reachable and not
+held by a running camera node: on a subnet the Jetson has an address on, or at the
+camera's `reach_at` (the wrist camera's is `10.20.0.50`, behind the arm). A camera still
+on an old static address elsewhere needs a temporary address on that subnet first, and
+the address removed after:
 
 ```bash
 sudo ip addr add 192.168.1.250/24 dev eno1   # an address nothing else uses
 uv run scripts/oak_d_config.py december_2026/config/robots/flatbot
 sudo ip addr del 192.168.1.250/24 dev eno1
-````
+```
 
 `192.168.1.x` is also the arm's subnet on `enp3s0`: while the temporary address is up,
 arm traffic can leave on the wrong NIC, so do this with the arm unplugged or idle.
+
+## Switching the wrist camera
+
+Two edits, the camera's flash, and the cable. The camera's address is stored in the
+camera, so it is changed while the camera is still on the link it is leaving; it then
+answers only once the cable is moved. The route (`network.yaml`) and the wrist port
+(`arm.yaml`) stay as they are either way. A step missed shows: the wrist camera node
+exits after 60 s with "OAK driver not ready".
+
+**Sensor network → Vision Puck**
+
+1. In `oak_d.yaml`, make `wrist_camera`'s Puck `ipv4` block live and comment out the
+   DHCP one.
+1. `sheppy down`, so no node holds the camera.
+1. `uv run scripts/oak_d_config.py december_2026/config/robots/flatbot` writes static
+   `10.20.0.50`. It then reports the camera did not come back within 60 s: expected,
+   since that address answers only behind the arm.
+1. Move the wrist camera's cable from the PoE switch to the Vision Puck.
+1. `uv run scripts/network_config.py …` and `uv run scripts/arm_config.py …` (`unchanged`
+   once applied), then `ping 10.20.0.50`. A re-run of `oak_d_config` now reports
+   `unchanged at 10.20.0.50`.
+1. In `profiles/flatbot.yaml` and `profiles/flatbot_empty_world.yaml`, select
+   `wrist_camera: oak_d_pro_puck_docker`, then `sheppy up flatbot …`.
+
+**Vision Puck → sensor network**
+
+1. In `oak_d.yaml`, make the DHCP `ipv4` block live and comment out the Puck one.
+1. `sheppy down`.
+1. `oak_d_config` finds the camera at its `reach_at` (`10.20.0.50`) and writes DHCP. It
+   then reports the camera did not come back: expected, as there is no DHCP server
+   behind the arm.
+1. Move the cable to the PoE switch. The camera takes a lease from the ESP32-P4; a
+   re-run of `oak_d_config` reports `unchanged at 192.168.4.x`.
+1. In both profiles, select `wrist_camera: oak_d_pro_docker`, then `sheppy up`.
 
 ## Bringing it up
 

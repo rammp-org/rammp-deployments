@@ -45,6 +45,7 @@ class Interface:
     method: str  # "static" or "dhcp"
     address: str = ""  # CIDR, static only
     gateway: str = ""  # dotted, static only, may be empty
+    routes: tuple[tuple[str, str], ...] = ()  # (destination CIDR, via), static only
 
 
 def _keys(
@@ -67,16 +68,44 @@ def _string(where: str, value: object) -> str:
     return value
 
 
-def parse_ipv4(where: str, value: object) -> tuple[str, str, str]:
-    """Returns (method, CIDR address or "", gateway or "")."""
-    ipv4 = _keys(where, value, ["method"], ["address", "gateway"])
+def parse_routes(
+    where: str, value: object, network: ipaddress.IPv4Network
+) -> tuple[tuple[str, str], ...]:
+    """Each route is {to: <network CIDR>, via: <address on this interface's subnet>}."""
+    if not isinstance(value, list) or not value:
+        raise ConfigError(f"{where}: expected a non-empty list")
+    routes = []
+    for i, entry in enumerate(value):
+        at = f"{where}[{i}]"
+        route = _keys(at, entry, ["to", "via"])
+        try:
+            to = ipaddress.IPv4Network(_string(f"{at}.to", route["to"]))
+        except ValueError as e:
+            raise ConfigError(f"{at}.to: {e}") from e
+        try:
+            via = ipaddress.IPv4Address(_string(f"{at}.via", route["via"]))
+        except ValueError as e:
+            raise ConfigError(f"{at}.via: {e}") from e
+        # NetworkManager accepts an unreachable next hop and the route never works.
+        if via not in network:
+            raise ConfigError(f"{at}.via: {via} is outside {network}")
+        routes.append((str(to), str(via)))
+    return tuple(routes)
+
+
+def parse_ipv4(
+    where: str, value: object
+) -> tuple[str, str, str, tuple[tuple[str, str], ...]]:
+    """Returns (method, CIDR address or "", gateway or "", routes)."""
+    ipv4 = _keys(where, value, ["method"], ["address", "gateway", "routes"])
     method = ipv4["method"]
     if method == "dhcp":
+        # Routes need a known subnet to check the next hop against.
         _keys(where, ipv4, ["method"])
-        return "dhcp", "", ""
+        return "dhcp", "", "", ()
     if method != "static":
         raise ConfigError(f"{where}.method: expected static or dhcp, got {method!r}")
-    _keys(where, ipv4, ["method", "address"], ["gateway"])
+    _keys(where, ipv4, ["method", "address"], ["gateway", "routes"])
     text = _string(f"{where}.address", ipv4["address"])
     if "/" not in text:
         raise ConfigError(f"{where}.address: {text!r} needs a prefix, e.g. {text}/24")
@@ -93,7 +122,10 @@ def parse_ipv4(where: str, value: object) -> tuple[str, str, str]:
         if gw not in address.network:
             raise ConfigError(f"{where}.gateway: {gw} is outside {address.network}")
         gateway = str(gw)
-    return "static", str(address), gateway
+    routes = ()
+    if "routes" in ipv4:
+        routes = parse_routes(f"{where}.routes", ipv4["routes"], address.network)
+    return "static", str(address), gateway, routes
 
 
 def parse(data: object, where: str) -> list[Interface]:
@@ -104,7 +136,7 @@ def parse(data: object, where: str) -> list[Interface]:
     for i, entry in enumerate(entries):
         at = f"{where}.interfaces[{i}]"
         _keys(at, entry, ["profile", "device", "ipv4"])
-        method, address, gateway = parse_ipv4(f"{at}.ipv4", entry["ipv4"])
+        method, address, gateway, routes = parse_ipv4(f"{at}.ipv4", entry["ipv4"])
         interfaces.append(
             Interface(
                 profile=_string(f"{at}.profile", entry["profile"]),
@@ -112,6 +144,7 @@ def parse(data: object, where: str) -> list[Interface]:
                 method=method,
                 address=address,
                 gateway=gateway,
+                routes=routes,
             )
         )
     for field in ("profile", "device"):
@@ -199,7 +232,29 @@ def settings(iface: Interface) -> dict[str, str]:
         "ipv4.method": "manual" if iface.method == "static" else "auto",
         "ipv4.addresses": iface.address,
         "ipv4.gateway": iface.gateway,
+        "ipv4.routes": ", ".join(f"{to} {via}" for to, via in iface.routes),
     }
+
+
+def _normalize_routes(text: str) -> set[tuple[str, str]]:
+    """nmcli may read a route back with a metric ("10.20.0.0/24 192.168.1.10 0");
+    compare destination and next hop only."""
+    found = set()
+    for item in text.split(","):
+        fields = item.split()
+        if len(fields) >= 2:
+            found.add((fields[0], fields[1]))
+    return found
+
+
+def _matches(current: dict[str, str], want: dict[str, str]) -> bool:
+    for key, value in want.items():
+        if key == "ipv4.routes":
+            if _normalize_routes(current.get(key, "")) != _normalize_routes(value):
+                return False
+        elif current.get(key) != value:
+            return False
+    return True
 
 
 def plan(
@@ -237,7 +292,7 @@ def plan(
             raise ConfigError(
                 f"{iface.profile}: existing profile is {mine[0].type}, not ethernet"
             )
-        if _get(list(want), "con", "show", mine[0].uuid) != want:
+        if not _matches(_get(list(want), "con", "show", mine[0].uuid), want):
             commands.append(["nmcli", "con", "mod", mine[0].uuid, *pairs])
     mac = _sys(iface.device, "address").lower()
     for p in existing:

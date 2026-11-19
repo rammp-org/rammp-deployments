@@ -1216,6 +1216,131 @@ nodes:
         publishes:
           - /perception/object_detections_3d
 
+  - name: ui_bridge
+    description: UI bridge -- links ROS to the Unreal UI app (panels, taps, scene camera stream, arm and chair pose)
+    select: single
+    alternatives:
+      # Transcribed from rammp-UI-bridge's rammp-alternative.yaml at main 53fe45e. Diverges from the
+      # fragment: the fleet DDS config and robot interface file (as every docker node here), the :main
+      # tag (CI tags each branch by name; the fragment's :dev is never pushed), and the params below,
+      # set for flatbot rather than copied.
+      #
+      # The Unreal app (RammpUI) runs on the same machine; the bridge connects out to it on
+      # ue_ws_port (Remote Control WebSocket) and ue_stream_port (camera stream). Run ONE bridge: stop
+      # any `ros2 run rammp_ui_bridge ui_bridge_node` first, or two nodes named ui_bridge_node serve
+      # the same services.
+      - id: ui_bridge
+        kind: docker
+        ros_node_name: ui_bridge_node
+        container:
+          # `:main` moves on every merge to main; prefer_latest pulls it at every start.
+          image: ghcr.io/rammp-org/rammp-ui-bridge:main
+          pull_policy: prefer_latest
+          network_mode: host
+          ipc: host
+          # The node's installed executable; sheppy appends `--ros-args --params-file`. Not
+          # `ros2 launch` (the image's CMD): it rejects those arguments.
+          command: ["/module_ws/install/rammp_ui_bridge/lib/rammp_ui_bridge/ui_bridge_node"]
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+        params:
+          ue_host: "127.0.0.1"
+          ue_ws_port: 30020
+          ue_stream_port: 30030
+          # The Remote Control preset the shipped RammpUI exposes (docs/NODE_INTERFACE.md). The
+          # fragment's "RAMMP" is the launch file's stale default; no preset by that name exists.
+          ue_preset: "RCP_RammsBridge"
+          ue_log_level: "INFO"
+          # Legacy tap path for older UI builds; taps arrive through PollUIEvents at the rate below.
+          ue_user_input_property_label: "LastUIEventJSON"
+          ue_ui_event_poll_rate_hz: 15.0
+          connection_publish_period: 1.0
+          ue_stream_reconnect_period: 3.0
+          arm_joint_states_topic: "/joint_states"
+          arm_joint_states_forward_rate_hz: 2.0
+          # Nothing publishes it yet (the base has /base/odom and /base/control_status); the bridge
+          # leaves the chair's joints at zero until something does.
+          base_joint_states_topic: "/base/joint_states"
+          # The scene OAK's topics (scene_camera: oak_d_pro_w_docker). For the Gemini the depth topic
+          # is /scene_camera/depth/image_raw.
+          scene_camera_color_topic: "/scene_camera/color/image_raw"
+          scene_camera_depth_topic: "/scene_camera/depth/image_rect_raw"
+          scene_camera_depth_camera_info_topic: "/scene_camera/depth/camera_info"
+          tf_base_frame: "base_link"
+          scene_camera_tf_frame: "scene_camera"
+          engine_overlay_topic: "/engine_overlay/image_raw"
+          # true: this node streams the camera to UE. No rammp_ui_bridge_streaming (C++) node is
+          # deployed here; set false only alongside one.
+          use_python_camera_streaming: true
+        publishes:
+          - /ui_bridge_node/ui_control/status
+          - /ui_bridge_node/ue_connection
+        subscribes:
+          - /scene_camera/color/image_raw
+          - /scene_camera/depth/image_rect_raw
+          - /scene_camera/depth/camera_info
+          - /engine_overlay/image_raw
+          - /joint_states
+          - /base/joint_states
+          - /tf
+          - /tf_static
+
+  - name: orchestrator
+    description: Task orchestrator -- registers the capability engines, hands out arm/base/UI control, runs actions
+    select: single
+    alternatives:
+      # Transcribed from rammp-orchestrator's rammp-alternative.yaml at dev 6150d3a. Diverges from the
+      # fragment: the fleet DDS config and robot interface file (as every docker node here), and the
+      # params below, pointed at flatbot's real drivers instead of the mocks.
+      #
+      # It moves nothing itself, but on start and after every action it publishes /reset (the planner
+      # clears its world) and a DISABLE on /base/drive_command (the chair drops to IDLE, push assist
+      # off). Run ONE orchestrator: stop any `ros2 run rammp_orchestrator orchestrator_node` first.
+      - id: orchestrator
+        kind: docker
+        ros_node_name: rammp_orchestrator
+        container:
+          # `:dev` moves on every merge to dev; prefer_latest pulls it at every start.
+          image: ghcr.io/rammp-org/rammp-orchestrator:dev
+          pull_policy: prefer_latest
+          network_mode: host
+          ipc: host
+          # The node's installed executable; sheppy appends `--ros-args --params-file`. Not
+          # `ros2 run` (the image's CMD): as PID 1 it swallows the stop signal.
+          command: ["/module_ws/install/rammp_orchestrator/lib/rammp_orchestrator/orchestrator_node"]
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+        params:
+          # false: engines register over ROS; true registers the built-in mock engines in-process.
+          in_process_mocks: false
+          # The resource names engines may list in required_resources; every engine here uses
+          # these three.
+          known_resources: ["arm", "gripper", "base"]
+          # The scene segmenter's (or object_tracker's) detections: the objects the UI offers.
+          object_detections_topic: "/perception/object_detections"
+          ui_bridge_node: "ui_bridge_node"
+          # Where each driver's acquire_control lives: "/" is the root namespace. The Kinova driver
+          # serves /acquire_control, the base (MIB) /base/acquire_control.
+          arm_driver_node: "/"
+          base_driver_node: "base"
+          # No camera_stream_node or static_overlay_node is deployed, so no token is pushed to either.
+          camera_stream_node: "camera_stream_node"
+          push_token_to_streaming_node: false
+          static_overlay_node: "static_overlay_node"
+          push_token_to_static_overlay: false
+        publishes:
+          - /rammp_orchestrator/progress
+          - /reset
+          - /base/drive_command
+        subscribes:
+          - /perception/object_detections
+
   - name: feeding
     description: Robot-assisted feeding -- a capability engine the orchestrator drives, one bite per action
     select: single

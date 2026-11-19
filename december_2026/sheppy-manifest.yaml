@@ -409,6 +409,72 @@ nodes:
       # No mock: nothing in the graph consumes it, so an unselected node costs
       # a workstation profile nothing.
 
+  - name: recorder
+    description: Perception rosbag — both cameras raw, every perception output, TF and odom -> /home/snorlax/bags/perception
+    select: single
+    alternatives:
+      # Passive: it only subscribes, so it runs beside any stack. In no profile on purpose: it writes
+      # ~40 MB/s (2.4 GB a minute; measured on snorlax 2026-11-19 with both OAKs at 640x400 @ 15 fps),
+      # so the 80 GB free on snorlax is about half an hour. Start it in the TUI (select perception_bag,
+      # `space`), stop it with `x`. Each start is a new bag folder, perception_<UTC time>, split into
+      # 4 GB files.
+      #
+      # Once per host: mkdir -p /home/snorlax/bags/perception (docker would otherwise create it as root).
+      #
+      # foxglove's image because it is rammp-base with nothing on top: ros2 bag and every rammp_*
+      # interface package, so the recorder can subscribe to the perception messages. Storage is sqlite3
+      # (rammp-base has no mcap plugin), and Humble's sqlite3 bags carry no message definitions: read
+      # them with the rammp interfaces of the same build (rosbags, or a rammp-base container), not by
+      # opening the .db3 in Foxglove, which decodes only the standard types.
+      #
+      # Topics a stack does not publish are still listed (the recorder picks them up if they appear):
+      # object_detections_3d is boxer's, depth/image_raw the Gemini's. /base/odom came in at ~1 Hz
+      # beside the full stack, not ~19: the MIB matches at most 10 DDS participants, so record a
+      # smaller stack when odometry matters.
+      - id: perception_bag
+        kind: docker
+        container:
+          image: ghcr.io/rammp-org/rammp-tools/foxglove:0.3.1
+          network_mode: host
+          ipc: host
+          user: "1000:1000"
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - /home/snorlax/bags/perception:/bags
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/config.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+            HOME: /tmp
+          # SIGINT is what makes ros2 bag flush and write metadata.yaml.
+          stop_signal: SIGINT
+          command:
+            - bash
+            - -c
+            - >-
+              exec ros2 bag record -o /bags/perception_$(date -u +%Y%m%d_%H%M%S) --max-bag-size 4000000000
+              /perception/object_detections /perception/object_detections_raw /perception/object_detections_3d
+              /perception/odom3d/markers /perception/sam3/object_detections /perception/sam3/status
+              /perception/scene_segmenter/overlay/compressed
+              /scene_camera/color/image_raw /scene_camera/color/camera_info
+              /scene_camera/depth/image_rect_raw /scene_camera/depth/image_raw /scene_camera/depth/camera_info
+              /wrist_camera/color/image_raw /wrist_camera/color/camera_info
+              /wrist_camera/depth/image_rect_raw /wrist_camera/depth/camera_info
+              /tf /tf_static /joint_states /base/odom
+        publishes: []
+        subscribes:
+          - /perception/object_detections
+          - /perception/object_detections_raw
+          - /perception/object_detections_3d
+          - /perception/sam3/object_detections
+          - /scene_camera/color/image_raw
+          - /scene_camera/depth/image_rect_raw
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/depth/image_rect_raw
+          - /tf
+          - /tf_static
+          - /base/odom
+      # No mock: nothing consumes a bag.
+
   - name: arm
     description: Kinova Gen3 7-DoF on a 2F-85 gripper
     select: single

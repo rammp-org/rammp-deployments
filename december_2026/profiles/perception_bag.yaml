@@ -1,16 +1,16 @@
-# flatbot (snorlax), perception data collection: both OAK-Ds, the arm's TF for the wrist camera,
-# RF-DETR + odom3d, and the recorder (bags to /home/snorlax/bags/perception; see the manifest's
-# `recorder` node).
+# snorlax (flatbot or gen_1_5, whichever set_robot.py made current), perception data collection: both OAK-Ds,
+# the arm's TF for the wrist camera, RF-DETR + odom3d, and the recorder (bags to /home/snorlax/bags/perception;
+# see the manifest's `recorder` node).
 #
 #   sheppy up perception_bag --manifest december_2026/sheppy-manifest.yaml
 #
 # Small on purpose: the MIB serves /base/odom (and odom -> base_link) to only a few DDS participants.
-# Beside the full flatbot stack a late subscriber gets none (2026-11-19), so no planner, engines,
+# Beside the full stack a late subscriber gets none (2026-11-19), so no planner, engines,
 # SAM3 or foxglove here. Add a node only after checking /base/odom still lands in the bag.
 #
 # The arm driver is here only for /joint_states (the wrist camera's pose); attended all the same
 # (CONTRIBUTING.md). Each `sheppy up` of this profile starts a new bag.
-description: flatbot perception bag — both OAK-Ds, arm TF, RF-DETR + odom3d, recorder; nothing else (MIB odom cap)
+description: snorlax perception bag — both OAK-Ds, arm TF, RF-DETR + odom3d, recorder; nothing else (MIB odom cap)
 selections:
   scene_camera: oak_d_pro_w_docker
   wrist_camera: oak_d_pro_puck_docker
@@ -21,7 +21,7 @@ selections:
   object_tracker: odom3d
   recorder: perception_bag
 overrides:
-  # As profiles/flatbot.yaml.
+  # As profiles/flatbot.yaml and gen_1_5.yaml.
   object_tracker:
     depth_topic: /scene_camera/depth/image_rect_raw
     depth_slop_s: 0.005

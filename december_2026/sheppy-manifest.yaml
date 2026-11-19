@@ -413,20 +413,27 @@ nodes:
     description: The Unreal touchscreen UI (RammpUI) on the robot's own screen
     select: single
     alternatives:
-      # The packaged LinuxArm64 build unzipped in the robot user's home; a new
-      # build means a new directory, and changing it here. Same launch as
-      # rammp-kitchen-capability-engines' scripts/kitchen-ui/unreal.sh:
-      # - LD_LIBRARY_PATH: the Vulkan loader built by hand on snorlax; the
-      #   system one is too old ("Unable to initialize Vulkan").
-      # - DISPLAY :0 always: an ssh session's DISPLAY is the laptop's, where
-      #   Unreal finds no video device and exits.
+      # The packaged LinuxArm64 build (a zip), installed under /opt/rammp/ui
+      # with the Vulkan loader it needs; the system one is too old ("Unable
+      # to initialize Vulkan"). The loader is built by hand from
+      # KhronosGroup/Vulkan-Loader 1.4.368. Install once per host, as the
+      # user sheppy runs as (the directory must be theirs: Unreal writes its
+      # Saved/ inside the build, and the launch script chmods the binary):
+      #   sudo install -d -o $USER -g $USER /opt/rammp/ui
+      #   unzip -q RammpUI-main-ea47ca1-LinuxArm64.zip -d /opt/rammp/ui
+      #   mkdir /opt/rammp/ui/vulkan-loader
+      #   cp -P ~/Vulkan-Loader/build/loader/libvulkan.so* /opt/rammp/ui/vulkan-loader/
+      # A new build is a new directory beside it and a new alternative here.
+      # Same launch as rammp-kitchen-capability-engines'
+      # scripts/kitchen-ui/unreal.sh. DISPLAY is always :0: an ssh session's
+      # DISPLAY is the laptop's, where Unreal finds no video device and exits.
       # Web Remote Control on HTTP 30010 and WebSocket 30020 (the build's
       # RammpUI-Arm64.sh turns it on); rammp_ui_bridge connects out to it, so
       # start this before the bridge. The bridge is not in this manifest yet.
       # Stop the kitchen-ui tmux session first: two copies fight over the ports.
       - id: rammp_ui_main_ea47ca1
         kind: process
-        command: "cd $HOME/RammpUI-main-ea47ca1-LinuxArm64 && LD_LIBRARY_PATH=$HOME/Vulkan-Loader/build/loader DISPLAY=:0 XAUTHORITY=${XAUTHORITY:-/run/user/$(id -u)/gdm/Xauthority} exec ./RammpUI-Arm64.sh"
+        command: "cd /opt/rammp/ui/RammpUI-main-ea47ca1-LinuxArm64 && LD_LIBRARY_PATH=/opt/rammp/ui/vulkan-loader DISPLAY=:0 XAUTHORITY=${XAUTHORITY:-/run/user/$(id -u)/gdm/Xauthority} exec ./RammpUI-Arm64.sh"
         publishes: []
         subscribes: []
       # No mock: not a ROS node, nothing in the graph consumes it.

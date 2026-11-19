@@ -1,0 +1,11 @@
+# flatbot's Jetson desktop (the snorlax account it logs into): terminal env and screen rotation.
+# Applied by: uv run scripts/desktop_config.py december_2026/config/robots/flatbot
+env:
+  # A Vulkan loader built by hand on snorlax (~/Vulkan-Loader, 1.4.368, 2026-11-10), ahead of
+  # the system one. Asked for by Liyun in #flatbot-support, 2026-11-19.
+  - name: LD_LIBRARY_PATH
+    prepend: ~/Vulkan-Loader/build/loader
+display:
+  # The screen is mounted portrait.
+  output: HDMI-0
+  rotate: left

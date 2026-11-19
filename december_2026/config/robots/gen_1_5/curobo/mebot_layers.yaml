@@ -96,12 +96,22 @@ keep_out:
 # not measured yet, so its front is taken as the scanned seat pan's,
 # x 0.0825 (3.25 in): the legs end at 0.2603 (10.25 in). Below the lap they are
 # one box, from the thigh's underside to the ground.
+#
+# Our user's knees are 14 in across (2026-11-19), taken as centred on the
+# profile's 19 in (y -13.81 in), so the thighs in front of the torso (lap) and
+# the legs are 14 in wide, y -20.81 to -6.81 in: their near side 2.5 in further
+# from the arm. Not measured where they sit, and no clearance is added past the
+# planner's world_padding. The torso and the hips (the lap behind the torso's
+# front, x -8 in) keep the profile's 19 in: the knees don't measure them.
+# 11-19: with 19 in the arm's upper arm read 13 mm into the lap from the arm's
+# side at a pose clear of the user.
 person:
   frame: arm_mount
   boxes:
     torso: [[-0.434848, -0.592074, 0.3175], [-0.2032, -0.109474, 1.0922]]  # in: [[-17.12, -23.31, 12.5], [-8, -4.31, 43]]
-    lap: [[-0.434848, -0.592074, 0.237236], [0.2286, -0.109474, 0.3175]]  # in: [[-17.12, -23.31, 9.34], [9, -4.31, 12.5]]
-    legs: [[-0.434848, -0.592074, -0.5207], [0.2603, -0.109474, 0.237236]]  # in: [[-17.12, -23.31, -20.5], [10.25, -4.31, 9.34]]
+    hips: [[-0.434848, -0.592074, 0.237236], [-0.2032, -0.109474, 0.3175]]  # in: [[-17.12, -23.31, 9.34], [-8, -4.31, 12.5]]
+    lap: [[-0.2032, -0.528574, 0.237236], [0.2286, -0.172974, 0.3175]]  # in: [[-8, -20.81, 9.34], [9, -6.81, 12.5]]
+    legs: [[-0.434848, -0.528574, -0.5207], [0.2603, -0.172974, 0.237236]]  # in: [[-17.12, -20.81, -20.5], [10.25, -6.81, 9.34]]
 
 # The chair, from its 3D scan, in metres in arm_mount, as the person.
 #

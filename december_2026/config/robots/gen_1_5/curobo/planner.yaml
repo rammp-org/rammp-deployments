@@ -45,10 +45,11 @@ layers: [layer_mebot_seat.yaml, layer_mebot_person.yaml]
 # 512 IK seeds find the IK solutions nearest the start every call, and the
 # reseed makes one request give one plan: on that repo's chair bench, the same
 # request no longer ends ~4.4 rad apart between calls, the goal is ~18% nearer
-# and the swept volume ~8% smaller, with no plans lost. The seed count is fixed
-# at start-up. graph_fallback (the graph planner after a failed attempt) stays
-# off until it is verified on the Jetson.
+# and the swept volume ~8% smaller, with no plans lost; ~0.12 s more per plan
+# on the Orin. The seed count is fixed at start-up. graph_fallback switches the
+# graph planner on after a failed attempt (for routes the straight seed cannot
+# find); it needs #74's image, whose cuSOLVER fix it was verified with on abra.
 planner:
   num_ik_seeds: 512
   reseed_each_plan: true
-  graph_fallback: false
+  graph_fallback: true

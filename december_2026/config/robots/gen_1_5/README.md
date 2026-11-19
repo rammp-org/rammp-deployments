@@ -19,7 +19,8 @@ copies: a link out of this directory does not resolve inside them.
   (`wheelchair-clean-mm.stl`, 2026-11-17) boxed by this repo's `scripts/scan_to_boxes.py`
   into the seat layer: one box under the seat, one for the backrest, 12 for the rest
   (armrests, joystick, front casters). The occupant is flatbot's tape-measured profile with
-  the legs cut to our user's, 7 in beyond the cushion's front. `mebot_layers.yaml` is the
+  the legs cut to our user's, 7 in beyond the cushion's front, and the thighs and legs
+  narrowed to our user's 14 in knees, taken as centred (the torso and hips stay 19 in). `mebot_layers.yaml` is the
   input; regenerate the layers from a RAMMP-CuRobo checkout:
 
   ```bash

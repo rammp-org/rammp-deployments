@@ -424,20 +424,25 @@ nodes:
       #   sudo install -d -o $USER -g $USER /opt/rammp/ui
       #   mkdir /opt/rammp/ui/vulkan-loader
       #   cp -P ~/Vulkan-Loader/build/loader/libvulkan.so* /opt/rammp/ui/vulkan-loader/
-      # Each new build (here RammpUI-main-ea47ca1-LinuxArm64.zip):
-      #   unzip -q RammpUI-main-ea47ca1-LinuxArm64.zip -d /opt/rammp/ui
-      #   ln -sfn RammpUI-main-ea47ca1-LinuxArm64 /opt/rammp/ui/latest
+      # Each new build is a rammp-ui test-build release (here test-main-25ead58):
+      #   gh release download test-main-25ead58 -R rammp-org/rammp-ui -p '*LinuxArm64.zip' -D /tmp
+      #   unzip -q /tmp/RammpUI-main-25ead58-LinuxArm64.zip -d /opt/rammp/ui
+      #   ln -sfn RammpUI-main-25ead58-LinuxArm64 /opt/rammp/ui/latest
       # Going back to an older build is pointing latest at it again.
+      # Settings go on the command line, not in the build's Saved/ ini: every
+      # build unzips with a fresh Saved/, and Unreal rewrites that ini on exit.
+      # t.MaxFPS 24: uncapped, the UI held the Orin's GPU at 97% and ~3 CPU
+      # cores; at 24 FPS, 15-70% and ~1.3 cores (snorlax, 2026-11-19).
       # Same launch as rammp-kitchen-capability-engines'
       # scripts/kitchen-ui/unreal.sh. DISPLAY is always :0: an ssh session's
       # DISPLAY is the laptop's, where Unreal finds no video device and exits.
       # Web Remote Control on HTTP 30010 and WebSocket 30020 (the build's
-      # RammpUI-Arm64.sh turns it on); rammp_ui_bridge connects out to it, so
-      # start this before the bridge. The bridge is not in this manifest yet.
+      # RammpUI-Arm64.sh turns it on); the ui_bridge node connects out to it
+      # and keeps retrying, so either can start first.
       # Stop the kitchen-ui tmux session first: two copies fight over the ports.
       - id: rammp_ui_latest
         kind: process
-        command: "cd /opt/rammp/ui/latest && LD_LIBRARY_PATH=/opt/rammp/ui/vulkan-loader DISPLAY=:0 XAUTHORITY=${XAUTHORITY:-/run/user/$(id -u)/gdm/Xauthority} exec ./RammpUI-Arm64.sh"
+        command: "cd /opt/rammp/ui/latest && LD_LIBRARY_PATH=/opt/rammp/ui/vulkan-loader DISPLAY=:0 XAUTHORITY=${XAUTHORITY:-/run/user/$(id -u)/gdm/Xauthority} exec ./RammpUI-Arm64.sh '-ExecCmds=t.MaxFPS 24'"
         publishes: []
         subscribes: []
       # No mock: not a ROS node, nothing in the graph consumes it.

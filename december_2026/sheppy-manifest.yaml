@@ -1270,6 +1270,9 @@ nodes:
           scene_camera_depth_topic: "/scene_camera/depth/image_rect_raw"
           scene_camera_depth_camera_info_topic: "/scene_camera/depth/camera_info"
           tf_base_frame: "base_link"
+          # The camera's x-forward, z-up frame, the way UE's own cameras face. Depth is stamped in
+          # scene_camera_color_optical_frame (z-forward), which on the scene OAK has the same origin
+          # and differs only by that standard rotation (tf2_echo on snorlax, 2026-11-19).
           scene_camera_tf_frame: "scene_camera"
           engine_overlay_topic: "/engine_overlay/image_raw"
           # true: this node streams the camera to UE. No rammp_ui_bridge_streaming (C++) node is

@@ -44,8 +44,8 @@ known, so re-run it after powering the arm until it is. `tuning.sh` tunes the Je
 reports whether it is in effect.
 
 `desktop_config` sets up the `snorlax` desktop account from `desktop.yaml`: the env
-block at the end of `~/.bashrc` (terminals only; apps started from desktop icons don't
-see it) and the screen's portrait rotation, applied now and at each login.
+block at the end of `~/.zshrc` (the login shell's rc file; terminals only, apps started
+from desktop icons don't see it) and the screen's portrait rotation, applied now and at each login.
 
 `set_robot` makes flatbot this host's active robot: `config/robots/current` points at
 it, and the arm's nodes read its `mount.yaml` through that link. Run it before starting

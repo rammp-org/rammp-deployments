@@ -80,25 +80,32 @@ def test_apply_writes_and_is_idempotent(tmp_path, monkeypatch):
     monkeypatch.setattr(
         dc.subprocess, "run", lambda cmd, **kw: calls.append(cmd) or _Ok()
     )
-    (tmp_path / ".bashrc").write_text("x\n")
+    (tmp_path / ".zshrc").write_text("x\n")
     desktop = parse(FLATBOT)
-    assert dc.apply(desktop, tmp_path, dry_run=False) == 0
+    assert dc.apply(desktop, tmp_path, shell="/usr/bin/zsh", dry_run=False) == 0
     entry = tmp_path / ".config/autostart" / dc.AUTOSTART_NAME
     assert entry.read_text() == dc.autostart(desktop.display)
-    bashrc = (tmp_path / ".bashrc").read_text()
-    assert dc.apply(desktop, tmp_path, dry_run=False) == 0
-    assert (tmp_path / ".bashrc").read_text() == bashrc
+    rc = (tmp_path / ".zshrc").read_text()
+    assert dc.apply(desktop, tmp_path, shell="/usr/bin/zsh", dry_run=False) == 0
+    assert (tmp_path / ".zshrc").read_text() == rc
     assert calls[0] == ["xrandr", "--output", "HDMI-0", "--rotate", "left"]
 
 
 def test_dry_run_changes_nothing(tmp_path, monkeypatch):
     monkeypatch.setattr(dc.subprocess, "run", lambda *a, **kw: pytest.fail("ran"))
-    (tmp_path / ".bashrc").write_text("x\n")
-    assert dc.apply(parse(FLATBOT), tmp_path, dry_run=True) == 0
-    assert (tmp_path / ".bashrc").read_text() == "x\n"
+    (tmp_path / ".zshrc").write_text("x\n")
+    assert dc.apply(parse(FLATBOT), tmp_path, shell="/usr/bin/zsh", dry_run=True) == 0
+    assert (tmp_path / ".zshrc").read_text() == "x\n"
     assert not (tmp_path / ".config").exists()
 
 
 class _Ok:
     returncode = 0
     stderr = ""
+
+
+def test_rc_file_follows_login_shell(tmp_path):
+    assert dc.rc_file(tmp_path, "/usr/bin/zsh") == tmp_path / ".zshrc"
+    assert dc.rc_file(tmp_path, "/bin/bash") == tmp_path / ".bashrc"
+    with pytest.raises(dc.ConfigError, match="login shell"):
+        dc.rc_file(tmp_path, "/usr/bin/fish")

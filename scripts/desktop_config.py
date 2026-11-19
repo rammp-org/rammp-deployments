@@ -9,9 +9,9 @@
 
 Two settings, both for the account the desktop logs into (run as that user):
 
-- `env`: variables exported from a block this script owns at the end of
-  ~/.bashrc, so terminals get them. Apps started from desktop icons don't
-  read ~/.bashrc and don't see them.
+- `env`: variables exported from a block this script owns at the end of the
+  login shell's rc file (~/.zshrc for zsh, ~/.bashrc for bash), so terminals
+  get them. Apps started from desktop icons don't read it and don't see them.
 - `display`: a screen rotation, through a GNOME autostart entry this script
   owns (~/.config/autostart/rammp-display.desktop), applied now as well. The
   entry waits a few seconds after login: run straight away, GNOME applies its
@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import pwd
 import re
 import shlex
 import subprocess
@@ -40,6 +41,7 @@ END = "# <<< rammp-deployments desktop_config <<<"
 AUTOSTART_NAME = "rammp-display.desktop"
 ROTATIONS = ("normal", "left", "right", "inverted")
 LOGIN_DELAY_S = 5
+RC_FILES = {"zsh": ".zshrc", "bash": ".bashrc"}  # same export syntax in both
 
 
 class ConfigError(Exception):
@@ -161,7 +163,7 @@ def with_block(text: str, block: str) -> str:
     """text with its block replaced by block, or block appended. An empty block removes it."""
     start, end = text.find(BEGIN), text.find(END)
     if (start == -1) != (end == -1) or end < start:
-        raise ConfigError(f"~/.bashrc: has only one of the {BEGIN!r} / {END!r} lines")
+        raise ConfigError(f"rc file has only one of the {BEGIN!r} / {END!r} lines")
     if start != -1:
         stop = end + len(END)
         if text[stop : stop + 1] == "\n":
@@ -201,11 +203,21 @@ def _write(path: Path, text: str, dry_run: bool) -> str:
     return "written"
 
 
-def apply(desktop: Desktop, home: Path, dry_run: bool) -> int:
-    bashrc = home / ".bashrc"
+def rc_file(home: Path, shell: str) -> Path:
+    """The rc file interactive shells of this login shell read."""
+    name = Path(shell).name
+    if name not in RC_FILES:
+        raise ConfigError(
+            f"login shell {shell!r}: expected one of {', '.join(RC_FILES)}"
+        )
+    return home / RC_FILES[name]
+
+
+def apply(desktop: Desktop, home: Path, shell: str, dry_run: bool) -> int:
     entry = home / ".config" / "autostart" / AUTOSTART_NAME
     try:
-        text = bashrc.read_text() if bashrc.exists() else ""
+        rc = rc_file(home, shell)
+        text = rc.read_text() if rc.exists() else ""
         new = with_block(text, env_block(desktop) if desktop.env else "")
     except (OSError, ConfigError) as e:
         print(f"error: {e}", file=sys.stderr)
@@ -213,7 +225,7 @@ def apply(desktop: Desktop, home: Path, dry_run: bool) -> int:
 
     failed = 0
     try:
-        print(f"{bashrc}: {_write(bashrc, new, dry_run)}")
+        print(f"{rc}: {_write(rc, new, dry_run)}")
         if desktop.display:
             print(f"{entry}: {_write(entry, autostart(desktop.display), dry_run)}")
         elif entry.exists():
@@ -268,7 +280,8 @@ def main(argv: list[str] | None = None) -> int:
             f"display {'set' if desktop.display else 'not set'}"
         )
         return 0
-    return apply(desktop, Path.home(), dry_run=args.dry_run)
+    shell = pwd.getpwuid(os.getuid()).pw_shell
+    return apply(desktop, Path.home(), shell, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":

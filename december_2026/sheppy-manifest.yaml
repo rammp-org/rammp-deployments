@@ -409,40 +409,6 @@ nodes:
       # No mock: nothing in the graph consumes it, so an unselected node costs
       # a workstation profile nothing.
 
-  - name: unreal_ui
-    description: The Unreal touchscreen UI (RammpUI) on the robot's own screen
-    select: single
-    alternatives:
-      # The packaged LinuxArm64 build (a zip), unzipped under /opt/rammp/ui and
-      # run through the symlink /opt/rammp/ui/latest, so a new build is a new
-      # directory and a re-pointed symlink, with no change here. Beside it, the
-      # Vulkan loader the UI needs; the system one is too old ("Unable to
-      # initialize Vulkan"). The loader is built by hand from
-      # KhronosGroup/Vulkan-Loader 1.4.368. /opt/rammp/ui must belong to the
-      # user sheppy runs as: Unreal writes its Saved/ inside the build, and the
-      # launch script chmods the binary. scripts/install_ui.sh does all of it:
-      # with no argument it installs the newest rammp-ui test build, with a
-      # release tag (test-main-25ead58) that build, which is also how to roll
-      # back. Its first run on a host creates /opt/rammp/ui (sudo) and copies
-      # the loader in. Restart this node afterwards to run the new build.
-      # Settings go on the command line, not in the build's Saved/ ini: every
-      # build unzips with a fresh Saved/, and Unreal rewrites that ini on exit.
-      # t.MaxFPS 24: uncapped, the UI held the Orin's GPU at 97% and ~3 CPU
-      # cores; at 24 FPS, 15-70% and ~1.3 cores (snorlax, 2026-11-19).
-      # Same launch as rammp-kitchen-capability-engines'
-      # scripts/kitchen-ui/unreal.sh. DISPLAY is always :0: an ssh session's
-      # DISPLAY is the laptop's, where Unreal finds no video device and exits.
-      # Web Remote Control on HTTP 30010 and WebSocket 30020 (the build's
-      # RammpUI-Arm64.sh turns it on); the ui_bridge node connects out to it
-      # and keeps retrying, so either can start first.
-      # Stop the kitchen-ui tmux session first: two copies fight over the ports.
-      - id: rammp_ui_latest
-        kind: process
-        command: "cd /opt/rammp/ui/latest && LD_LIBRARY_PATH=/opt/rammp/ui/vulkan-loader DISPLAY=:0 XAUTHORITY=${XAUTHORITY:-/run/user/$(id -u)/gdm/Xauthority} exec ./RammpUI-Arm64.sh '-ExecCmds=t.MaxFPS 24'"
-        publishes: []
-        subscribes: []
-      # No mock: not a ROS node, nothing in the graph consumes it.
-
   - name: arm
     description: Kinova Gen3 7-DoF on a 2F-85 gripper
     select: single
@@ -1255,6 +1221,40 @@ nodes:
           mock: true
         publishes:
           - /perception/object_detections_3d
+
+  - name: unreal_ui
+    description: The Unreal touchscreen UI (RammpUI) on the robot's own screen
+    select: single
+    alternatives:
+      # The packaged LinuxArm64 build (a zip), unzipped under /opt/rammp/ui and
+      # run through the symlink /opt/rammp/ui/latest, so a new build is a new
+      # directory and a re-pointed symlink, with no change here. Beside it, the
+      # Vulkan loader the UI needs; the system one is too old ("Unable to
+      # initialize Vulkan"). The loader is built by hand from
+      # KhronosGroup/Vulkan-Loader 1.4.368. /opt/rammp/ui must belong to the
+      # user sheppy runs as: Unreal writes its Saved/ inside the build, and the
+      # launch script chmods the binary. scripts/install_ui.sh does all of it:
+      # with no argument it installs the newest rammp-ui test build, with a
+      # release tag (test-main-25ead58) that build, which is also how to roll
+      # back. Its first run on a host creates /opt/rammp/ui (sudo) and copies
+      # the loader in. Restart this node afterwards to run the new build.
+      # Settings go on the command line, not in the build's Saved/ ini: every
+      # build unzips with a fresh Saved/, and Unreal rewrites that ini on exit.
+      # t.MaxFPS 24: uncapped, the UI held the Orin's GPU at 97% and ~3 CPU
+      # cores; at 24 FPS, 15-70% and ~1.3 cores (snorlax, 2026-11-19).
+      # Same launch as rammp-kitchen-capability-engines'
+      # scripts/kitchen-ui/unreal.sh. DISPLAY is always :0: an ssh session's
+      # DISPLAY is the laptop's, where Unreal finds no video device and exits.
+      # Web Remote Control on HTTP 30010 and WebSocket 30020 (the build's
+      # RammpUI-Arm64.sh turns it on); the ui_bridge node connects out to it
+      # and keeps retrying, so either can start first.
+      # Stop the kitchen-ui tmux session first: two copies fight over the ports.
+      - id: rammp_ui_latest
+        kind: process
+        command: "cd /opt/rammp/ui/latest && LD_LIBRARY_PATH=/opt/rammp/ui/vulkan-loader DISPLAY=:0 XAUTHORITY=${XAUTHORITY:-/run/user/$(id -u)/gdm/Xauthority} exec ./RammpUI-Arm64.sh '-ExecCmds=t.MaxFPS 24'"
+        publishes: []
+        subscribes: []
+      # No mock: not a ROS node, nothing in the graph consumes it.
 
   - name: ui_bridge
     description: UI bridge -- links ROS to the Unreal UI app (panels, taps, scene camera stream, arm and chair pose)

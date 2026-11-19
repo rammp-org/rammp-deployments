@@ -2,8 +2,9 @@
 
 The Gen1.5 wheelchair: a Kinova Gen3 with a Robotiq 2F-85 on the 30° adapter plate
 (`mount.yaml`), the sensor puck at the wrist, run from `snorlax` as
-[flatbot](../flatbot/README.md) is. Profiles: `gen_1_5` (the chair in every planner world)
-and `gen_1_5_empty_world` (the arm alone).
+[flatbot](../flatbot/README.md) is. Profiles: `gen_1_5` (the chair in every planner world),
+`gen_1_5_empty_world` (the arm alone) and `gen_1_5_full` (`gen_1_5` plus the touchscreen UI,
+UI bridge and orchestrator).
 
 ## Shared with flatbot
 

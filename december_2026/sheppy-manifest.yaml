@@ -2949,7 +2949,7 @@ nodes:
         kind: docker
         ros_node_name: microwave_place
         container:
-          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/microwave_place:sha-56ab4d108b1c783f90ce8e39cc4034ed72368db6
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/microwave_place:sha-54737355cc43ab4f3039e7d74657de77126d6b96
           pull_policy: prefer_latest
           network_mode: host
           ipc: host

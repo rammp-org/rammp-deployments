@@ -1260,10 +1260,10 @@ nodes:
     description: UI bridge -- links ROS to the Unreal UI app (panels, taps, scene camera stream, arm and chair pose)
     select: single
     alternatives:
-      # Transcribed from rammp-UI-bridge's rammp-alternative.yaml at main 53fe45e. Diverges from the
-      # fragment: the fleet DDS config and robot interface file (as every docker node here), the :main
-      # tag (CI tags each branch by name; the fragment's :dev is never pushed), and the params below,
-      # set for flatbot rather than copied.
+      # Transcribed from rammp-UI-bridge's rammp-alternative.yaml at main 53fe45e (params checked
+      # against main f3028ad). Diverges from the fragment: the fleet DDS config and robot interface
+      # file (as every docker node here), the :main tag (CI tags each branch by name; the fragment's
+      # :dev is never pushed), and the params below, set for flatbot rather than copied.
       #
       # The Unreal app (RammpUI) runs on the same machine; the bridge connects out to it on
       # ue_ws_port (Remote Control WebSocket) and ue_stream_port (camera stream). Run ONE bridge: stop
@@ -1307,9 +1307,10 @@ nodes:
           ue_host: "127.0.0.1"
           ue_ws_port: 30020
           ue_stream_port: 30030
-          # The Remote Control preset the shipped RammpUI exposes (docs/NODE_INTERFACE.md). The
-          # fragment's "RAMMP" is the launch file's stale default; no preset by that name exists.
-          ue_preset: "RCP_RammsBridge"
+          # The Remote Control preset the Jetson RammpUI build exposes (rammp-UI-bridge#14,
+          # docs/NODE_INTERFACE.md). The fragment's "RAMMP" is the launch file's stale default; no
+          # preset by that name exists.
+          ue_preset: "RCPS"
           ue_log_level: "INFO"
           # Legacy tap path for older UI builds; taps arrive through PollUIEvents at the rate below.
           ue_user_input_property_label: "LastUIEventJSON"
@@ -1330,6 +1331,9 @@ nodes:
           # The camera's x-forward, z-up frame, the way UE's own cameras face. Depth is stamped in
           # scene_camera_color_optical_frame (z-forward), which on the scene OAK has the same origin
           # and differs only by that standard rotation (tf2_echo on snorlax, 2026-11-19).
+          # Kept set, not ui_bridge_node's new "" default (rammp-UI-bridge#12): camera_stream_node
+          # reads this same param, sends the depth extrinsics here, and has no optical-frame
+          # correction. ui_bridge_node treats a set value as a body-frame override, so it agrees.
           scene_camera_tf_frame: "scene_camera"
           engine_overlay_topic: "/engine_overlay/image_raw"
           # false: camera_stream_node (above) streams the camera and overlay to UE, so ui_bridge_node

@@ -1,0 +1,42 @@
+# Flatbot, microwave placement through the December touchscreen UI.
+#
+#   uv run scripts/set_robot.py december_2026/config/robots/flatbot   # once per host
+#   scripts/install_ui.sh                                             # once per host, for unreal_ui
+#   sheppy up flatbot_microwave_place_ui --manifest december_2026/sheppy-manifest.yaml
+#
+# Use this profile instead of scripts/kitchen-ui/up.sh for this workflow. It
+# starts exactly one microwave_place server, registered with the orchestrator.
+# Stop any standalone kitchen-ui tmux session before bringing it up.
+# Attended only. Motion remains disabled until an operator enables allow_execute
+# in Sheppy's TUI; keep someone at the e-stop for any enabled run.
+description: flatbot touchscreen UI with microwave door control and revision-pinned microwave placement
+selections:
+  scene_camera: oak_d_pro_w_docker
+  wrist_camera: oak_d_pro_puck_docker
+  foxglove: foxglove_bridge_docker
+  arm: kinova_gen3_driver_nightly
+  arm_state_publisher: kinova_gen3_description_nightly
+  planner: curobo_planner_nightly
+  static_tf: static_tf_docker
+  scene_segmenter: rfdetr_tracking
+  object_tracker: odom3d
+  object_lifter: boxer
+  sam3: sam3_docker
+  microwave: microwave_dev
+  microwave_place: microwave_place_demo
+  unreal_ui: rammp_ui_latest
+  ui_bridge: ui_bridge
+  orchestrator: orchestrator
+overrides:
+  planner:
+    config: /config/robot/curobo/planner.yaml
+    world: ""
+  object_lifter:
+    depth_topic: /scene_camera/depth/image_rect_raw
+    depth_slop_s: 0.005
+    gravity_frame: arm_mount
+  microwave:
+    use_orchestrator: true
+  microwave_place:
+    use_orchestrator: true
+    allow_execute: false

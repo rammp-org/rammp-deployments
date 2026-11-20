@@ -2944,6 +2944,58 @@ nodes:
           - /rosout
           - /arm/robot_description
           - /microwave_place/sam3_overlay
+      # The touchscreen profile uses this immutable image instead of the standalone daily `:dev` alternative above.
+      - id: microwave_place_demo
+        kind: docker
+        ros_node_name: microwave_place
+        container:
+          image: ghcr.io/rammp-org/rammp-kitchen-capability-engines/microwave_place:sha-56ab4d108b1c783f90ce8e39cc4034ed72368db6
+          pull_policy: prefer_latest
+          network_mode: host
+          ipc: host
+          command: ["/module_ws/install/microwave_place/lib/microwave_place/microwave_place_node"]
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+            - /home/snorlax/daily/data/microwave_place:/config/microwave_place
+            - ./config/robots/current:/config/robot:ro
+            - curobo_kernel_cache:/root/.cache
+            - /home/snorlax/daily/data/microwave:/microwave_data:ro
+        params:
+          ui_bridge_node_name: ui_bridge_node
+          record_bag: true
+          bag_frame_hz: 1.0
+          bag_state_hz: 25.0
+          allow_execute: false
+          use_orchestrator: true
+          state_dir: /config/microwave_place
+          collision_geometry_file: /module_ws/install/microwave_place/share/microwave_place/config/snorlax_collision_geometry.yaml
+          door_geometry_file: /microwave_data/door.json
+          collision_state_max_age_s: 0.25
+          worlds_dir: /root/.cache/rammp_planner_worlds
+          above: 0.075
+          take_approach_world: /config/robot/curobo/world.yaml
+          take_home_joints: [-2.9723690063395423, 0.4406113803695808, -0.4320526131268245, -2.4519407240189826, 2.8028915598374065, -0.9451441529603253, -1.413206432450548]
+        publishes: [/microwave_place/status, /microwave_place/sam3_overlay]
+        subscribes:
+          - /tf
+          - /tf_static
+          - /scene_camera/depth/image_rect_raw
+          - /scene_camera/color/camera_info
+          - /perception/object_detections_3d
+          - /wrist_camera/color/image_raw
+          - /wrist_camera/depth/image_rect_raw
+          - /wrist_camera/color/camera_info
+          - /joint_states
+          - /ee_state
+          - /gripper_state
+          - /diagnostics
+          - /rosout
+          - /arm/robot_description
+          - /microwave_place/sam3_overlay
       - id: microwave_place_mock
         kind: docker
         container:

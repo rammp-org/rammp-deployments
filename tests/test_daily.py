@@ -54,6 +54,12 @@ def daily() -> dict:
     return yaml.safe_load((DECEMBER / "profiles" / "daily.yaml").read_text())
 
 
+def microwave_place_ui() -> dict:
+    return yaml.safe_load(
+        (DECEMBER / "profiles" / "flatbot_microwave_place_ui.yaml").read_text()
+    )
+
+
 def data_host(cap: str) -> str:
     # box_opening keeps the folder it already has on snorlax (its reach-zone cache and run
     # history); every other engine's runs land under the daily tree, out of /tmp.
@@ -185,3 +191,44 @@ def test_daily_runs_the_eating_engines_standalone():
     for name, alt_id in EATING.items():
         assert profile["selections"][name] == alt_id
         assert profile["overrides"][name]["use_orchestrator"] is False
+
+
+def test_microwave_place_touchscreen_profile_is_revision_pinned_and_safe():
+    profile = microwave_place_ui()
+    selections = profile["selections"]
+    assert selections["microwave_place"] == "microwave_place_demo"
+    assert {
+        "microwave",
+        "unreal_ui",
+        "ui_bridge",
+        "orchestrator",
+        "scene_camera",
+        "wrist_camera",
+        "planner",
+        "object_lifter",
+        "sam3",
+    } <= selections.keys()
+
+    demo = alt("microwave_place", "microwave_place_demo")
+    image = demo["container"]["image"]
+    assert re.fullmatch(
+        r"ghcr\.io/rammp-org/rammp-kitchen-capability-engines/microwave_place:sha-[0-9a-f]{40}",
+        image,
+    )
+    assert demo["container"]["command"] == [
+        "/module_ws/install/microwave_place/lib/microwave_place/microwave_place_node"
+    ]
+    assert demo["params"]["use_orchestrator"] is True
+    assert demo["params"]["allow_execute"] is False
+    assert demo["params"]["collision_geometry_file"].endswith(
+        "/config/snorlax_collision_geometry.yaml"
+    )
+    assert demo["params"]["door_geometry_file"] == "/microwave_data/door.json"
+    assert demo["params"]["worlds_dir"] == "/root/.cache/rammp_planner_worlds"
+
+    volumes = demo["container"]["volumes"]
+    assert "/home/snorlax/daily/data/microwave:/microwave_data:ro" in volumes
+    assert "./config/robots/current:/config/robot:ro" in volumes
+    assert "curobo_kernel_cache:/root/.cache" in volumes
+    microwave_volumes = alt("microwave", "microwave_dev")["container"]["volumes"]
+    assert "/home/snorlax/daily/data/microwave:/microwave_data" in microwave_volumes

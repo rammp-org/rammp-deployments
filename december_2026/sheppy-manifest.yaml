@@ -1707,15 +1707,18 @@ nodes:
           # Measured on the fridge being opened (m); see Before a run in docs/interface.md.
           # The STL's bar middle; set from the 11-06 measurements once the camera's handle point is measured (TESTING.md).
           handle_centre_to_face_m: 0.070
-          pin_behind_face_m: 0.04675
-          hinge_along_door_m: 0.3683
-          door_width_m: 0.4572
+          # ARCTIC CHEF mini-fridge: hinge from the 11-19 swing arc fit (rammp-kitchen-capability-engines fridge
+          # constants.py), 0.049 m into the door from the camera's handle point, 0.374 m along it. The old fridge's
+          # values here put the hinge 6.8 cm off and stopped the swing with PATH_TOLERANCE_VIOLATED.
+          pin_behind_face_m: -0.021
+          hinge_along_door_m: 0.374
+          door_width_m: 0.44958
           door_depth_m: 0.10668
           door_above_handle_m: 0.381
           door_below_handle_m: 0.3937
           # NOT MEASURED: the STL's straight bar between its mounts. Measure it.
           handle_length_m: 0.2032
-          body_depth_m: 0.5
+          body_depth_m: 0.35052
           # The wheelchair: on the 30-deg mount it is the cuRobo planner's own collision layers, in every
           # world; the level mount (no layers) gets this stand-in box behind the arm base (m) in the fridge's
           # world. And which way moving the chair back moves the fridge in the arm's frame (x, y).
@@ -1880,18 +1883,21 @@ nodes:
           sam3_service: /perception/sam3/detect
           sam3_prompts: [handle]
           sam3_threshold: 0.3
+          # ARCTIC CHEF mini-fridge: hinge from the 11-19 swing arc fit (rammp-kitchen-capability-engines fridge
+          # constants.py), 0.049 m into the door from the camera's handle point, 0.374 m along it. The old fridge's
+          # values here put the hinge 6.8 cm off and stopped the swing with PATH_TOLERANCE_VIOLATED.
           # Measured on the fridge being opened (m); see Before a run in docs/interface.md.
           # The STL's bar middle; set from the 11-06 measurements once the camera's handle point is measured (TESTING.md).
           handle_centre_to_face_m: 0.070
-          pin_behind_face_m: 0.04675
-          hinge_along_door_m: 0.3683
-          door_width_m: 0.4572
+          pin_behind_face_m: -0.021
+          hinge_along_door_m: 0.374
+          door_width_m: 0.44958
           door_depth_m: 0.10668
           door_above_handle_m: 0.381
           door_below_handle_m: 0.3937
           # NOT MEASURED: the STL's straight bar between its mounts. Measure it.
           handle_length_m: 0.2032
-          body_depth_m: 0.5
+          body_depth_m: 0.35052
           # The wheelchair: on the 30-deg mount it is the cuRobo planner's own collision layers, in every
           # world; the level mount (no layers) gets this stand-in box behind the arm base (m) in the fridge's
           # world. And which way moving the chair back moves the fridge in the arm's frame (x, y).

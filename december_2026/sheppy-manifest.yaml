@@ -580,6 +580,66 @@ nodes:
         publishes:
           - /joint_states
 
+  - name: arm_panel
+    description: Arm test panel — web page and WebSocket on :8090 for jogging and checking the arm
+    select: single
+    alternatives:
+      # kinova-gen3-ros2's kinova_gen3_panel, in the same image as the arm
+      # driver and started separately. It talks only to the arm node, over ROS,
+      # and serves the page and one WebSocket on one port (8090), reached at
+      # http://<machine>:8090 from any machine on the network (Tailscale too);
+      # there is no auth yet. It takes control of the arm (/acquire_control) on
+      # the first command it sends, and the page has its own e-stop button
+      # (source name arm_panel). Attended only, like the arm.
+      #
+      # NO PROFILE SELECTS THIS NODE. A tool you start by hand next to a
+      # running stack: `sheppy up <profile>` first, then `sheppy`, highlight
+      # arm_panel, Enter, Enter on kinova_gen3_panel_nightly, `space`. Do not
+      # run `sheppy up` again while you use it: `up` stops every node the
+      # profile does not select, this one included. (sheppy has no flag to
+      # start a single node headless.)
+      #
+      # THE IMAGE NEEDS THE PANEL. `:nightly` carries kinova_gen3_panel only
+      # once it has merged to kinova-gen3-ros2 and a nightly was built; before
+      # that the container exits at start for want of the package.
+      #
+      # Needs no RT privileges, ulimits, devices or robot config: host
+      # networking for DDS and the port, and the same Cyclone config as the arm
+      # nightly (the fleet copy, until the image config has no interface of its
+      # own; see the top of this file). No mock: nothing consumes it.
+      - id: kinova_gen3_panel_nightly
+        kind: docker
+        ros_node_name: arm_panel
+        container:
+          image: ghcr.io/rammp-org/kinova-gen3-ros2:nightly
+          # See kinova_gen3_driver_nightly.
+          pull_policy: prefer_latest
+          network_mode: host
+          ipc: host
+          volumes:
+            - ./config/robots/current/cyclonedds.xml:/etc/cyclonedds/robot.xml:ro
+            - ./config/dds/cyclonedds-fleet.xml:/etc/cyclonedds/fleet.xml:ro
+          environment:
+            CYCLONEDDS_URI: file:///etc/cyclonedds/fleet.xml,file:///etc/cyclonedds/robot.xml
+            ROS_DOMAIN_ID: "0"
+          # The port is a launch argument (and a ROS param of the node), set
+          # here rather than under `params:`: sheppy would append
+          # `--ros-args --params-file` to a `ros2 launch` command, which
+          # Humble rejects. `host` stays at its 0.0.0.0 default.
+          command: [ros2, launch, kinova_gen3_panel, panel.launch.py, "port:=8090"]
+        publishes:
+          - /estop
+          - /setpoint/joint_velocity
+          - /setpoint/twist
+          - /setpoint/gripper
+        subscribes:
+          - /joint_states
+          - /ee_state
+          - /control_status
+          - /gripper_state
+          - /diagnostics
+          - /arm/robot_description
+
   - name: arm_state_publisher
     description: TF for the arm — robot_state_publisher on the arm's own model
     select: single

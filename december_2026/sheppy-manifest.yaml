@@ -633,12 +633,18 @@ nodes:
           - /setpoint/twist
           - /setpoint/gripper
         subscribes:
+          # /joint_states, /ee_state, /gripper_state and /diagnostics only
+          # while a page is open.
           - /joint_states
           - /ee_state
           - /control_status
+          - /stream_status
           - /gripper_state
           - /diagnostics
           - /arm/robot_description
+          - /estop
+          # Optional: cuRobo's collision overlay, drawn when published.
+          - /rammp_curobo/collision_model
 
   - name: arm_state_publisher
     description: TF for the arm — robot_state_publisher on the arm's own model
